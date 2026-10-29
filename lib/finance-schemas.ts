@@ -62,7 +62,7 @@ export const shoppingItemSchema = z.object({
 
 export const shoppingItemPatchSchema = shoppingItemSchema.omit({ id: true }).partial();
 
-export const debtSourceSchema = z.enum(['scr', 'serasa']);
+export const debtSourceSchema = z.enum(['scr', 'serasa', 'manual']);
 
 export const debtSchema = z
   .object({

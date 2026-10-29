@@ -48,8 +48,12 @@ export type ShoppingItem = {
   isPurchased: boolean;
 };
 
-// 'scr' = Relatório de Empréstimos e Financiamentos do Registrato (Banco Central); 'serasa' = negativações.
-export type DebtSource = 'scr' | 'serasa';
+// 'scr' = Relatório de Empréstimos e Financiamentos do Registrato (Banco Central); 'serasa' = negativações;
+// 'manual' = cadastrada pelo usuário (empréstimos pessoais, acertos com pessoas).
+export type DebtSource = 'scr' | 'serasa' | 'manual';
+
+/** Origens que chegam por relatório importado (cada importação substitui a anterior da mesma origem). */
+export type ReportDebtSource = Exclude<DebtSource, 'manual'>;
 
 export type Debt = {
   id: string;
@@ -98,7 +102,7 @@ export type DebtEntry = Omit<Debt, 'id' | 'source'>;
 
 export type DebtReportPreview = {
   kind: 'debts';
-  source: DebtSource;
+  source: ReportDebtSource;
   entries: DebtEntry[];
   warnings: string[];
 };

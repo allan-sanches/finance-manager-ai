@@ -21,6 +21,7 @@ export const CATEGORIES: ReadonlyArray<string> = [
   'Salário',
   'Investimentos',
   'Assinaturas',
+  'Dívidas',
   'Outros',
 ];
 
@@ -40,6 +41,7 @@ export const TRANSACTION_TYPE_LABEL: Record<TransactionType, string> = {
 export const DEBT_SOURCE_LABEL: Record<DebtSource, string> = {
   scr: 'Registrato (SCR)',
   serasa: 'Serasa',
+  manual: 'Cadastro manual',
 };
 
 export type DebtSummary = { current: number; overdue: number; total: number };
