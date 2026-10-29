@@ -1,3 +1,5 @@
+import type { Tone } from '@/lib/tones';
+
 export type TransactionType = 'income' | 'expense';
 
 export type PaymentMethod =
@@ -48,6 +50,14 @@ export type ShoppingItem = {
   isPurchased: boolean;
 };
 
+/** Categoria criada pelo usuário; as padrão (Alimentação, Moradia…) ficam em lib/finance.ts. */
+export type Category = {
+  id: string;
+  name: string;
+  emoji: string;
+  tone: Tone;
+};
+
 // 'scr' = Relatório de Empréstimos e Financiamentos do Registrato (Banco Central); 'serasa' = negativações;
 // 'manual' = cadastrada pelo usuário (empréstimos pessoais, acertos com pessoas).
 export type DebtSource = 'scr' | 'serasa' | 'manual';
@@ -75,6 +85,7 @@ export type FinanceSnapshot = {
   savingsGoals: SavingsGoal[];
   shoppingItems: ShoppingItem[];
   debts: Debt[];
+  categories: Category[];
 };
 
 // ---------- Importação de arquivos ----------

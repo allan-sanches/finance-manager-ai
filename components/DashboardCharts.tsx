@@ -15,7 +15,8 @@ import {
 import { SectionTitle } from '@/components/ui';
 import { BRL, cashflowLastMonths, expensesByCategory } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
-import { categoryStyle, TONE_HEX } from '@/lib/tones';
+import { TONE_HEX } from '@/lib/tones';
+import { useCategories } from '@/lib/useCategories';
 import { useHydrated } from '@/lib/useHydratedStore';
 
 // Tokens do tema via CSS var: os gráficos acompanham o claro/escuro sem JS.
@@ -29,6 +30,7 @@ const tooltipStyle = {
 export function DashboardCharts() {
   const hydrated = useHydrated();
   const transactions = useFinanceStore((s) => s.transactions);
+  const { styleOf } = useCategories();
 
   const cashflow = cashflowLastMonths(hydrated ? transactions : [], 6);
   const categories = hydrated ? expensesByCategory(transactions) : [];
@@ -80,7 +82,7 @@ export function DashboardCharts() {
                     stroke="none"
                   >
                     {categories.map((c) => (
-                      <Cell key={c.name} fill={TONE_HEX[categoryStyle(c.name).tone]} />
+                      <Cell key={c.name} fill={TONE_HEX[styleOf(c.name).tone]} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => BRL.format(Number(value))} contentStyle={tooltipStyle} />
@@ -90,7 +92,7 @@ export function DashboardCharts() {
             <ul className="w-full space-y-1.5 text-sm">
               {categories.slice(0, 6).map((c) => (
                 <li key={c.name} className="flex items-center justify-between gap-2">
-                  <Legend color={TONE_HEX[categoryStyle(c.name).tone]} label={c.name} />
+                  <Legend color={TONE_HEX[styleOf(c.name).tone]} label={c.name} />
                   <span className="font-bold tabular-nums">{BRL.format(c.value)}</span>
                 </li>
               ))}

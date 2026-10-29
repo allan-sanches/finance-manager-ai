@@ -5,6 +5,9 @@ vi.mock('@/lib/ai', () => ({
   extractTransactionFromText: extractMock,
   resolveAiProvider: (saved?: string) => (saved === 'deepseek' ? 'deepseek' : 'gemini'),
 }));
+vi.mock('@/lib/categories-server', () => ({
+  userCategoryNames: async () => ['Alimentação', 'Pet', 'Outros'],
+}));
 
 const post = (body: unknown, ip = '10.0.0.1', cookie?: string) =>
   new Request('http://localhost/api/chat', {
@@ -41,7 +44,11 @@ describe('POST /api/chat', () => {
     const { POST } = await import('./route');
     const res = await POST(post({ message: ' oi ', creditCards: [{ id: 'c1', name: 'Nubank' }] }));
     expect(res.status).toBe(200);
-    expect(extractMock).toHaveBeenCalledWith('gemini', 'oi', [{ id: 'c1', name: 'Nubank' }]);
+    expect(extractMock).toHaveBeenCalledWith('gemini', 'oi', [{ id: 'c1', name: 'Nubank' }], [
+      'Alimentação',
+      'Pet',
+      'Outros',
+    ]);
   });
 
   it('usa o provedor salvo no cookie de configurações', async () => {
@@ -49,7 +56,7 @@ describe('POST /api/chat', () => {
     const { POST } = await import('./route');
     const res = await POST(post({ message: 'oi' }, '10.0.0.2', 'fm_session=x; fm_ai_provider=deepseek'));
     expect(res.status).toBe(200);
-    expect(extractMock).toHaveBeenCalledWith('deepseek', 'oi', []);
+    expect(extractMock).toHaveBeenCalledWith('deepseek', 'oi', [], ['Alimentação', 'Pet', 'Outros']);
   });
 
   it.each([

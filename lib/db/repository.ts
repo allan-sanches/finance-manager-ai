@@ -2,8 +2,11 @@ import { asc, desc, eq, sql } from 'drizzle-orm';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 
 import * as schema from '@/lib/db/schema';
+import { mergeCategoryNames } from '@/lib/finance';
 import type { SnapshotInput } from '@/lib/finance-schemas';
+import { normalizeCategoryName } from '@/lib/tones';
 import type {
+  Category,
   CreditCard,
   Debt,
   DebtSource,
@@ -17,15 +20,16 @@ import type {
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 type Executor = Pick<Db, 'select' | 'insert' | 'update' | 'delete'>;
 
-const { creditCards, debts, savingsGoals, shoppingItems, transactions } = schema;
+const { categories, creditCards, debts, savingsGoals, shoppingItems, transactions } = schema;
 
 export async function getSnapshot(db: Db): Promise<FinanceSnapshot> {
-  const [txRows, cardRows, goalRows, itemRows, debtRows] = await Promise.all([
+  const [txRows, cardRows, goalRows, itemRows, debtRows, categoryRows] = await Promise.all([
     db.select().from(transactions).orderBy(desc(transactions.createdAt), desc(transactions.id)),
     db.select().from(creditCards).orderBy(asc(creditCards.createdAt), asc(creditCards.id)),
     db.select().from(savingsGoals).orderBy(asc(savingsGoals.createdAt), asc(savingsGoals.id)),
     db.select().from(shoppingItems).orderBy(desc(shoppingItems.createdAt), desc(shoppingItems.id)),
     db.select().from(debts).orderBy(asc(debts.createdAt), asc(debts.id)),
+    db.select().from(categories).orderBy(asc(categories.createdAt), asc(categories.id)),
   ]);
 
   return {
@@ -41,6 +45,7 @@ export async function getSnapshot(db: Db): Promise<FinanceSnapshot> {
       }),
     ),
     debts: debtRows.map(({ createdAt: _, ...d }): Debt => d),
+    categories: categoryRows.map(({ createdAt: _, ...c }): Category => c),
   };
 }
 
@@ -236,6 +241,26 @@ export async function removeShoppingItem(db: Db, id: string): Promise<void> {
   await db.delete(shoppingItems).where(eq(shoppingItems.id, id));
 }
 
+// ---------- Categorias do usuário ----------
+
+/** Nome repetido (mesmo nome, diferença só de maiúsculas/acentos) é ignorado: a categoria já existe. */
+export async function addCategory(db: Db, input: Category): Promise<void> {
+  const key = normalizeCategoryName(input.name);
+  const existing = await db.select({ name: categories.name }).from(categories);
+  if (existing.some((c) => normalizeCategoryName(c.name) === key)) return;
+  await db.insert(categories).values(input).onConflictDoNothing();
+}
+
+/** Nomes para os prompts da IA: padrão + as do usuário. */
+export async function listCategoryNames(db: Db): Promise<string[]> {
+  return mergeCategoryNames(await db.select({ name: categories.name }).from(categories));
+}
+
+/** Os lançamentos guardam o nome da categoria, então continuam intactos. */
+export async function removeCategory(db: Db, id: string): Promise<void> {
+  await db.delete(categories).where(eq(categories.id, id));
+}
+
 // ---------- Dívidas (Registrato/SCR e Serasa) ----------
 
 /** Um relatório novo é a foto atual: apaga as dívidas daquela origem e grava as do relatório. */
@@ -308,6 +333,12 @@ export async function importSnapshot(db: Db, data: SnapshotInput): Promise<void>
       data.debts.map((d, i) => ({ ...d, createdAt: oldestFirst(i, data.debts.length) })),
     )) {
       await tx.insert(debts).values(rows).onConflictDoNothing();
+    }
+
+    for (const rows of chunk(
+      data.categories.map((c, i) => ({ ...c, createdAt: oldestFirst(i, data.categories.length) })),
+    )) {
+      await tx.insert(categories).values(rows).onConflictDoNothing();
     }
   });
 }

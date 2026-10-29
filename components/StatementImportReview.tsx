@@ -3,9 +3,10 @@
 import { useMemo, useState } from 'react';
 
 import { ImportActionBar } from '@/components/ImportActionBar';
-import { BRL, CATEGORIES, PAYMENT_METHOD_LABEL } from '@/lib/finance';
+import { BRL, PAYMENT_METHOD_LABEL } from '@/lib/finance';
 import { findDuplicateEntries } from '@/lib/import/dedupe';
 import { useFinanceStore } from '@/lib/store';
+import { useCategories } from '@/lib/useCategories';
 import type { StatementEntry, StatementPreview, TransactionDraft } from '@/types/finance';
 
 const FORMAT_LABEL: Record<StatementPreview['format'], string> = {
@@ -34,6 +35,7 @@ export function StatementImportReview({
 }) {
   const creditCards = useFinanceStore((s) => s.creditCards);
   const importTransactions = useFinanceStore((s) => s.importTransactions);
+  const { names: categoryNames } = useCategories();
   // Foto das transações na abertura: depois de importar, as linhas novas não viram "duplicadas" de si mesmas.
   const [existing] = useState(() => useFinanceStore.getState().transactions);
 
@@ -208,7 +210,7 @@ export function StatementImportReview({
                   value={r.category}
                   onChange={(e) => patchRow(i, { category: e.target.value })}
                 >
-                  {CATEGORIES.map((c) => (
+                  {categoryNames.map((c) => (
                     <option key={c}>{c}</option>
                   ))}
                 </select>

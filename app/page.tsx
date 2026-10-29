@@ -5,7 +5,8 @@ import Link from 'next/link';
 
 import { DashboardCharts } from '@/components/DashboardCharts';
 import { DebtsOverview } from '@/components/DebtsOverview';
-import { CategoryAvatar, SectionTitle, Tile } from '@/components/ui';
+import { CategoryAvatar } from '@/components/CategoryAvatar';
+import { SectionTitle, Tile } from '@/components/ui';
 import {
   APP_TIME_ZONE,
   BRL,

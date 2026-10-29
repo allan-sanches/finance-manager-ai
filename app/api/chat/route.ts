@@ -6,6 +6,7 @@ import {
   type ExtractionErrorCode,
 } from '@/lib/ai';
 import { AI_PROVIDER_COOKIE } from '@/lib/ai-provider';
+import { userCategoryNames } from '@/lib/categories-server';
 import { chatRequestSchema } from '@/lib/chat-schemas';
 import { clientKeyFromRequest, createRateLimiter } from '@/lib/rate-limit';
 
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
     provider,
     parsed.data.message,
     parsed.data.creditCards,
+    await userCategoryNames(),
   );
   if (!result.ok) {
     return NextResponse.json(

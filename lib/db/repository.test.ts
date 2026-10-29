@@ -246,3 +246,20 @@ describe('dívidas', () => {
     expect((await repo.getSnapshot(db)).debts).toEqual([]);
   });
 });
+
+describe('categorias', () => {
+  it('cria, ignora nome repetido (maiúsculas/acentos) e apaga sem mexer nos lançamentos', async () => {
+    await repo.addCategory(db, { id: 'k1', name: 'Pet', emoji: '🐾', tone: 'amber' });
+    await repo.addCategory(db, { id: 'k2', name: 'pét', emoji: '🐶', tone: 'red' });
+    await repo.addTransaction(db, tx({ category: 'Pet', paymentMethod: 'pix', creditCardId: null }));
+
+    let snap = await repo.getSnapshot(db);
+    expect(snap.categories).toEqual([{ id: 'k1', name: 'Pet', emoji: '🐾', tone: 'amber' }]);
+    expect(await repo.listCategoryNames(db)).toContain('Pet');
+
+    await repo.removeCategory(db, 'k1');
+    snap = await repo.getSnapshot(db);
+    expect(snap.categories).toEqual([]);
+    expect(snap.transactions[0].category).toBe('Pet');
+  });
+});

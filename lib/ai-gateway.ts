@@ -138,10 +138,11 @@ export function generateJsonWithGateway(request: StructuredJsonRequest): Promise
 export async function extractWithGateway(
   message: string,
   creditCards: ReadonlyArray<CreditCardRef> = [],
+  categories?: ReadonlyArray<string>,
 ): Promise<ExtractTransactionResult> {
   const result = await complete(
     {
-      systemInstruction: buildSystemInstruction(creditCards),
+      systemInstruction: buildSystemInstruction(creditCards, categories),
       content: message,
       geminiSchema: buildExtractionSchema(creditCards),
       jsonExample: null,

@@ -107,6 +107,7 @@ export async function generateJsonWithDeepseek(
 export async function extractWithDeepseek(
   message: string,
   creditCards: ReadonlyArray<CreditCardRef> = [],
+  categories?: ReadonlyArray<string>,
 ): Promise<ExtractTransactionResult> {
   if (!apiKey) {
     return { ok: false, code: 'not_configured', error: NOT_CONFIGURED_ERROR };
@@ -125,7 +126,7 @@ export async function extractWithDeepseek(
         messages: [
           {
             role: 'system',
-            content: `${buildSystemInstruction(creditCards)} ${buildJsonFormatInstruction()}`,
+            content: `${buildSystemInstruction(creditCards, categories)} ${buildJsonFormatInstruction()}`,
           },
           { role: 'user', content: message },
         ],

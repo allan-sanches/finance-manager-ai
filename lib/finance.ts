@@ -1,3 +1,4 @@
+import { normalizeCategoryName } from '@/lib/tones';
 import type {
   Debt,
   DebtSource,
@@ -24,6 +25,19 @@ export const CATEGORIES: ReadonlyArray<string> = [
   'Dívidas',
   'Outros',
 ];
+
+const OTHERS = 'Outros';
+
+/** Categorias padrão + as do usuário, com "Outros" sempre por último. */
+export function mergeCategoryNames(custom: ReadonlyArray<{ name: string }>): string[] {
+  const builtIn = CATEGORIES.filter((c) => c !== OTHERS);
+  const taken = new Set(builtIn.map(normalizeCategoryName));
+  const own = custom
+    .map((c) => c.name)
+    .filter((name) => !taken.has(normalizeCategoryName(name)))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return [...builtIn, ...own, OTHERS];
+}
 
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   cash: 'Dinheiro',

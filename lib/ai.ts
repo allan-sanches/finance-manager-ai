@@ -47,6 +47,7 @@ const PROVIDERS: Record<
     extract: (
       message: string,
       creditCards: ReadonlyArray<CreditCardRef>,
+      categories?: ReadonlyArray<string>,
     ) => Promise<ExtractTransactionResult>;
     generateJson: (request: StructuredJsonRequest) => Promise<StructuredJsonResult>;
   }
@@ -94,8 +95,9 @@ export function extractTransactionFromText(
   provider: AiProvider,
   message: string,
   creditCards: ReadonlyArray<CreditCardRef> = [],
+  categories?: ReadonlyArray<string>,
 ): Promise<ExtractTransactionResult> {
-  return PROVIDERS[provider].extract(message, creditCards);
+  return PROVIDERS[provider].extract(message, creditCards, categories);
 }
 
 export function generateStructuredJson(

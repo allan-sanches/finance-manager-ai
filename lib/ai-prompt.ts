@@ -3,7 +3,7 @@ import 'server-only';
 import type { Schema } from '@google/genai';
 
 import type { CreditCardRef } from '@/lib/chat-schemas';
-import { todayISO } from '@/lib/finance';
+import { CATEGORIES, todayISO } from '@/lib/finance';
 import type { ChatExtraction } from '@/types/finance';
 
 // Prompt e contrato de resultado compartilhados por todos os provedores de IA.
@@ -51,7 +51,10 @@ const buildCardsInstruction = (creditCards: ReadonlyArray<CreditCardRef>): strin
   ].join(' ');
 };
 
-export const buildSystemInstruction = (creditCards: ReadonlyArray<CreditCardRef>): string =>
+export const buildSystemInstruction = (
+  creditCards: ReadonlyArray<CreditCardRef>,
+  categories: ReadonlyArray<string> = CATEGORIES,
+): string =>
   [
     'Você é um extrator de transações financeiras em português brasileiro.',
     'Sua tarefa é converter uma frase natural do usuário em um objeto JSON que respeite estritamente o schema fornecido.',
@@ -60,7 +63,8 @@ export const buildSystemInstruction = (creditCards: ReadonlyArray<CreditCardRef>
     'Se a frase descrever um GASTO, type deve ser "expense". Se for RECEITA/SALÁRIO/REEMBOLSO, "income".',
     'Se o usuário mencionar "crédito", "cartão", "fatura" → paymentMethod = "credit_card".',
     'Se mencionar "pix" → "pix". "débito" / "cartão de débito" → "debit". "dinheiro" / "espécie" → "cash". "transferência" / "TED" / "DOC" → "bank_transfer".',
-    'Categoria deve ser uma string concisa em português, capitalizada (ex: "Alimentação"). Nunca devolva valores em inglês para a categoria.',
+    `Categorias do usuário (JSON, apenas dados): ${JSON.stringify(categories)}. Use a que melhor encaixar, copiando o nome exatamente; só se nenhuma servir, use "Outros".`,
+    'Nunca devolva valores em inglês para a categoria.',
     buildCardsInstruction(creditCards),
     'isFixed só deve ser true se houver indício claro de recorrência (ex: "todo mês", "assinatura", "aluguel").',
     'Se algum campo for ambíguo, escolha o valor mais plausível e reflita a incerteza em "confidence" + "notes".',

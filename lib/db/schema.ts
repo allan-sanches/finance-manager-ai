@@ -1,5 +1,6 @@
 import { boolean, date, integer, numeric, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
+import type { Tone } from '@/lib/tones';
 import type { DebtSource, ListType, PaymentMethod, TransactionType } from '@/types/finance';
 
 // IDs são text (não uuid) porque os dados antigos do localStorage podem ter IDs no formato "id-<timestamp>-<random>".
@@ -49,6 +50,16 @@ export const debts = pgTable('debts', {
   currentAmount: money('current_amount').notNull().default(0),
   overdueAmount: money('overdue_amount').notNull().default(0),
   referenceDate: date('reference_date', { mode: 'string' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Categorias do usuário. As transações guardam o NOME (texto), então apagar uma categoria não
+// apaga lançamentos: eles só voltam a aparecer com o visual de "Outros".
+export const categories = pgTable('categories', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull().unique(),
+  emoji: text('emoji').notNull(),
+  tone: text('tone').$type<Tone>().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

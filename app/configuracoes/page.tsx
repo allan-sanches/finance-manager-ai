@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 
 import { AiProviderSettingsForm } from '@/components/AiProviderSettingsForm';
+import { CategorySettings } from '@/components/CategorySettings';
 import { PageHeader } from '@/components/ui';
 import { getAiProviderStatuses, resolveAiProvider } from '@/lib/ai';
 import { AI_PROVIDER_COOKIE } from '@/lib/ai-provider';
@@ -15,10 +16,9 @@ export default async function ConfiguracoesPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <PageHeader
-        title="Configurações"
-        subtitle="Qual IA lê suas frases e os PDFs importados. As chaves ficam só no servidor."
-      />
+      <PageHeader title="Configurações" subtitle="Suas categorias e qual IA lê frases e PDFs." />
+
+      <CategorySettings />
 
       <AiProviderSettingsForm current={current} statuses={getAiProviderStatuses()} />
     </div>

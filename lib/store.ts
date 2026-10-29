@@ -4,6 +4,7 @@ import { create } from 'zustand';
 
 import * as actions from '@/app/actions/finance';
 import type {
+  Category,
   CreditCard,
   Debt,
   DebtEntry,
@@ -32,6 +33,10 @@ type FinanceState = FinanceSnapshot & {
   // Debts
   replaceDebts: (source: DebtSource, entries: ReadonlyArray<DebtEntry>) => void;
   removeDebt: (id: string) => void;
+
+  // Categories
+  addCategory: (draft: Omit<Category, 'id'>) => Category;
+  removeCategory: (id: string) => void;
 
   // Credit cards
   addCreditCard: (draft: Omit<CreditCard, 'id'>) => CreditCard;
@@ -65,6 +70,7 @@ const initialState: FinanceSnapshot = {
   savingsGoals: [],
   shoppingItems: [],
   debts: [],
+  categories: [],
 };
 
 const transactionFromDraft = (draft: TransactionDraft): Transaction => ({
@@ -198,6 +204,18 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     removeDebt: (id) => {
       set((s) => ({ debts: s.debts.filter((d) => d.id !== id) }));
       sync(() => actions.removeDebt(id));
+    },
+
+    addCategory: (draft) => {
+      const category: Category = { id: newId(), ...draft, name: draft.name.trim() };
+      set((s) => ({ categories: [...s.categories, category] }));
+      sync(() => actions.addCategory(category));
+      return category;
+    },
+
+    removeCategory: (id) => {
+      set((s) => ({ categories: s.categories.filter((c) => c.id !== id) }));
+      sync(() => actions.removeCategory(id));
     },
 
     addCreditCard: (draft) => {

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { TONES } from '@/lib/tones';
+
 // Validação das entradas das Server Actions e da importação do localStorage.
 // Espelha os DTOs de types/finance.ts; as Server Actions são endpoints públicos, então nada chega ao banco sem passar aqui.
 
@@ -62,6 +64,14 @@ export const shoppingItemSchema = z.object({
 
 export const shoppingItemPatchSchema = shoppingItemSchema.omit({ id: true }).partial();
 
+export const categorySchema = z.object({
+  id,
+  name: z.string().trim().min(1).max(40),
+  // Um emoji pode ter vários code points (pele, ZWJ, bandeiras): limita por tamanho, não por 1 caractere.
+  emoji: z.string().trim().min(1).max(16),
+  tone: z.enum(TONES),
+});
+
 export const debtSourceSchema = z.enum(['scr', 'serasa', 'manual']);
 
 export const debtSchema = z
@@ -90,6 +100,7 @@ export const snapshotSchema = z.object({
   savingsGoals: z.array(savingsGoalSchema).max(MAX_IMPORT_ROWS).default([]),
   shoppingItems: z.array(shoppingItemSchema).max(MAX_IMPORT_ROWS).default([]),
   debts: z.array(debtSchema).max(MAX_IMPORT_ROWS).default([]),
+  categories: z.array(categorySchema).max(MAX_IMPORT_ROWS).default([]),
 });
 
 export type SnapshotInput = z.infer<typeof snapshotSchema>;

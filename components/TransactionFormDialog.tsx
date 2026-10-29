@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import {
@@ -9,6 +10,7 @@ import {
   todayISO,
 } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
+import { useCategories } from '@/lib/useCategories';
 import type {
   PaymentMethod,
   Transaction,
@@ -31,6 +33,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
   const addTransaction = useFinanceStore((s) => s.addTransaction);
   const updateTransaction = useFinanceStore((s) => s.updateTransaction);
   const removeTransaction = useFinanceStore((s) => s.removeTransaction);
+  const { names: categoryNames } = useCategories();
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -182,12 +185,18 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
+                {/* Categoria fora da lista (veio da IA ou foi apagada) continua selecionável. */}
+                {(categoryNames.includes(category) ? categoryNames : [category, ...categoryNames]).map(
+                  (c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ),
+                )}
               </select>
+              <Link href="/configuracoes#categorias" className="link link-hover mt-1 text-xs" onClick={onClose}>
+                + Criar categoria
+              </Link>
             </label>
           </div>
 

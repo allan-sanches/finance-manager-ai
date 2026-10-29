@@ -3,8 +3,10 @@
 import { requireSession } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import * as repo from '@/lib/db/repository';
+import { CATEGORIES } from '@/lib/finance';
 import {
   amountSchema,
+  categorySchema,
   creditCardPatchSchema,
   creditCardSchema,
   debtBatchSchema,
@@ -19,6 +21,7 @@ import {
   transactionPatchSchema,
   transactionSchema,
 } from '@/lib/finance-schemas';
+import { normalizeCategoryName } from '@/lib/tones';
 import type { FinanceSnapshot } from '@/types/finance';
 
 // Cada action devolve o snapshot completo: o store do cliente troca o estado otimista
@@ -60,6 +63,19 @@ export async function replaceDebts(source: unknown, input: unknown) {
 export async function removeDebt(id: unknown) {
   const debtId = idSchema.parse(id);
   return run((db) => repo.removeDebt(db, debtId));
+}
+
+export async function addCategory(input: unknown) {
+  const data = categorySchema.parse(input);
+  const key = normalizeCategoryName(data.name);
+  // Mesmo nome de uma categoria padrão: não duplica.
+  if (CATEGORIES.some((c) => normalizeCategoryName(c) === key)) return run(async () => {});
+  return run((db) => repo.addCategory(db, data));
+}
+
+export async function removeCategory(id: unknown) {
+  const categoryId = idSchema.parse(id);
+  return run((db) => repo.removeCategory(db, categoryId));
 }
 
 export async function removeTransaction(id: unknown) {

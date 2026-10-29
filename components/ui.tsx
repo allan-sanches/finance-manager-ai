@@ -1,7 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { categoryStyle, TONE_CLASS, type Tone } from '@/lib/tones';
+import { TONE_CLASS, type Tone } from '@/lib/tones';
 
 /** Cabeçalho das páginas. No celular o título já está no topo (MobileNavbar), então só a linha de apoio aparece. */
 export function PageHeader({
@@ -62,17 +62,6 @@ export function SectionTitle({ children, action }: { children: ReactNode; action
       <h2 className="eyebrow">{children}</h2>
       {action}
     </div>
-  );
-}
-
-/** Quadradinho colorido com o emoji da categoria. */
-export function CategoryAvatar({ category, size = 'md' }: { category: string; size?: 'sm' | 'md' }) {
-  const { emoji, tone } = categoryStyle(category);
-  const box = size === 'sm' ? 'h-9 w-9 text-lg' : 'h-11 w-11 text-xl';
-  return (
-    <span aria-hidden className={`grid shrink-0 place-items-center rounded-xl ${box} ${TONE_CLASS[tone]}`}>
-      {emoji}
-    </span>
   );
 }
 

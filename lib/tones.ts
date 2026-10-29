@@ -1,23 +1,26 @@
 // Blocos coloridos (tiles, avatares de categoria). A paleta é a mesma no tema claro e no escuro:
 // as cores vivas são a identidade do app, e o texto de cada bloco já vem com contraste garantido.
 
-export type Tone =
-  | 'lime'
-  | 'emerald'
-  | 'mint'
-  | 'cyan'
-  | 'sky'
-  | 'electric'
-  | 'violet'
-  | 'lavender'
-  | 'pink'
-  | 'coral'
-  | 'red'
-  | 'orange'
-  | 'amber'
-  | 'yellow'
-  | 'slate'
-  | 'graphite';
+export const TONES = [
+  'lime',
+  'emerald',
+  'mint',
+  'cyan',
+  'sky',
+  'electric',
+  'violet',
+  'lavender',
+  'pink',
+  'coral',
+  'red',
+  'orange',
+  'amber',
+  'yellow',
+  'slate',
+  'graphite',
+] as const;
+
+export type Tone = (typeof TONES)[number];
 
 export const TONE_CLASS: Record<Tone, string> = {
   lime: 'bg-lime-300 text-neutral-900',
@@ -81,9 +84,19 @@ const normalize = (s: string) =>
     .toLowerCase()
     .trim();
 
-/** Categorias livres (vindas da IA ou digitadas) que não estão no mapa caem em "Outros". */
-export function categoryStyle(category: string): CategoryStyle {
+/**
+ * Estilo de uma categoria: as criadas pelo usuário vêm primeiro (podem até redefinir uma padrão);
+ * nomes desconhecidos (vindos da IA ou digitados) caem em "Outros".
+ */
+export function categoryStyle(
+  category: string,
+  custom: ReadonlyArray<{ name: string } & CategoryStyle> = [],
+): CategoryStyle {
   const key = normalize(category);
+  const own = custom.find((c) => normalize(c.name) === key);
+  if (own) return { emoji: own.emoji, tone: own.tone };
   if (key.startsWith('divida')) return CATEGORY_STYLE.dividas;
   return CATEGORY_STYLE[key] ?? CATEGORY_STYLE.outros;
 }
+
+export const normalizeCategoryName = normalize;

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { isAiProviderConfigured, resolveAiProvider, type ExtractionErrorCode } from '@/lib/ai';
 import { AI_PROVIDER_COOKIE } from '@/lib/ai-provider';
+import { userCategoryNames } from '@/lib/categories-server';
 import {
   extractDebtsFromText,
   extractStatementFromText,
@@ -97,7 +98,7 @@ export async function POST(request: Request) {
 
   const result =
     kind.data === 'statement'
-      ? await extractStatementFromText(provider, layoutText)
+      ? await extractStatementFromText(provider, layoutText, await userCategoryNames())
       : await extractDebtsFromText(provider, kind.data, layoutText);
   if (!result.ok) return fail(result.error, STATUS_BY_ERROR[result.code]);
   return ok(result.preview);

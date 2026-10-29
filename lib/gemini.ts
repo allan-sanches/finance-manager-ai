@@ -139,6 +139,7 @@ export async function generateJsonWithGemini(
 export async function extractWithGemini(
   message: string,
   creditCards: ReadonlyArray<CreditCardRef> = [],
+  categories?: ReadonlyArray<string>,
 ): Promise<ExtractTransactionResult> {
   if (!ai) {
     return { ok: false, code: 'not_configured', error: NOT_CONFIGURED_ERROR };
@@ -150,7 +151,7 @@ export async function extractWithGemini(
       model: geminiModel,
       contents: message,
       config: {
-        systemInstruction: buildSystemInstruction(creditCards),
+        systemInstruction: buildSystemInstruction(creditCards, categories),
         responseMimeType: 'application/json',
         responseSchema: buildExtractionSchema(creditCards),
         temperature: 0.2,
