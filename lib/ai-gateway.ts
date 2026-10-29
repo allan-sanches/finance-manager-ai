@@ -15,18 +15,22 @@ import { parseExtraction, type CreditCardRef } from '@/lib/chat-schemas';
 import { buildExtractionSchema } from '@/lib/gemini';
 
 // Vercel AI Gateway: endpoint compatível com OpenAI que roteia para o provedor do modelo
-// (ex: "deepseek/deepseek-v4.1-flash" é servido pela DeepSeek, Fireworks, Together...).
+// (ex: "openai/gpt-5-mini" é servido pela OpenAI e pela Azure, ambas com retenção zero).
 // Diferente da API direta do DeepSeek, aceita response_format json_schema (Structured Outputs).
 
 const apiKey = process.env.AI_GATEWAY_API_KEY;
-export const gatewayModel = process.env.AI_GATEWAY_MODEL ?? 'deepseek/deepseek-v4.1-flash';
+export const gatewayModel = process.env.AI_GATEWAY_MODEL ?? 'openai/gpt-5-mini';
 const baseUrl = (process.env.AI_GATEWAY_BASE_URL ?? 'https://ai-gateway.vercel.sh/v1').replace(
   /\/+$/,
   '',
 );
-// Só roteia para provedores com acordo de retenção zero com a Vercel. Opcional: se nenhum
+// Só roteia para provedores com acordo de retenção zero com a Vercel. Exige plano Pro ou
+// Enterprise (no Hobby a requisição volta 403). Opcional: se nenhum
 // provedor do modelo tiver o acordo, a requisição falha.
 const zeroDataRetention = process.env.AI_GATEWAY_ZERO_DATA_RETENTION === 'true';
+
+const GATEWAY_REJECTED_ERROR =
+  'O AI Gateway recusou a requisição (chave, plano ou modelo indisponível no plano). Confira AI_GATEWAY_API_KEY e AI_GATEWAY_MODEL.';
 
 const CHAT_TIMEOUT_MS = 30_000;
 const DOCUMENT_TIMEOUT_MS = 120_000;
@@ -107,7 +111,10 @@ async function complete(
     });
     if (!response.ok) {
       console.error('[ai-gateway] chat/completions failed', response.status, await response.text());
-      return { ok: false, code: 'upstream_error', error: UPSTREAM_ERROR };
+      // 401/403 vêm de chave, plano ou modelo fora do plano: tentar de novo não resolve.
+      const error =
+        response.status === 401 || response.status === 403 ? GATEWAY_REJECTED_ERROR : UPSTREAM_ERROR;
+      return { ok: false, code: 'upstream_error', error };
     }
     const payload = (await response.json()) as ChatCompletionResponse;
     raw = payload.choices?.[0]?.message?.content;

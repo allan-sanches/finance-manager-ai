@@ -75,8 +75,12 @@ describe('AI Gateway', () => {
 
   it('retorna upstream_error quando o gateway responde com erro ou a rede cai', async () => {
     const { extractWithGateway } = await import('@/lib/ai-gateway');
-    fetchMock.mockResolvedValueOnce(new Response('no providers', { status: 400 }));
-    expect(await extractWithGateway('oi')).toMatchObject({ ok: false, code: 'upstream_error' });
+    fetchMock.mockResolvedValueOnce(new Response('no providers', { status: 403 }));
+    expect(await extractWithGateway('oi')).toMatchObject({
+      ok: false,
+      code: 'upstream_error',
+      error: expect.stringContaining('AI_GATEWAY_MODEL'),
+    });
     fetchMock.mockRejectedValueOnce(new Error('offline'));
     expect(await extractWithGateway('oi')).toMatchObject({ ok: false, code: 'upstream_error' });
   });

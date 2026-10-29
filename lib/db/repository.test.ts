@@ -1,7 +1,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as repo from '@/lib/db/repository';
 import * as schema from '@/lib/db/schema';
@@ -9,6 +9,9 @@ import { snapshotSchema } from '@/lib/finance-schemas';
 import type { CreditCard, Debt, Transaction } from '@/types/finance';
 
 // Postgres real em memória (PGlite) com as mesmas migrações do deploy.
+// Subir um PGlite e migrar a cada teste leva alguns segundos em máquinas mais lentas.
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
+
 let db: repo.Db;
 
 beforeEach(async () => {

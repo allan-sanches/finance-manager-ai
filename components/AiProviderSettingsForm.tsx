@@ -7,7 +7,7 @@ import { AI_PROVIDER_LABEL, type AiProvider, type AiProviderStatus } from '@/lib
 
 const DESCRIPTION: Record<AiProvider, string> = {
   gateway:
-    'Uma chave para vários modelos (padrão: DeepSeek Flash), com saída validada por schema e troca automática de provedor se um cair.',
+    'Uma chave para vários modelos (padrão: GPT-5 mini), com saída validada por schema e troca automática de provedor se um cair.',
   gemini: 'Saída JSON validada por schema direto na API do Google.',
   deepseek: 'Modo JSON da API do DeepSeek, validado pela aplicação antes de chegar à tela.',
 };
