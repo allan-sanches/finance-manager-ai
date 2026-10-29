@@ -1,29 +1,168 @@
 @import "tailwindcss";
+
+/* daisyUI 5 — dois temas próprios. Sem data-theme no <html>, o daisyUI segue o sistema
+ * (--prefersdark); a escolha manual vira data-theme (ver components/ThemeToggle.tsx).
+ * Componentes usam só tokens (bg-primary, text-base-content…), nunca hex fixo — exceto a
+ * paleta de blocos coloridos abaixo, que é igual nos dois temas de propósito. */
 @plugin "daisyui" {
-  themes: light --default, dark --prefersdark;
+  themes: selvagem --default, selvagem-dark --prefersdark;
 }
 
-:root {
-  color-scheme: light dark;
+@plugin "daisyui/theme" {
+  name: "selvagem";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(100% 0 0);
+  --color-base-200: oklch(96.5% 0.006 260);
+  --color-base-300: oklch(91% 0.008 260);
+  --color-base-content: oklch(24% 0.012 260);
+  /* Mesmos acentos do escuro, escurecidos o bastante para contraste em fundo branco. */
+  --color-primary: oklch(62% 0.2 145);
+  --color-primary-content: oklch(15% 0 0);
+  --color-secondary: oklch(62% 0.14 220);
+  --color-secondary-content: oklch(100% 0 0);
+  --color-accent: oklch(60% 0.24 350);
+  --color-accent-content: oklch(100% 0 0);
+  --color-neutral: oklch(28% 0.006 260);
+  --color-neutral-content: oklch(100% 0 0);
+  --color-info: oklch(58% 0.18 240);
+  --color-info-content: oklch(100% 0 0);
+  --color-success: oklch(58% 0.18 145);
+  --color-success-content: oklch(100% 0 0);
+  --color-warning: oklch(78% 0.17 80);
+  --color-warning-content: oklch(20% 0.05 80);
+  --color-error: oklch(58% 0.23 25);
+  --color-error-content: oklch(100% 0 0);
+  --radius-selector: 1rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+/* Escuro: cinza chumbo (não preto) com acentos elétricos — verde, ciano e rosa neon. */
+@plugin "daisyui/theme" {
+  name: "selvagem-dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: oklch(28% 0.006 260);
+  --color-base-200: oklch(24% 0.006 260);
+  --color-base-300: oklch(38% 0.006 260);
+  --color-base-content: oklch(98% 0 0);
+  --color-primary: oklch(70% 0.21 145);
+  --color-primary-content: oklch(15% 0 0);
+  --color-secondary: oklch(75% 0.15 200);
+  --color-secondary-content: oklch(15% 0 0);
+  --color-accent: oklch(70% 0.25 350);
+  --color-accent-content: oklch(100% 0 0);
+  --color-neutral: oklch(20% 0 0);
+  --color-neutral-content: oklch(100% 0 0);
+  --color-info: oklch(70% 0.16 240);
+  --color-info-content: oklch(15% 0.02 240);
+  --color-success: oklch(72% 0.2 145);
+  --color-success-content: oklch(15% 0 0);
+  --color-warning: oklch(80% 0.18 90);
+  --color-warning-content: oklch(20% 0.05 80);
+  --color-error: oklch(68% 0.22 25);
+  --color-error-content: oklch(100% 0 0);
+  --radius-selector: 1rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@theme {
+  --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
 }
 
 html,
 body {
-  height: 100%;
+  min-height: 100%;
 }
 
 body {
-  font-family: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--font-sans);
+  background-color: var(--color-base-200);
+  color: var(--color-base-content);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.app-shell {
-  min-height: 100dvh;
-  display: grid;
-  grid-template-columns: 16rem 1fr;
+/* ---------- Linguagem visual ---------- */
+
+/* Card padrão: superfície do tema, cantos de 24px, sombra suave e longa. */
+@utility panel {
+  border-radius: var(--radius-box);
+  background-color: var(--color-base-100);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--color-base-content) 8%, transparent),
+    0 10px 30px -14px rgb(0 0 0 / 0.35);
 }
 
-@media (max-width: 768px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-  }
+/* Bloco colorido (tile): mesma forma do panel, a cor vem de uma classe tone-*. */
+@utility tile {
+  border-radius: var(--radius-box);
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / 0.45);
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease;
+}
+
+/* Título de seção: caixa alta pequena, espaçamento largo. */
+@utility eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  opacity: 0.8;
+}
+
+/* Número grande dos cards. */
+@utility metric {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* Etiqueta "adesivo": borda preta, sombra dura deslocada. Para chips de destaque. */
+@utility sticker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: 2px solid #000;
+  border-radius: 0.5rem;
+  box-shadow: 2px 2px 0 0 #000;
+  padding: 0.125rem 0.5rem;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #171717;
+}
+
+/* Espaço para a tab bar inferior no celular (altura + área segura do iPhone). */
+@utility pb-tabbar {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--color-base-content) 20%, transparent) transparent;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

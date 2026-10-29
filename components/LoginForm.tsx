@@ -13,11 +13,11 @@ export function LoginForm({ next }: { next: string }) {
     <form action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="next" value={next} />
       <label className="form-control w-full">
-        <span className="label-text mb-1 font-medium">Senha</span>
+        <span className="eyebrow mb-2 block">Senha</span>
         <input
           type="password"
           name="password"
-          className="input input-bordered w-full"
+          className="input input-bordered input-lg w-full"
           autoComplete="current-password"
           autoFocus
           required
@@ -30,7 +30,7 @@ export function LoginForm({ next }: { next: string }) {
         </div>
       )}
 
-      <button type="submit" className="btn btn-primary" disabled={pending}>
+      <button type="submit" className="btn btn-primary btn-lg" disabled={pending}>
         {pending && <span className="loading loading-spinner loading-sm" />}
         Entrar
       </button>

@@ -30,6 +30,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
   const creditCards = useFinanceStore((s) => s.creditCards);
   const addTransaction = useFinanceStore((s) => s.addTransaction);
   const updateTransaction = useFinanceStore((s) => s.updateTransaction);
+  const removeTransaction = useFinanceStore((s) => s.removeTransaction);
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -111,7 +112,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
   return (
     <dialog
       ref={dialogRef}
-      className="modal"
+      className="modal modal-bottom sm:modal-middle"
       onClose={onClose}
       onCancel={onClose}
     >
@@ -258,6 +259,20 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
           )}
 
           <div className="modal-action mt-2">
+            {/* No celular não há botão de excluir na lista: tocar no lançamento abre este formulário. */}
+            {initial && (
+              <button
+                type="button"
+                className="btn btn-ghost text-error mr-auto"
+                onClick={() => {
+                  if (!confirm('Excluir esse lançamento?')) return;
+                  removeTransaction(initial.id);
+                  onClose();
+                }}
+              >
+                Excluir
+              </button>
+            )}
             <button type="button" className="btn btn-ghost" onClick={onClose}>
               Cancelar
             </button>

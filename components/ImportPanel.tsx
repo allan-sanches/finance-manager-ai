@@ -82,13 +82,14 @@ export function ImportPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" className="tabs tabs-border overflow-x-auto">
+      <div role="tablist" className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
         {KINDS.map((k) => (
           <button
             key={k.id}
             role="tab"
             type="button"
-            className={`tab ${kind === k.id ? 'tab-active' : ''}`}
+            aria-selected={kind === k.id}
+            className={`btn btn-sm shrink-0 rounded-full ${kind === k.id ? 'btn-neutral' : 'btn-ghost bg-base-100'}`}
             onClick={() => {
               setKind(k.id);
               setDone(null);
@@ -101,7 +102,7 @@ export function ImportPanel() {
         ))}
       </div>
 
-      <form onSubmit={handleSubmit} className="card bg-base-200 shadow">
+      <form onSubmit={handleSubmit} className="panel">
         <div className="card-body gap-3">
           <label htmlFor="import-file" className="label">
             <span className="label-text font-medium">Arquivo</span>

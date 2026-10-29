@@ -1,10 +1,12 @@
 'use client';
 
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { CreditCardFormDialog } from '@/components/CreditCardFormDialog';
 import { DebtsOverview } from '@/components/DebtsOverview';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
+import { CategoryAvatar, EmptyState, PageHeader } from '@/components/ui';
 import { BRL, PAYMENT_METHOD_LABEL, classifyTransaction } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import { useHydrated } from '@/lib/useHydratedStore';
@@ -16,10 +18,19 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'all', label: 'Todas' },
   { id: 'fixed', label: 'Fixas' },
   { id: 'variable', label: 'Variáveis' },
-  { id: 'credit', label: 'Cartões' },
+  { id: 'credit', label: 'No cartão' },
   { id: 'debt', label: 'Dívidas' },
-  { id: 'cards', label: 'Gerenciar cartões' },
+  { id: 'cards', label: 'Meus cartões' },
 ];
+
+const DATE_LABEL = new Intl.DateTimeFormat('pt-BR', {
+  weekday: 'short',
+  day: '2-digit',
+  month: 'short',
+  timeZone: 'UTC',
+});
+
+const formatDay = (iso: string) => DATE_LABEL.format(new Date(`${iso}T00:00:00Z`));
 
 export default function TransacoesPage() {
   const hydrated = useHydrated();
@@ -36,36 +47,46 @@ export default function TransacoesPage() {
     return transactions.filter((t) => classifyTransaction(t) === tab);
   }, [transactions, tab]);
 
-  return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold md:text-3xl">Transações</h1>
-          <p className="text-base-content/60 text-sm">
-            Lançamentos divididos entre fixos, variáveis, cartões, empréstimos e dívidas.
-          </p>
-        </div>
-        {tab !== 'cards' && (
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              setEditingTx(undefined);
-              setTxDialogOpen(true);
-            }}
-          >
-            + Novo lançamento
-          </button>
-        )}
-      </header>
+  // Agrupa por dia, do mais recente para o mais antigo, como um extrato de banco.
+  const byDay = useMemo(() => {
+    const groups = new Map<string, Transaction[]>();
+    for (const t of [...filtered].sort((a, b) => b.date.localeCompare(a.date))) {
+      groups.set(t.date, [...(groups.get(t.date) ?? []), t]);
+    }
+    return [...groups.entries()];
+  }, [filtered]);
 
-      <div role="tablist" className="tabs tabs-border overflow-x-auto">
+  return (
+    <div className="mx-auto flex max-w-4xl flex-col">
+      <PageHeader
+        title="Transações"
+        subtitle="Fixas, variáveis, cartões e dívidas."
+        action={
+          tab !== 'cards' && (
+            <button
+              type="button"
+              className="btn btn-primary hidden md:inline-flex"
+              onClick={() => {
+                setEditingTx(undefined);
+                setTxDialogOpen(true);
+              }}
+            >
+              <Plus className="h-5 w-5" aria-hidden /> Novo lançamento
+            </button>
+          )
+        }
+      />
+
+      <div role="tablist" className="no-scrollbar -mx-4 mb-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
         {TABS.map((t) => (
           <button
             key={t.id}
             role="tab"
             type="button"
-            className={`tab ${tab === t.id ? 'tab-active' : ''}`}
+            aria-selected={tab === t.id}
+            className={`btn btn-sm shrink-0 rounded-full ${
+              tab === t.id ? 'btn-neutral' : 'btn-ghost bg-base-100'
+            }`}
             onClick={() => setTab(t.id)}
           >
             {t.label}
@@ -73,23 +94,44 @@ export default function TransacoesPage() {
         ))}
       </div>
 
-      {tab === 'debt' && hydrated && <DebtsOverview />}
+      {tab === 'debt' && hydrated && (
+        <div className="mb-4">
+          <DebtsOverview />
+        </div>
+      )}
 
       {tab === 'cards' ? (
         <CreditCardsSection />
+      ) : !hydrated ? (
+        <p className="text-base-content/60 py-10 text-center text-sm">Carregando…</p>
+      ) : byDay.length === 0 ? (
+        <EmptyState emoji="🧾" title="Nenhum lançamento nessa visão">
+          Toque no <strong>+</strong> para lançar um gasto ou receita.
+        </EmptyState>
       ) : (
-        <TransactionsTable
-          rows={filtered}
-          hydrated={hydrated}
-          onEdit={(t) => {
-            setEditingTx(t);
-            setTxDialogOpen(true);
-          }}
-          onTogglePaid={(id) => toggleTransactionPaid(id)}
-          onDelete={(id) => {
-            if (confirm('Excluir esse lançamento?')) removeTransaction(id);
-          }}
-        />
+        <div className="flex flex-col gap-4">
+          {byDay.map(([day, rows]) => (
+            <section key={day}>
+              <h2 className="eyebrow mb-2 px-1">{formatDay(day)}</h2>
+              <ul className="panel divide-base-content/5 divide-y overflow-hidden">
+                {rows.map((t) => (
+                  <TransactionRow
+                    key={t.id}
+                    tx={t}
+                    onEdit={() => {
+                      setEditingTx(t);
+                      setTxDialogOpen(true);
+                    }}
+                    onTogglePaid={() => toggleTransactionPaid(t.id)}
+                    onDelete={() => {
+                      if (confirm('Excluir esse lançamento?')) removeTransaction(t.id);
+                    }}
+                  />
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
       )}
 
       <TransactionFormDialog
@@ -101,129 +143,74 @@ export default function TransacoesPage() {
   );
 }
 
-function TransactionsTable({
-  rows,
-  hydrated,
+function TransactionRow({
+  tx,
   onEdit,
   onTogglePaid,
   onDelete,
 }: {
-  rows: ReadonlyArray<Transaction>;
-  hydrated: boolean;
-  onEdit: (t: Transaction) => void;
-  onTogglePaid: (id: string) => void;
-  onDelete: (id: string) => void;
+  tx: Transaction;
+  onEdit: () => void;
+  onTogglePaid: () => void;
+  onDelete: () => void;
 }) {
-  const creditCards = useFinanceStore((s) => s.creditCards);
-  const cardById = useMemo(() => {
-    const m = new Map<string, CreditCard>();
-    for (const c of creditCards) m.set(c.id, c);
-    return m;
-  }, [creditCards]);
+  const card = useFinanceStore((s) =>
+    tx.creditCardId ? s.creditCards.find((c) => c.id === tx.creditCardId) : undefined,
+  );
+  const income = tx.type === 'income';
 
   return (
-    <div className="card bg-base-200 shadow">
-      <div className="card-body p-0">
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Descrição</th>
-                <th>Categoria</th>
-                <th>Pagamento</th>
-                <th className="text-right">Valor</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {!hydrated ? (
-                <tr>
-                  <td colSpan={7} className="py-10 text-center text-sm">
-                    Carregando…
-                  </td>
-                </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="text-base-content/60 py-12 text-center text-sm"
-                  >
-                    Nenhum lançamento nessa visão. Clique em <em>Novo lançamento</em>.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((t) => (
-                  <tr key={t.id}>
-                    <td className="whitespace-nowrap">{t.date}</td>
-                    <td>
-                      <div className="font-medium">{t.description}</div>
-                      {t.creditCardId && (
-                        <div className="text-base-content/60 text-xs">
-                          {cardById.get(t.creditCardId)?.name ?? 'Cartão removido'}
-                        </div>
-                      )}
-                    </td>
-                    <td>
-                      <span className="badge badge-ghost">{t.category}</span>
-                      {t.isFixed && (
-                        <span className="badge badge-outline badge-sm ml-1">fixa</span>
-                      )}
-                    </td>
-                    <td>{PAYMENT_METHOD_LABEL[t.paymentMethod]}</td>
-                    <td
-                      className={`text-right font-semibold ${
-                        t.type === 'income' ? 'text-success' : 'text-error'
-                      }`}
-                    >
-                      {t.type === 'income' ? '+ ' : '− '}
-                      {BRL.format(t.amount)}
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className={`badge ${
-                          t.isPaid ? 'badge-success' : 'badge-warning'
-                        } cursor-pointer`}
-                        onClick={() => onTogglePaid(t.id)}
-                        title="Alternar status"
-                      >
-                        {t.isPaid
-                          ? t.type === 'income'
-                            ? 'Recebido'
-                            : 'Pago'
-                          : 'Em aberto'}
-                      </button>
-                    </td>
-                    <td className="text-right">
-                      <div className="join">
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs join-item"
-                          onClick={() => onEdit(t)}
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs join-item text-error"
-                          onClick={() => onDelete(t.id)}
-                        >
-                          Excluir
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+    <li className="flex items-center gap-3 p-3">
+      <button type="button" onClick={onEdit} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <CategoryAvatar category={tx.category} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">{tx.description}</p>
+          <p className="text-base-content/60 truncate text-xs">
+            {tx.category} · {card ? card.name : PAYMENT_METHOD_LABEL[tx.paymentMethod]}
+            {tx.isFixed && ' · fixa'}
+          </p>
         </div>
+      </button>
+
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        <span className={`font-bold tabular-nums ${income ? 'text-success' : ''}`}>
+          {income ? '+' : '−'} {BRL.format(tx.amount)}
+        </span>
+        <button
+          type="button"
+          onClick={onTogglePaid}
+          className={`badge badge-sm cursor-pointer font-semibold ${
+            tx.isPaid ? 'badge-success badge-soft' : 'badge-warning'
+          }`}
+          title="Alternar status"
+        >
+          {tx.isPaid ? (income ? 'Recebido' : 'Pago') : 'Em aberto'}
+        </button>
       </div>
-    </div>
+
+      <div className="hidden shrink-0 md:flex">
+        <button type="button" className="btn btn-ghost btn-sm btn-square" onClick={onEdit} aria-label="Editar">
+          <Pencil className="h-4 w-4" aria-hidden />
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm btn-square text-error"
+          onClick={onDelete}
+          aria-label="Excluir"
+        >
+          <Trash2 className="h-4 w-4" aria-hidden />
+        </button>
+      </div>
+    </li>
   );
 }
+
+const CARD_TONES = [
+  'from-violet-500 to-fuchsia-500',
+  'from-cyan-400 to-blue-600',
+  'from-orange-400 to-pink-500',
+  'from-emerald-400 to-lime-300',
+];
 
 function CreditCardsSection() {
   const creditCards = useFinanceStore((s) => s.creditCards);
@@ -233,73 +220,72 @@ function CreditCardsSection() {
 
   return (
     <div className="grid gap-4">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => {
-            setEditing(undefined);
-            setOpen(true);
-          }}
-        >
-          + Novo cartão
-        </button>
-      </div>
+      <button
+        type="button"
+        className="btn btn-primary self-start"
+        onClick={() => {
+          setEditing(undefined);
+          setOpen(true);
+        }}
+      >
+        <Plus className="h-5 w-5" aria-hidden /> Novo cartão
+      </button>
 
       {creditCards.length === 0 ? (
-        <div className="card bg-base-200 shadow">
-          <div className="card-body items-center text-center">
-            <p className="text-base-content/60">Nenhum cartão cadastrado.</p>
-          </div>
-        </div>
+        <EmptyState emoji="💳" title="Nenhum cartão cadastrado">
+          Cadastre para acompanhar fatura e limite.
+        </EmptyState>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {creditCards.map((c) => {
-            const pct = Math.min(100, Math.round((c.currentInvoiceAmount / c.limit) * 100));
+        <div className="grid gap-4 md:grid-cols-2">
+          {creditCards.map((c, i) => {
+            const pct = Math.min(100, Math.round((c.currentInvoiceAmount / Math.max(1, c.limit)) * 100));
             return (
-              <article key={c.id} className="card bg-base-200 shadow">
-                <div className="card-body">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="card-title">{c.name}</h3>
-                      <p className="text-base-content/60 text-xs">
-                        Fecha dia {c.closingDay} · vence dia {c.dueDay}
-                      </p>
-                    </div>
-                    <div className="join">
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm join-item"
-                        onClick={() => {
-                          setEditing(c);
-                          setOpen(true);
-                        }}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm join-item text-error"
-                        onClick={() => {
-                          if (confirm(`Excluir cartão "${c.name}"?`)) removeCreditCard(c.id);
-                        }}
-                      >
-                        Excluir
-                      </button>
-                    </div>
+              <article
+                key={c.id}
+                className={`tile flex flex-col gap-4 bg-gradient-to-br p-5 text-white ${CARD_TONES[i % CARD_TONES.length]}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className="text-xl font-extrabold">{c.name}</h3>
+                    <p className="text-xs font-semibold opacity-80">
+                      Fecha dia {c.closingDay} · vence dia {c.dueDay}
+                    </p>
                   </div>
-
-                  <p className="text-base-content/70 mt-1 text-sm">
-                    Fatura atual: <strong>{BRL.format(c.currentInvoiceAmount)}</strong> de{' '}
-                    {BRL.format(c.limit)}
-                  </p>
-                  <progress
-                    className="progress progress-warning w-full"
-                    value={pct}
-                    max={100}
-                  />
-                  <p className="text-base-content/60 text-xs">
-                    {pct}% usado · disponível {BRL.format(Math.max(0, c.limit - c.currentInvoiceAmount))}
+                  <div className="flex">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm btn-square text-white"
+                      aria-label={`Editar ${c.name}`}
+                      onClick={() => {
+                        setEditing(c);
+                        setOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm btn-square text-white"
+                      aria-label={`Excluir ${c.name}`}
+                      onClick={() => {
+                        if (confirm(`Excluir cartão "${c.name}"?`)) removeCreditCard(c.id);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden />
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <p className="eyebrow">Fatura atual</p>
+                  <p className="metric text-4xl">{BRL.format(c.currentInvoiceAmount)}</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="h-2.5 overflow-hidden rounded-full bg-black/20">
+                    <div className="h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="text-xs font-semibold opacity-90">
+                    {pct}% do limite de {BRL.format(c.limit)} · livre{' '}
+                    {BRL.format(Math.max(0, c.limit - c.currentInvoiceAmount))}
                   </p>
                 </div>
               </article>

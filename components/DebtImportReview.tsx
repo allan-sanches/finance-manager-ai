@@ -68,7 +68,7 @@ export function DebtImportReview({
         ))
       )}
 
-      <div className="stats stats-horizontal bg-base-200 w-full">
+      <div className="stats stats-horizontal panel w-full">
         <div className="stat px-4 py-3">
           <div className="stat-title text-xs">Em dia</div>
           <div className="stat-value text-lg">{BRL.format(current)}</div>
@@ -85,7 +85,7 @@ export function DebtImportReview({
         {rows.map((r, i) => (
           <li
             key={i}
-            className={`card bg-base-200 border-2 ${
+            className={`panel border-2 ${
               r.selected ? 'border-primary/40' : 'border-transparent opacity-60'
             }`}
           >

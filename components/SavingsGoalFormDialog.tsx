@@ -65,7 +65,7 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
   }
 
   return (
-    <dialog ref={dialogRef} className="modal" onClose={onClose} onCancel={onClose}>
+    <dialog ref={dialogRef} className="modal modal-bottom sm:modal-middle" onClose={onClose} onCancel={onClose}>
       <div className="modal-box max-w-md">
         <h3 className="text-lg font-bold">
           {initial ? 'Editar caixinha' : 'Nova caixinha'}

@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 
 /**
- * Barra de confirmação presa ao rodapé: no celular a revisão pode ter dezenas de linhas, e o botão
+ * Barra de confirmação presa logo acima da tab bar: no celular a revisão pode ter dezenas de linhas, e o botão
  * de importar precisa estar ao alcance do polegar sem rolar até o fim.
  */
 export function ImportActionBar({
@@ -20,7 +20,7 @@ export function ImportActionBar({
   onConfirm: () => void;
 }) {
   return (
-    <div className="bg-base-100/95 border-base-300 sticky bottom-0 z-20 -mx-4 border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur md:mx-0 md:rounded-box md:border">
+    <div className="bg-base-100/95 border-base-300 sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 -mx-4 border-t px-4 py-3 backdrop-blur md:bottom-0 md:mx-0 md:rounded-box md:border">
       <p className="text-base-content/70 mb-2 text-center text-sm md:text-left">{summary}</p>
       <div className="flex gap-2 md:justify-end">
         <button type="button" className="btn btn-ghost flex-1 md:flex-none" onClick={onCancel}>

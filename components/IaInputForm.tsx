@@ -74,7 +74,7 @@ export function IaInputForm() {
 
   return (
     <div className="flex flex-col gap-4">
-      <form onSubmit={handleSubmit} className="card bg-base-200 shadow">
+      <form onSubmit={handleSubmit} className="panel">
         <div className="card-body gap-3">
           <label htmlFor="ia-message" className="label">
             <span className="label-text font-medium">Descreva a transação</span>
@@ -156,7 +156,7 @@ function ExtractionPreview({
     currency: 'BRL',
   }).format(transaction.amount);
   return (
-    <div className="card bg-base-200 shadow">
+    <div className="panel">
       <div className="card-body">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="card-title">Pré-visualização</h2>

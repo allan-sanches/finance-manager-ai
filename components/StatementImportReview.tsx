@@ -103,7 +103,7 @@ export function StatementImportReview({
         </div>
       )}
 
-      <div className="card bg-base-200">
+      <div className="panel">
         <div className="card-body gap-3 p-4">
           <label className="flex flex-col gap-1">
             <span className="text-sm font-medium">Esses lançamentos são de</span>
@@ -162,7 +162,7 @@ export function StatementImportReview({
           {view.map((r, i) => (
             <li
               key={i}
-              className={`card bg-base-200 border-2 ${
+              className={`panel border-2 ${
                 r.selected ? 'border-primary/40' : 'border-transparent opacity-60'
               }`}
             >

@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 
+import { BottomTabBar } from '@/components/BottomTabBar';
 import { LocalDataImport } from '@/components/LocalDataImport';
 import { MobileNavbar } from '@/components/MobileNavbar';
 import { Sidebar } from '@/components/Sidebar';
@@ -26,16 +27,17 @@ export function AppShell({
   if (pathname === '/login') return <>{children}</>;
 
   return (
-    <div className="app-shell">
+    <div className="min-h-dvh md:grid md:grid-cols-[17rem_1fr]">
       <Sidebar />
-      <div className="flex min-h-dvh flex-col">
+      <div className="flex min-h-dvh min-w-0 flex-col">
         <MobileNavbar />
-        <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+        <main className="pb-tabbar flex-1 px-4 pt-2 md:px-8 md:pt-8 md:pb-10">
           <SyncErrorAlert />
           <LocalDataImport />
           {children}
         </main>
       </div>
+      <BottomTabBar />
     </div>
   );
 }

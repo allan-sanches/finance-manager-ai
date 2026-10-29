@@ -1,3 +1,4 @@
+import { BrandMark } from '@/components/BrandMark';
 import { LoginForm } from '@/components/LoginForm';
 import { safeRedirectPath } from '@/lib/session';
 
@@ -8,18 +9,20 @@ export default async function LoginPage({
 }) {
   const { next } = await searchParams;
   return (
-    <main className="bg-base-200 grid min-h-dvh place-items-center px-4">
-      <div className="card bg-base-100 w-full max-w-sm shadow-lg">
-        <div className="card-body gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary text-primary-content grid h-10 w-10 place-items-center rounded-lg font-bold">
-              $
-            </div>
-            <div className="leading-tight">
-              <h1 className="text-lg font-semibold">finance-manager-ai</h1>
-              <p className="text-base-content/60 text-sm">Entre para ver suas finanças</p>
-            </div>
+    <main className="grid min-h-dvh place-items-center px-4 py-10">
+      <div className="w-full max-w-sm">
+        <div className="tile mb-4 flex flex-col gap-3 bg-lime-300 p-6 text-neutral-900">
+          <BrandMark size={48} />
+          <div>
+            <p className="eyebrow">Finanças pessoais</p>
+            <h1 className="mt-1 text-3xl leading-none font-extrabold tracking-tight">
+              Capitalismo
+              <br />
+              Selvagem
+            </h1>
           </div>
+        </div>
+        <div className="panel p-6">
           <LoginForm next={safeRedirectPath(Array.isArray(next) ? next[0] : next)} />
         </div>
       </div>

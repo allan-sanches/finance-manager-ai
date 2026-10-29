@@ -1,10 +1,14 @@
 'use client';
 
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { SavingsGoalFormDialog } from '@/components/SavingsGoalFormDialog';
+import { EmptyState, PageHeader } from '@/components/ui';
 import { BRL } from '@/lib/finance';
+import { parseAmount } from '@/lib/import/statement';
 import { useFinanceStore } from '@/lib/store';
+import { TONE_CLASS, type Tone } from '@/lib/tones';
 import { useHydrated } from '@/lib/useHydratedStore';
 import type { SavingsGoal } from '@/types/finance';
 
@@ -19,47 +23,37 @@ export default function CaixinhasPage() {
   const [editing, setEditing] = useState<SavingsGoal | undefined>(undefined);
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold md:text-3xl">Caixinhas</h1>
-          <p className="text-base-content/60 text-sm">
-            Metas financeiras com barra de progresso — reservas, objetivos e fundos específicos.
-          </p>
-        </div>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => {
-            setEditing(undefined);
-            setDialogOpen(true);
-          }}
-        >
-          + Nova caixinha
-        </button>
-      </header>
+    <div className="mx-auto flex max-w-5xl flex-col">
+      <PageHeader
+        title="Caixinhas"
+        subtitle="Reservas e objetivos, com o progresso de cada um."
+        action={
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              setEditing(undefined);
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="h-5 w-5" aria-hidden /> Nova caixinha
+          </button>
+        }
+      />
 
       {!hydrated ? (
         <p className="text-base-content/60 text-sm">Carregando…</p>
       ) : goals.length === 0 ? (
-        <div className="card border-base-300 border-2 border-dashed">
-          <div className="card-body items-center justify-center text-center">
-            <p className="text-base-content/60">Nenhuma caixinha criada ainda.</p>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm mt-2"
-              onClick={() => setDialogOpen(true)}
-            >
-              + Criar primeira meta
-            </button>
-          </div>
-        </div>
+        <EmptyState emoji="🐷" title="Nenhuma caixinha ainda">
+          Crie uma meta — viagem, reserva de emergência, um desejo.
+        </EmptyState>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {goals.map((g) => (
+          {goals.map((g, i) => (
             <GoalCard
               key={g.id}
               goal={g}
+              tone={GOAL_TONES[i % GOAL_TONES.length]}
               onDeposit={(amount) => depositToGoal(g.id, amount)}
               onWithdraw={(amount) => withdrawFromGoal(g.id, amount)}
               onEdit={() => {
@@ -83,14 +77,18 @@ export default function CaixinhasPage() {
   );
 }
 
+const GOAL_TONES: Tone[] = ['violet', 'cyan', 'lime', 'pink', 'amber', 'sky'];
+
 function GoalCard({
   goal,
+  tone,
   onDeposit,
   onWithdraw,
   onEdit,
   onDelete,
 }: {
   goal: SavingsGoal;
+  tone: Tone;
   onDeposit: (amount: number) => void;
   onWithdraw: (amount: number) => void;
   onEdit: () => void;
@@ -99,71 +97,79 @@ function GoalCard({
   const [amountInput, setAmountInput] = useState('');
   const pct = Math.min(100, Math.round((goal.currentAmount / Math.max(1, goal.targetAmount)) * 100));
   const done = goal.currentAmount >= goal.targetAmount;
+  const missing = Math.max(0, goal.targetAmount - goal.currentAmount);
 
   function handleApply(direction: 'in' | 'out') {
-    const v = Number(amountInput.replace(',', '.'));
-    if (!Number.isFinite(v) || v <= 0) return;
+    const v = parseAmount(amountInput); // aceita "1.234,56" e "1234.56"
+    if (v === null || v <= 0) return;
     if (direction === 'in') onDeposit(v);
     else onWithdraw(v);
     setAmountInput('');
   }
 
   return (
-    <article className="card bg-base-200 shadow">
-      <div className="card-body">
+    <article className="panel flex flex-col overflow-hidden">
+      <div className={`flex flex-col gap-3 p-4 ${TONE_CLASS[tone]}`}>
         <div className="flex items-start justify-between gap-2">
-          <div>
-            <h2 className="card-title">{goal.name}</h2>
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-extrabold">{goal.name}</h2>
             {goal.deadline && (
-              <p className="text-base-content/60 text-xs">Até {goal.deadline}</p>
+              <p className="text-xs font-semibold opacity-80">
+                Até {goal.deadline.split('-').reverse().join('/')}
+              </p>
             )}
           </div>
-          {done && <span className="badge badge-success">Meta atingida</span>}
+          {done ? (
+            <span className="sticker bg-white">🎉 Meta batida</span>
+          ) : (
+            <span className="metric text-2xl">{pct}%</span>
+          )}
         </div>
+        <div>
+          <p className="metric text-3xl">{BRL.format(goal.currentAmount)}</p>
+          <p className="text-xs font-semibold opacity-80">
+            de {BRL.format(goal.targetAmount)}
+            {!done && ` · faltam ${BRL.format(missing)}`}
+          </p>
+        </div>
+        <div className="h-2.5 overflow-hidden rounded-full bg-black/15" aria-hidden>
+          <div className="h-full rounded-full bg-current" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
 
-        <p className="text-base-content/70 text-sm">
-          {BRL.format(goal.currentAmount)} de {BRL.format(goal.targetAmount)}
-        </p>
-        <progress
-          className={`progress w-full ${done ? 'progress-success' : 'progress-primary'}`}
-          value={pct}
-          max={100}
-          aria-label={`Progresso da meta ${goal.name}`}
+      <div className="flex flex-col gap-2 p-4">
+        <input
+          className="input input-bordered w-full"
+          inputMode="decimal"
+          placeholder="Valor (R$)"
+          aria-label={`Valor para ${goal.name}`}
+          value={amountInput}
+          onChange={(e) => setAmountInput(e.target.value)}
         />
-        <div className="text-base-content/60 text-xs">{pct}% concluído</div>
-
-        <div className="join mt-2 w-full">
-          <input
-            className="input input-bordered input-sm join-item w-full"
-            inputMode="decimal"
-            placeholder="R$ 0,00"
-            value={amountInput}
-            onChange={(e) => setAmountInput(e.target.value)}
-          />
+        <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
-            className="btn btn-success btn-sm join-item"
+            className="btn btn-primary"
             onClick={() => handleApply('in')}
             disabled={!amountInput}
           >
-            + Depositar
+            + Guardar
           </button>
           <button
             type="button"
-            className="btn btn-warning btn-sm join-item"
+            className="btn btn-outline"
             onClick={() => handleApply('out')}
             disabled={!amountInput || goal.currentAmount === 0}
           >
-            − Sacar
+            − Tirar
           </button>
         </div>
-
-        <div className="card-actions justify-end">
-          <button type="button" className="btn btn-ghost btn-xs" onClick={onEdit}>
-            Editar
+        <div className="flex justify-end">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onEdit}>
+            <Pencil className="h-4 w-4" aria-hidden /> Editar
           </button>
-          <button type="button" className="btn btn-ghost btn-xs text-error" onClick={onDelete}>
-            Excluir
+          <button type="button" className="btn btn-ghost btn-sm text-error" onClick={onDelete}>
+            <Trash2 className="h-4 w-4" aria-hidden /> Excluir
           </button>
         </div>
       </div>

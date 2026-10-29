@@ -31,7 +31,7 @@ export function AiProviderSettingsForm({
   );
 
   return (
-    <form action={formAction} className="card bg-base-200 shadow">
+    <form action={formAction} className="panel">
       <div className="card-body gap-4">
         <fieldset className="flex flex-col gap-3">
           <legend className="card-title mb-3">Provedor de IA</legend>

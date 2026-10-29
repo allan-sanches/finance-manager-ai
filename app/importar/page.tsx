@@ -1,19 +1,17 @@
 import { ImportPanel } from '@/components/ImportPanel';
+import { PageHeader } from '@/components/ui';
 
 export default function ImportarPage() {
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold md:text-3xl">Importar arquivos</h1>
-        <p className="text-base-content/60 text-sm">
-          Envie extratos do banco ou os relatórios do Registrato e do Serasa. Nada é salvo antes
-          de você revisar.
-        </p>
-      </header>
+    <div className="mx-auto flex max-w-6xl flex-col gap-4">
+      <PageHeader
+        title="Importar arquivos"
+        subtitle="Extratos do banco, Registrato e Serasa. Nada é salvo antes de você revisar."
+      />
 
       <ImportPanel />
 
-      <details className="collapse-arrow bg-base-200 collapse">
+      <details className="collapse-arrow panel collapse">
         <summary className="collapse-title font-medium">Onde baixar cada arquivo</summary>
         <div className="collapse-content text-base-content/70 space-y-2 text-sm">
           <p>

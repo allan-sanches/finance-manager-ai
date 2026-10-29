@@ -14,9 +14,9 @@ export function DebtsOverview({ compact = false }: { compact?: boolean }) {
 
   if (debts.length === 0) {
     return (
-      <div className="card bg-base-200 shadow">
+      <div className="panel">
         <div className="card-body">
-          <h2 className="card-title">Dívidas e empréstimos</h2>
+          <h2 className="eyebrow">Dívidas e empréstimos</h2>
           <p className="text-base-content/60 text-sm">
             Nenhuma dívida importada. Envie o relatório do Registrato ou do Serasa em{' '}
             <Link href="/importar" className="link link-primary">
@@ -33,10 +33,10 @@ export function DebtsOverview({ compact = false }: { compact?: boolean }) {
   const sources = [...new Set(debts.map((d) => d.source))];
 
   return (
-    <div className="card bg-base-200 shadow">
+    <div className="panel">
       <div className="card-body gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="card-title">Dívidas e empréstimos</h2>
+          <h2 className="eyebrow">Dívidas e empréstimos</h2>
           <span className="text-base-content/60 text-xs">
             {sources
               .map((s) => `${DEBT_SOURCE_LABEL[s]} ${formatMonth(latestDate(debts, s))}`)
@@ -45,12 +45,12 @@ export function DebtsOverview({ compact = false }: { compact?: boolean }) {
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center">
-          <Metric label="Total" value={BRL.format(summary.total)} />
-          <Metric label="Em dia" value={BRL.format(summary.current)} />
+          <Metric label="Total" value={BRL.format(summary.total)} tone="bg-amber-300 text-neutral-900" />
+          <Metric label="Em dia" value={BRL.format(summary.current)} tone="bg-cyan-300 text-neutral-900" />
           <Metric
             label="Vencida"
             value={BRL.format(summary.overdue)}
-            className={summary.overdue > 0 ? 'text-error' : ''}
+            tone={summary.overdue > 0 ? 'bg-red-500 text-white' : 'bg-emerald-200 text-neutral-900'}
           />
         </div>
 
@@ -63,7 +63,7 @@ export function DebtsOverview({ compact = false }: { compact?: boolean }) {
                   <span className="shrink-0">{BRL.format(g.total)}</span>
                 </div>
                 <progress
-                  className={`progress w-full ${g.overdue > 0 ? 'progress-error' : 'progress-primary'}`}
+                  className={`progress h-2.5 w-full ${g.overdue > 0 ? 'progress-error' : 'progress-primary'}`}
                   value={Math.round((g.total / summary.total) * 100)}
                   max={100}
                 />
@@ -116,11 +116,11 @@ export function DebtsOverview({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function Metric({ label, value, className }: { label: string; value: string; className?: string }) {
+function Metric({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
-    <div className="bg-base-100 rounded-box px-2 py-2">
-      <p className="text-base-content/60 text-xs">{label}</p>
-      <p className={`text-sm font-semibold sm:text-base ${className ?? ''}`}>{value}</p>
+    <div className={`rounded-field px-2 py-2.5 ${tone}`}>
+      <p className="eyebrow !text-[10px]">{label}</p>
+      <p className="metric mt-1 text-sm sm:text-lg">{value}</p>
     </div>
   );
 }
