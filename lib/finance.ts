@@ -1,7 +1,9 @@
 import { normalizeCategoryName } from '@/lib/tones';
 import type {
+  AppSettings,
   Debt,
   DebtSource,
+  DebtStatus,
   PaymentMethod,
   Transaction,
   TransactionType,
@@ -37,6 +39,26 @@ export function mergeCategoryNames(custom: ReadonlyArray<{ name: string }>): str
     .filter((name) => !taken.has(normalizeCategoryName(name)))
     .sort((a, b) => a.localeCompare(b, 'pt-BR'));
   return [...builtIn, ...own, OTHERS];
+}
+
+/** Abandonadas e quitadas ficam fora do dashboard até o usuário mudar a preferência. */
+export const DEFAULT_SETTINGS: AppSettings = {
+  dashboardDebtStatuses: ['active', 'awaiting_offer', 'negotiated'],
+};
+
+export const DEBT_STATUS_LABEL: Record<DebtStatus, string> = {
+  active: 'Em aberto',
+  awaiting_offer: 'Aguardando oferta',
+  negotiated: 'Negociada',
+  abandoned: 'Abandonada',
+  paid: 'Quitada',
+};
+
+export const DEBT_STATUSES = Object.keys(DEBT_STATUS_LABEL) as DebtStatus[];
+
+/** Dívidas que entram nos totais do dashboard, conforme a preferência do usuário. */
+export function debtsOnDashboard(debts: ReadonlyArray<Debt>, settings: AppSettings): Debt[] {
+  return debts.filter((d) => settings.dashboardDebtStatuses.includes(d.status));
 }
 
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {

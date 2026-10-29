@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   Download,
   House,
+  Landmark,
   ListChecks,
   Menu,
   PenLine,
@@ -11,6 +12,7 @@ import {
   Plus,
   Settings,
   Sparkles,
+  UserRound,
   type LucideIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -30,9 +32,11 @@ const TABS_RIGHT: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/caixinhas', label: 'Caixinhas', icon: PiggyBank },
 ];
 const MORE: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: '/dividas', label: 'Dívidas', icon: Landmark },
   { href: '/listas', label: 'Listas', icon: ListChecks },
   { href: '/importar', label: 'Importar arquivos', icon: Download },
   { href: '/ia-input', label: 'Entrada por IA', icon: Sparkles },
+  { href: '/perfil', label: 'Perfil', icon: UserRound },
   { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ];
 

@@ -3,6 +3,7 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+import { checkAccountPassword } from '@/lib/account';
 import { createRateLimiter } from '@/lib/rate-limit';
 import {
   SESSION_COOKIE,
@@ -10,7 +11,6 @@ import {
   createSessionToken,
   isAuthConfigured,
   safeRedirectPath,
-  verifyPassword,
 } from '@/lib/session';
 
 export type LoginState = { error: string | null };
@@ -33,7 +33,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   }
 
   const password = formData.get('password');
-  if (typeof password !== 'string' || !(await verifyPassword(password))) {
+  if (typeof password !== 'string' || !(await checkAccountPassword(password))) {
     return { error: 'Senha incorreta.' };
   }
 

@@ -10,10 +10,14 @@ import {
   creditCardPatchSchema,
   creditCardSchema,
   debtBatchSchema,
+  debtPatchSchema,
+  debtSchema,
   debtSourceSchema,
   idSchema,
+  isoDateSchema,
   savingsGoalPatchSchema,
   savingsGoalSchema,
+  settingsPatchSchema,
   shoppingItemPatchSchema,
   shoppingItemSchema,
   snapshotSchema,
@@ -65,6 +69,23 @@ export async function removeDebt(id: unknown) {
   return run((db) => repo.removeDebt(db, debtId));
 }
 
+/** Só dívidas manuais nascem pelo app; as de relatório chegam por replaceDebts. */
+export async function addDebt(input: unknown) {
+  const data = debtSchema.parse(input);
+  return run((db) => repo.addDebt(db, { ...data, source: 'manual' }));
+}
+
+export async function updateDebt(id: unknown, patch: unknown) {
+  const debtId = idSchema.parse(id);
+  const data = debtPatchSchema.parse(patch);
+  return run((db) => repo.updateDebt(db, debtId, data));
+}
+
+export async function updateSettings(patch: unknown) {
+  const data = settingsPatchSchema.parse(patch);
+  return run((db) => repo.updateSettings(db, data));
+}
+
 export async function addCategory(input: unknown) {
   const data = categorySchema.parse(input);
   const key = normalizeCategoryName(data.name);
@@ -109,10 +130,11 @@ export async function addSavingsGoal(input: unknown) {
   return run((db) => repo.addSavingsGoal(db, data));
 }
 
-export async function depositToGoal(id: unknown, amount: unknown) {
+export async function depositToGoal(id: unknown, amount: unknown, depositDate?: unknown) {
   const goalId = idSchema.parse(id);
   const value = amountSchema.parse(amount);
-  return run((db) => repo.depositToGoal(db, goalId, value));
+  const date = isoDateSchema.optional().parse(depositDate);
+  return run((db) => repo.depositToGoal(db, goalId, value, date));
 }
 
 export async function withdrawFromGoal(id: unknown, amount: unknown) {

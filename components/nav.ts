@@ -2,10 +2,12 @@ import {
   ArrowLeftRight,
   Download,
   House,
+  Landmark,
   ListChecks,
   PiggyBank,
   Settings,
   Sparkles,
+  UserRound,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -14,10 +16,12 @@ export type NavItem = { href: string; label: string; icon: LucideIcon };
 export const NAV: ReadonlyArray<NavItem> = [
   { href: '/', label: 'Início', icon: House },
   { href: '/transacoes', label: 'Transações', icon: ArrowLeftRight },
+  { href: '/dividas', label: 'Dívidas', icon: Landmark },
   { href: '/caixinhas', label: 'Caixinhas', icon: PiggyBank },
   { href: '/listas', label: 'Listas', icon: ListChecks },
   { href: '/ia-input', label: 'Entrada por IA', icon: Sparkles },
   { href: '/importar', label: 'Importar', icon: Download },
+  { href: '/perfil', label: 'Perfil', icon: UserRound },
   { href: '/configuracoes', label: 'Configurações', icon: Settings },
 ];
 

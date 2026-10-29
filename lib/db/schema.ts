@@ -1,7 +1,14 @@
-import { boolean, date, integer, numeric, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { boolean, date, integer, jsonb, numeric, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 import type { Tone } from '@/lib/tones';
-import type { DebtSource, ListType, PaymentMethod, TransactionType } from '@/types/finance';
+import type {
+  Currency,
+  DebtSource,
+  DebtStatus,
+  ListType,
+  PaymentMethod,
+  TransactionType,
+} from '@/types/finance';
 
 // IDs são text (não uuid) porque os dados antigos do localStorage podem ter IDs no formato "id-<timestamp>-<random>".
 // createdAt existe só para ordenar as listas do jeito que o store já ordenava.
@@ -38,6 +45,11 @@ export const savingsGoals = pgTable('savings_goals', {
   targetAmount: money('target_amount').notNull(),
   currentAmount: money('current_amount').notNull().default(0),
   deadline: date('deadline', { mode: 'string' }),
+  institution: text('institution'),
+  cdiPercent: numeric('cdi_percent', { precision: 6, scale: 2, mode: 'number' }),
+  currency: text('currency').$type<Currency>().notNull().default('BRL'),
+  lockDays: integer('lock_days'),
+  depositDate: date('deposit_date', { mode: 'string' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -50,7 +62,16 @@ export const debts = pgTable('debts', {
   currentAmount: money('current_amount').notNull().default(0),
   overdueAmount: money('overdue_amount').notNull().default(0),
   referenceDate: date('reference_date', { mode: 'string' }).notNull(),
+  // Status e anotações são do usuário: sobrevivem quando um relatório novo substitui as linhas.
+  status: text('status').$type<DebtStatus>().notNull().default('active'),
+  notes: text('notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Preferências do app (chave → JSON), compartilhadas entre aparelhos.
+export const settings = pgTable('settings', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
 });
 
 // Categorias do usuário. As transações guardam o NOME (texto), então apagar uma categoria não
@@ -61,6 +82,16 @@ export const categories = pgTable('categories', {
   emoji: text('emoji').notNull(),
   tone: text('tone').$type<Tone>().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Conta do usuário único (linha id = 'owner'). Fica fora de `settings` porque o snapshot de
+// settings vai para o navegador, e o hash da senha nunca pode ir. Sem linha ou sem hash, o login
+// usa APP_PASSWORD do env até a primeira troca de senha.
+export const account = pgTable('account', {
+  id: text('id').primaryKey(),
+  email: text('email'),
+  passwordHash: text('password_hash'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const shoppingItems = pgTable('shopping_items', {

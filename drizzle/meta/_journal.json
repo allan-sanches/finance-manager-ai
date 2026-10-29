@@ -22,6 +22,20 @@
       "when": 1793314822300,
       "tag": "0002_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793315550021,
+      "tag": "0003_debt_status_goal_details",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793317936452,
+      "tag": "0004_account",
+      "breakpoints": true
     }
   ]
 }

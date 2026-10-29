@@ -2,10 +2,11 @@ import { asc, desc, eq, sql } from 'drizzle-orm';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 
 import * as schema from '@/lib/db/schema';
-import { mergeCategoryNames } from '@/lib/finance';
+import { DEFAULT_SETTINGS, mergeCategoryNames } from '@/lib/finance';
 import type { SnapshotInput } from '@/lib/finance-schemas';
 import { normalizeCategoryName } from '@/lib/tones';
 import type {
+  AppSettings,
   Category,
   CreditCard,
   Debt,
@@ -20,16 +21,23 @@ import type {
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 type Executor = Pick<Db, 'select' | 'insert' | 'update' | 'delete'>;
 
-const { categories, creditCards, debts, savingsGoals, shoppingItems, transactions } = schema;
+const { account, categories, creditCards, debts, savingsGoals, settings, shoppingItems, transactions } = schema;
+
+async function readSettings(db: Pick<Db, 'select'>): Promise<AppSettings> {
+  const rows = await db.select().from(settings);
+  const stored = Object.fromEntries(rows.map((r) => [r.key, r.value])) as Partial<AppSettings>;
+  return { ...DEFAULT_SETTINGS, ...stored };
+}
 
 export async function getSnapshot(db: Db): Promise<FinanceSnapshot> {
-  const [txRows, cardRows, goalRows, itemRows, debtRows, categoryRows] = await Promise.all([
+  const [txRows, cardRows, goalRows, itemRows, debtRows, categoryRows, appSettings] = await Promise.all([
     db.select().from(transactions).orderBy(desc(transactions.createdAt), desc(transactions.id)),
     db.select().from(creditCards).orderBy(asc(creditCards.createdAt), asc(creditCards.id)),
     db.select().from(savingsGoals).orderBy(asc(savingsGoals.createdAt), asc(savingsGoals.id)),
     db.select().from(shoppingItems).orderBy(desc(shoppingItems.createdAt), desc(shoppingItems.id)),
     db.select().from(debts).orderBy(asc(debts.createdAt), asc(debts.id)),
     db.select().from(categories).orderBy(asc(categories.createdAt), asc(categories.id)),
+    readSettings(db),
   ]);
 
   return {
@@ -46,6 +54,7 @@ export async function getSnapshot(db: Db): Promise<FinanceSnapshot> {
     ),
     debts: debtRows.map(({ createdAt: _, ...d }): Debt => d),
     categories: categoryRows.map(({ createdAt: _, ...c }): Category => c),
+    settings: appSettings,
   };
 }
 
@@ -188,10 +197,19 @@ export async function addSavingsGoal(db: Db, input: SavingsGoal): Promise<void> 
   await db.insert(savingsGoals).values(input);
 }
 
-export async function depositToGoal(db: Db, id: string, amount: number): Promise<void> {
+/** depositDate: só para caixinhas com prazo de resgate — o resgate provável conta a partir dele. */
+export async function depositToGoal(
+  db: Db,
+  id: string,
+  amount: number,
+  depositDate?: string,
+): Promise<void> {
   await db
     .update(savingsGoals)
-    .set({ currentAmount: sql`${savingsGoals.currentAmount} + ${amount}` })
+    .set({
+      currentAmount: sql`${savingsGoals.currentAmount} + ${amount}`,
+      ...(depositDate ? { depositDate } : {}),
+    })
     .where(eq(savingsGoals.id, id));
 }
 
@@ -264,11 +282,32 @@ export async function removeCategory(db: Db, id: string): Promise<void> {
 // ---------- Dívidas (Registrato/SCR e Serasa) ----------
 
 /** Um relatório novo é a foto atual: apaga as dívidas daquela origem e grava as do relatório. */
+const debtKey = (d: Pick<Debt, 'creditor' | 'description'>) =>
+  `${normalizeCategoryName(d.creditor)}|${normalizeCategoryName(d.description)}`;
+
+/**
+ * Um relatório novo é a foto atual: apaga as dívidas daquela origem e grava as do relatório.
+ * Status e anotações que o usuário deu a uma dívida (mesmo credor + modalidade) são mantidos.
+ */
 export async function replaceDebts(db: Db, source: DebtSource, inputs: Debt[]): Promise<void> {
   const base = Date.now();
   await db.transaction(async (tx) => {
+    const previous = await tx
+      .select({ creditor: debts.creditor, description: debts.description, status: debts.status, notes: debts.notes })
+      .from(debts)
+      .where(eq(debts.source, source));
+    const kept = new Map(previous.map((d) => [debtKey(d), d]));
     await tx.delete(debts).where(eq(debts.source, source));
-    const rows = inputs.map((d, i) => ({ ...d, source, createdAt: new Date(base + i) }));
+    const rows = inputs.map((d, i) => {
+      const old = kept.get(debtKey(d));
+      return {
+        ...d,
+        source,
+        status: old?.status ?? d.status,
+        notes: old?.notes ?? d.notes ?? null,
+        createdAt: new Date(base + i),
+      };
+    });
     for (const part of chunk(rows)) {
       await tx.insert(debts).values(part);
     }
@@ -277,6 +316,57 @@ export async function replaceDebts(db: Db, source: DebtSource, inputs: Debt[]): 
 
 export async function removeDebt(db: Db, id: string): Promise<void> {
   await db.delete(debts).where(eq(debts.id, id));
+}
+
+/** Dívida cadastrada à mão (origem "manual"). */
+export async function addDebt(db: Db, input: Debt): Promise<void> {
+  await db.insert(debts).values({ ...input, notes: input.notes ?? null });
+}
+
+export async function updateDebt(
+  db: Db,
+  id: string,
+  patch: Partial<Omit<Debt, 'id' | 'source'>>,
+): Promise<void> {
+  if (Object.keys(patch).length === 0) return;
+  await db.update(debts).set(patch).where(eq(debts.id, id));
+}
+
+// ---------- Preferências ----------
+
+export async function updateSettings(db: Db, patch: Partial<AppSettings>): Promise<void> {
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    await db
+      .insert(settings)
+      .values({ key, value })
+      .onConflictDoUpdate({ target: settings.key, set: { value } });
+  }
+}
+
+// ---------- Conta (perfil, usuário único) ----------
+
+const ACCOUNT_ID = 'owner';
+
+export type AccountRecord = { email: string | null; passwordHash: string | null };
+
+export async function getAccount(db: Db): Promise<AccountRecord> {
+  const [row] = await db
+    .select({ email: account.email, passwordHash: account.passwordHash })
+    .from(account)
+    .where(eq(account.id, ACCOUNT_ID));
+  return row ?? { email: null, passwordHash: null };
+}
+
+export async function updateAccount(
+  db: Db,
+  patch: { email?: string | null; passwordHash?: string },
+): Promise<void> {
+  const set = { ...patch, updatedAt: new Date() };
+  await db
+    .insert(account)
+    .values({ id: ACCOUNT_ID, ...set })
+    .onConflictDoUpdate({ target: account.id, set });
 }
 
 // ---------- Importação do localStorage ----------

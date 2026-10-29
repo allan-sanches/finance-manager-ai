@@ -114,23 +114,38 @@ describe('transações e fatura', () => {
 
 describe('caixinhas e listas', () => {
   it('deposita e retira sem ficar negativo', async () => {
-    await repo.addSavingsGoal(db, {
+    const viagem = {
       id: 'g1',
       name: 'Viagem',
       targetAmount: 3000,
       currentAmount: 0,
       deadline: '2027-01-01',
-    });
+      institution: 'Inter',
+      cdiPercent: 82,
+      currency: 'BRL' as const,
+      lockDays: null,
+      depositDate: null,
+    };
+    await repo.addSavingsGoal(db, viagem);
     await repo.depositToGoal(db, 'g1', 200.5);
     await repo.withdrawFromGoal(db, 'g1', 1000);
     const [goal] = (await repo.getSnapshot(db)).savingsGoals;
-    expect(goal).toEqual({
-      id: 'g1',
-      name: 'Viagem',
-      targetAmount: 3000,
+    expect(goal).toEqual(viagem);
+  });
+
+  it('depósito com data marca o resgate provável; editar o nome não muda a moeda', async () => {
+    await repo.addSavingsGoal(db, {
+      id: 'usd',
+      name: 'Porquinho em dólar',
+      targetAmount: 1000,
       currentAmount: 0,
-      deadline: '2027-01-01',
+      currency: 'USD',
+      lockDays: 30,
     });
+    await repo.depositToGoal(db, 'usd', 50, '2026-10-29');
+    await repo.updateSavingsGoal(db, 'usd', { name: 'Porquinho USD' });
+    const [goal] = (await repo.getSnapshot(db)).savingsGoals;
+    expect(goal).toMatchObject({ name: 'Porquinho USD', currency: 'USD', currentAmount: 50, depositDate: '2026-10-29', lockDays: 30 });
   });
 
   it('mantém priority opcional e alterna isPurchased', async () => {
@@ -225,6 +240,8 @@ describe('dívidas', () => {
     currentAmount: 653.92,
     overdueAmount: 0,
     referenceDate: '2026-09-01',
+    status: 'active',
+    notes: null,
     ...overrides,
   });
 
@@ -238,6 +255,22 @@ describe('dívidas', () => {
     const snap = await repo.getSnapshot(db);
     expect(snap.debts.map((d) => d.id).sort()).toEqual(['d3', 's1']);
     expect(snap.debts.find((d) => d.id === 'd3')).toEqual(debt({ id: 'd3', overdueAmount: 203.01 }));
+  });
+
+  it('mantém status e anotação quando o relatório novo traz a mesma dívida', async () => {
+    await repo.replaceDebts(db, 'scr', [debt()]);
+    await repo.updateDebt(db, 'd1', { status: 'abandoned', notes: 'prescreve em 2027' });
+    await repo.replaceDebts(db, 'scr', [debt({ id: 'novo', currentAmount: 600 })]);
+    const [d] = (await repo.getSnapshot(db)).debts;
+    expect(d).toMatchObject({ id: 'novo', currentAmount: 600, status: 'abandoned', notes: 'prescreve em 2027' });
+  });
+
+  it('dívida manual e preferência do dashboard', async () => {
+    await repo.addDebt(db, debt({ id: 'm1', source: 'manual', creditor: 'Simplic' }));
+    await repo.updateSettings(db, { dashboardDebtStatuses: ['active'] });
+    const snap = await repo.getSnapshot(db);
+    expect(snap.debts.map((x) => x.source)).toEqual(['manual']);
+    expect(snap.settings.dashboardDebtStatuses).toEqual(['active']);
   });
 
   it('remove uma dívida', async () => {
@@ -261,5 +294,19 @@ describe('categorias', () => {
     snap = await repo.getSnapshot(db);
     expect(snap.categories).toEqual([]);
     expect(snap.transactions[0].category).toBe('Pet');
+  });
+});
+
+describe('conta', () => {
+  it('começa vazia, grava e-mail e senha sem um apagar o outro, e não vaza no snapshot', async () => {
+    expect(await repo.getAccount(db)).toEqual({ email: null, passwordHash: null });
+
+    await repo.updateAccount(db, { email: 'eu@exemplo.com' });
+    await repo.updateAccount(db, { passwordHash: 'scrypt$hash' });
+    expect(await repo.getAccount(db)).toEqual({ email: 'eu@exemplo.com', passwordHash: 'scrypt$hash' });
+
+    await repo.updateAccount(db, { email: null });
+    expect(await repo.getAccount(db)).toEqual({ email: null, passwordHash: 'scrypt$hash' });
+    expect(JSON.stringify(await repo.getSnapshot(db))).not.toContain('scrypt');
   });
 });

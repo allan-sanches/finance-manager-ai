@@ -10,14 +10,14 @@ import type { FinanceSnapshot } from '@/types/finance';
 const LEGACY_KEY = 'finance-manager-ai:v1';
 const BACKUP_KEY = 'finance-manager-ai:v1:backup';
 
-type LegacyData = FinanceSnapshot & { total: number };
+type LegacyData = Omit<FinanceSnapshot, 'settings'> & { total: number };
 
 function readLegacyData(): LegacyData | null {
   try {
     const raw = localStorage.getItem(LEGACY_KEY);
     if (!raw) return null;
     const state = (JSON.parse(raw) as { state?: Partial<FinanceSnapshot> }).state ?? {};
-    const data: FinanceSnapshot = {
+    const data: Omit<FinanceSnapshot, 'settings'> = {
       transactions: state.transactions ?? [],
       creditCards: state.creditCards ?? [],
       savingsGoals: state.savingsGoals ?? [],

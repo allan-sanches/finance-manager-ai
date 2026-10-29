@@ -3,7 +3,9 @@
 import { create } from 'zustand';
 
 import * as actions from '@/app/actions/finance';
+import { DEFAULT_SETTINGS, todayISO } from '@/lib/finance';
 import type {
+  AppSettings,
   Category,
   CreditCard,
   Debt,
@@ -33,6 +35,11 @@ type FinanceState = FinanceSnapshot & {
   // Debts
   replaceDebts: (source: DebtSource, entries: ReadonlyArray<DebtEntry>) => void;
   removeDebt: (id: string) => void;
+  addDebt: (draft: Omit<Debt, 'id' | 'source'>) => Debt;
+  updateDebt: (id: string, patch: Partial<Omit<Debt, 'id' | 'source'>>) => void;
+
+  // Settings
+  updateSettings: (patch: Partial<AppSettings>) => void;
 
   // Categories
   addCategory: (draft: Omit<Category, 'id'>) => Category;
@@ -45,6 +52,7 @@ type FinanceState = FinanceSnapshot & {
 
   // Savings goals
   addSavingsGoal: (draft: Omit<SavingsGoal, 'id' | 'currentAmount'>) => SavingsGoal;
+  /** Em caixinha com prazo de resgate, o depósito também marca a data (hoje) para o resgate provável. */
   depositToGoal: (id: string, amount: number) => void;
   withdrawFromGoal: (id: string, amount: number) => void;
   updateSavingsGoal: (id: string, patch: Partial<Omit<SavingsGoal, 'id'>>) => void;
@@ -71,6 +79,7 @@ const initialState: FinanceSnapshot = {
   shoppingItems: [],
   debts: [],
   categories: [],
+  settings: DEFAULT_SETTINGS,
 };
 
 const transactionFromDraft = (draft: TransactionDraft): Transaction => ({
@@ -196,7 +205,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
 
     replaceDebts: (source, entries) => {
-      const next: Debt[] = entries.map((e) => ({ ...e, id: newId(), source }));
+      const next: Debt[] = entries.map((e) => ({ ...e, id: newId(), source, status: 'active', notes: null }));
       set((s) => ({ debts: [...s.debts.filter((d) => d.source !== source), ...next] }));
       sync(() => actions.replaceDebts(source, next));
     },
@@ -204,6 +213,23 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     removeDebt: (id) => {
       set((s) => ({ debts: s.debts.filter((d) => d.id !== id) }));
       sync(() => actions.removeDebt(id));
+    },
+
+    addDebt: (draft) => {
+      const debt: Debt = { ...draft, id: newId(), source: 'manual', notes: draft.notes ?? null };
+      set((s) => ({ debts: [...s.debts, debt] }));
+      sync(() => actions.addDebt(debt));
+      return debt;
+    },
+
+    updateDebt: (id, patch) => {
+      set((s) => ({ debts: s.debts.map((d) => (d.id === id ? { ...d, ...patch, id } : d)) }));
+      sync(() => actions.updateDebt(id, patch));
+    },
+
+    updateSettings: (patch) => {
+      set((s) => ({ settings: { ...s.settings, ...patch } }));
+      sync(() => actions.updateSettings(patch));
     },
 
     addCategory: (draft) => {
@@ -250,6 +276,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         name: draft.name,
         targetAmount: draft.targetAmount,
         deadline: draft.deadline ?? null,
+        institution: draft.institution ?? null,
+        cdiPercent: draft.cdiPercent ?? null,
+        currency: draft.currency,
+        lockDays: draft.lockDays ?? null,
+        depositDate: draft.depositDate ?? null,
         currentAmount: 0,
       };
       set((s) => ({ savingsGoals: [...s.savingsGoals, goal] }));
@@ -259,12 +290,16 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     depositToGoal: (id, amount) => {
       if (!Number.isFinite(amount) || amount <= 0) return;
+      const goal = get().savingsGoals.find((g) => g.id === id);
+      const depositDate = goal?.lockDays ? todayISO() : undefined;
       set((s) => ({
         savingsGoals: s.savingsGoals.map((g) =>
-          g.id === id ? { ...g, currentAmount: g.currentAmount + amount } : g,
+          g.id === id
+            ? { ...g, currentAmount: g.currentAmount + amount, ...(depositDate ? { depositDate } : {}) }
+            : g,
         ),
       }));
-      sync(() => actions.depositToGoal(id, amount));
+      sync(() => actions.depositToGoal(id, amount, depositDate));
     },
 
     withdrawFromGoal: (id, amount) => {

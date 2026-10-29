@@ -41,16 +41,34 @@ export const creditCardPatchSchema = creditCardSchema
   .omit({ id: true, currentInvoiceAmount: true })
   .partial();
 
+const nullable = <T extends z.ZodType>(schema: T) => schema.nullish().transform((v) => v ?? null);
+
 export const savingsGoalSchema = z.object({
   id,
   name: z.string().trim().min(1).max(80),
   targetAmount: positiveMoney,
   currentAmount: money,
-  deadline: isoDate.nullish().transform((v) => v ?? null),
+  deadline: nullable(isoDate),
+  institution: nullable(z.string().trim().min(1).max(60)),
+  cdiPercent: nullable(z.number().finite().min(0).max(1000)),
+  currency: z.enum(['BRL', 'USD']).default('BRL'),
+  lockDays: nullable(z.number().int().min(1).max(3650)),
+  depositDate: nullable(isoDate),
 });
 
-export const savingsGoalPatchSchema = savingsGoalSchema
-  .omit({ id: true, currentAmount: true })
+// Patches são escritos à mão, sem .default()/transform: em um .partial() eles preencheriam campos
+// que não vieram (ex.: editar o nome voltaria a moeda para BRL ou o status para "active").
+export const savingsGoalPatchSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    targetAmount: positiveMoney,
+    deadline: isoDate.nullable(),
+    institution: z.string().trim().min(1).max(60).nullable(),
+    cdiPercent: z.number().finite().min(0).max(1000).nullable(),
+    currency: z.enum(['BRL', 'USD']),
+    lockDays: z.number().int().min(1).max(3650).nullable(),
+    depositDate: isoDate.nullable(),
+  })
   .partial();
 
 export const shoppingItemSchema = z.object({
@@ -73,20 +91,44 @@ export const categorySchema = z.object({
 });
 
 export const debtSourceSchema = z.enum(['scr', 'serasa', 'manual']);
+export const debtStatusSchema = z.enum(['active', 'awaiting_offer', 'negotiated', 'abandoned', 'paid']);
 
-export const debtSchema = z
+const debtFields = z.object({
+  id,
+  creditor: shortText,
+  description: shortText,
+  source: debtSourceSchema,
+  currentAmount: money,
+  overdueAmount: money,
+  referenceDate: isoDate,
+  status: debtStatusSchema.default('active'),
+  notes: nullable(z.string().trim().max(500)),
+});
+
+export const debtSchema = debtFields.refine(
+  (d) => d.currentAmount + d.overdueAmount > 0,
+  'Dívida sem valor.',
+);
+
+/** Edição pela tela de Dívidas: origem e id não mudam. Sem defaults, pelo mesmo motivo do savingsGoalPatchSchema. */
+export const debtPatchSchema = z
   .object({
-    id,
     creditor: shortText,
     description: shortText,
-    source: debtSourceSchema,
     currentAmount: money,
     overdueAmount: money,
     referenceDate: isoDate,
+    status: debtStatusSchema,
+    notes: z.string().trim().max(500).nullable(),
   })
-  .refine((d) => d.currentAmount + d.overdueAmount > 0, 'Dívida sem valor.');
+  .partial();
+
+export const settingsPatchSchema = z
+  .object({ dashboardDebtStatuses: z.array(debtStatusSchema).max(10) })
+  .partial();
 
 export const idSchema = id;
+export const isoDateSchema = isoDate;
 export const amountSchema = positiveMoney;
 
 const MAX_IMPORT_ROWS = 20_000;

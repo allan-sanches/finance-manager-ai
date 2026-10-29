@@ -31,12 +31,19 @@ export type CreditCard = {
   currentInvoiceAmount: number;
 };
 
+export type Currency = 'BRL' | 'USD';
+
 export type SavingsGoal = {
   id: string;
   name: string;
   targetAmount: number;
-  currentAmount: number;
+  currentAmount: number; // na moeda da caixinha (currency)
   deadline?: string | null;
+  institution?: string | null; // Ex: Inter, Mercado Pago
+  cdiPercent?: number | null; // Rendimento em % do CDI, ex: 82, 120
+  currency: Currency;
+  lockDays?: number | null; // Prazo de resgate (ex: 7, 30, 90 dias no porquinho em dólar)
+  depositDate?: string | null; // Último depósito, para calcular o resgate provável
 };
 
 export type ListType = 'household' | 'wishlist';
@@ -65,6 +72,9 @@ export type DebtSource = 'scr' | 'serasa' | 'manual';
 /** Origens que chegam por relatório importado (cada importação substitui a anterior da mesma origem). */
 export type ReportDebtSource = Exclude<DebtSource, 'manual'>;
 
+/** Situação que o usuário controla; define se a dívida entra no dashboard (ver AppSettings). */
+export type DebtStatus = 'active' | 'awaiting_offer' | 'negotiated' | 'abandoned' | 'paid';
+
 export type Debt = {
   id: string;
   creditor: string; // Instituição credora, ex: "BANCO SANTANDER (BRASIL) S.A."
@@ -73,6 +83,13 @@ export type Debt = {
   currentAmount: number; // Em dia (não vencida ou vencida há até 14 dias)
   overdueAmount: number; // Vencida
   referenceDate: string; // ISO YYYY-MM-DD — mês de referência do SCR (dia 01) ou data da negativação
+  status: DebtStatus;
+  notes?: string | null; // Ex: "Oferta de R$ 800 à vista no Serasa Limpa Nome"
+};
+
+export type AppSettings = {
+  /** Status de dívida que entram nos totais e no card de dívidas do dashboard. */
+  dashboardDebtStatuses: DebtStatus[];
 };
 
 export type TransactionDraft = Omit<Transaction, 'id' | 'isPaid'> & {
@@ -86,6 +103,7 @@ export type FinanceSnapshot = {
   shoppingItems: ShoppingItem[];
   debts: Debt[];
   categories: Category[];
+  settings: AppSettings;
 };
 
 // ---------- Importação de arquivos ----------
@@ -109,7 +127,8 @@ export type StatementPreview = {
   warnings: string[];
 };
 
-export type DebtEntry = Omit<Debt, 'id' | 'source'>;
+/** Linha lida de um relatório: status e anotações são do usuário, não do relatório. */
+export type DebtEntry = Omit<Debt, 'id' | 'source' | 'status' | 'notes'>;
 
 export type DebtReportPreview = {
   kind: 'debts';

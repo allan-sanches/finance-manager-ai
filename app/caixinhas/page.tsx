@@ -1,14 +1,16 @@
 'use client';
 
-import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { CalendarClock, Pencil, Plus, Trash2, TrendingUp } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 import { SavingsGoalFormDialog } from '@/components/SavingsGoalFormDialog';
 import { EmptyState, PageHeader } from '@/components/ui';
-import { BRL } from '@/lib/finance';
+import { BRL, todayISO } from '@/lib/finance';
 import { parseAmount } from '@/lib/import/statement';
+import { daysBetween, estimatedMonthlyYield, redemptionDate, USD } from '@/lib/savings';
 import { useFinanceStore } from '@/lib/store';
 import { TONE_CLASS, type Tone } from '@/lib/tones';
+import { useCdi, type Cdi } from '@/lib/useCdi';
 import { useHydrated } from '@/lib/useHydratedStore';
 import type { SavingsGoal } from '@/types/finance';
 
@@ -21,6 +23,29 @@ export default function CaixinhasPage() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SavingsGoal | undefined>(undefined);
+  const cdi = useCdi();
+
+  // Agrupa por instituição (Inter, Mercado Pago…); sem instituição vai para o fim.
+  const groups = useMemo(() => {
+    const map = new Map<string, SavingsGoal[]>();
+    for (const g of goals) {
+      const key = g.institution?.trim() || '';
+      map.set(key, [...(map.get(key) ?? []), g]);
+    }
+    return [...map.entries()].sort(([a], [b]) =>
+      a === '' ? 1 : b === '' ? -1 : a.localeCompare(b, 'pt-BR'),
+    );
+  }, [goals]);
+
+  const totalBrl = goals
+    .filter((g) => g.currency === 'BRL')
+    .reduce((s, g) => s + g.currentAmount, 0);
+  const totalUsd = goals
+    .filter((g) => g.currency === 'USD')
+    .reduce((s, g) => s + g.currentAmount, 0);
+  const monthlyYield = cdi
+    ? goals.reduce((s, g) => s + (estimatedMonthlyYield(g, cdi.annualRate) ?? 0), 0)
+    : 0;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col">
@@ -48,22 +73,54 @@ export default function CaixinhasPage() {
           Crie uma meta — viagem, reserva de emergência, um desejo.
         </EmptyState>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {goals.map((g, i) => (
-            <GoalCard
-              key={g.id}
-              goal={g}
-              tone={GOAL_TONES[i % GOAL_TONES.length]}
-              onDeposit={(amount) => depositToGoal(g.id, amount)}
-              onWithdraw={(amount) => withdrawFromGoal(g.id, amount)}
-              onEdit={() => {
-                setEditing(g);
-                setDialogOpen(true);
-              }}
-              onDelete={() => {
-                if (confirm(`Excluir caixinha "${g.name}"?`)) removeSavingsGoal(g.id);
-              }}
-            />
+        <div className="flex flex-col gap-6">
+          <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
+            <div className="tile flex flex-col gap-1 bg-violet-500 p-4 text-white">
+              <span className="eyebrow">Guardado em R$</span>
+              <span className="metric text-2xl">{BRL.format(totalBrl)}</span>
+            </div>
+            <div className="tile flex flex-col gap-1 bg-emerald-400 p-4 text-neutral-900">
+              <span className="eyebrow">Rende por mês*</span>
+              <span className="metric text-2xl">{cdi ? BRL.format(monthlyYield) : '—'}</span>
+            </div>
+            {totalUsd > 0 && (
+              <div className="tile flex flex-col gap-1 bg-sky-300 p-4 text-neutral-900">
+                <span className="eyebrow">Em dólar</span>
+                <span className="metric text-2xl">{USD.format(totalUsd)}</span>
+              </div>
+            )}
+          </section>
+          <p className="text-base-content/60 -mt-3 text-xs">
+            * Estimativa bruta (sem IR) com o CDI de{' '}
+            {cdi
+              ? `${cdi.annualRate.toLocaleString('pt-BR')}% a.a. (Banco Central, ${cdi.date})`
+              : '…'}
+            , para as caixinhas com % do CDI preenchido.
+          </p>
+
+          {groups.map(([institution, items]) => (
+            <section key={institution || 'sem'}>
+              <h2 className="eyebrow mb-2 px-1">{institution || 'Sem instituição'}</h2>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {items.map((g) => (
+                  <GoalCard
+                    key={g.id}
+                    goal={g}
+                    cdi={cdi}
+                    tone={GOAL_TONES[goals.indexOf(g) % GOAL_TONES.length]}
+                    onDeposit={(amount) => depositToGoal(g.id, amount)}
+                    onWithdraw={(amount) => withdrawFromGoal(g.id, amount)}
+                    onEdit={() => {
+                      setEditing(g);
+                      setDialogOpen(true);
+                    }}
+                    onDelete={() => {
+                      if (confirm(`Excluir caixinha "${g.name}"?`)) removeSavingsGoal(g.id);
+                    }}
+                  />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}
@@ -81,6 +138,7 @@ const GOAL_TONES: Tone[] = ['violet', 'cyan', 'lime', 'pink', 'amber', 'sky'];
 
 function GoalCard({
   goal,
+  cdi,
   tone,
   onDeposit,
   onWithdraw,
@@ -88,6 +146,7 @@ function GoalCard({
   onDelete,
 }: {
   goal: SavingsGoal;
+  cdi: Cdi | null;
   tone: Tone;
   onDeposit: (amount: number) => void;
   onWithdraw: (amount: number) => void;
@@ -95,9 +154,16 @@ function GoalCard({
   onDelete: () => void;
 }) {
   const [amountInput, setAmountInput] = useState('');
-  const pct = Math.min(100, Math.round((goal.currentAmount / Math.max(1, goal.targetAmount)) * 100));
+  const pct = Math.min(
+    100,
+    Math.round((goal.currentAmount / Math.max(1, goal.targetAmount)) * 100),
+  );
   const done = goal.currentAmount >= goal.targetAmount;
   const missing = Math.max(0, goal.targetAmount - goal.currentAmount);
+  const money = goal.currency === 'USD' ? USD : BRL;
+  const yieldPerMonth = cdi ? estimatedMonthlyYield(goal, cdi.annualRate) : null;
+  const redemption = redemptionDate(goal);
+  const daysLeft = redemption ? daysBetween(todayISO(), redemption) : null;
 
   function handleApply(direction: 'in' | 'out') {
     const v = parseAmount(amountInput); // aceita "1.234,56" e "1234.56"
@@ -126,10 +192,10 @@ function GoalCard({
           )}
         </div>
         <div>
-          <p className="metric text-3xl">{BRL.format(goal.currentAmount)}</p>
+          <p className="metric text-3xl">{money.format(goal.currentAmount)}</p>
           <p className="text-xs font-semibold opacity-80">
-            de {BRL.format(goal.targetAmount)}
-            {!done && ` · faltam ${BRL.format(missing)}`}
+            de {money.format(goal.targetAmount)}
+            {!done && ` · faltam ${money.format(missing)}`}
           </p>
         </div>
         <div className="h-2.5 overflow-hidden rounded-full bg-black/15" aria-hidden>
@@ -138,10 +204,38 @@ function GoalCard({
       </div>
 
       <div className="flex flex-col gap-2 p-4">
+        {(goal.cdiPercent || redemption || goal.currency === 'USD') && (
+          <div className="flex flex-wrap gap-2 text-sm">
+            {goal.currency === 'BRL' && goal.cdiPercent != null && (
+              <span className="badge badge-lg bg-base-200 gap-1 border-0 font-semibold">
+                <TrendingUp className="h-4 w-4" aria-hidden />
+                {goal.cdiPercent.toLocaleString('pt-BR')}% do CDI
+                {yieldPerMonth != null && ` · ~${BRL.format(yieldPerMonth)}/mês`}
+              </span>
+            )}
+            {redemption && daysLeft !== null && (
+              <span
+                className={`badge badge-lg gap-1 border-0 font-semibold ${
+                  daysLeft <= 0 ? 'bg-emerald-300 text-neutral-900' : 'bg-base-200'
+                }`}
+              >
+                <CalendarClock className="h-4 w-4" aria-hidden />
+                {daysLeft <= 0
+                  ? `Disponível desde ${formatDay(redemption)}`
+                  : `Resgate ${formatDay(redemption)} · em ${daysLeft} dia${daysLeft === 1 ? '' : 's'}`}
+              </span>
+            )}
+            {goal.lockDays && !goal.depositDate && (
+              <span className="badge badge-lg bg-base-200 border-0">
+                Prazo de {goal.lockDays} dias · informe a data do depósito
+              </span>
+            )}
+          </div>
+        )}
         <input
           className="input input-bordered w-full"
           inputMode="decimal"
-          placeholder="Valor (R$)"
+          placeholder={goal.currency === 'USD' ? 'Valor (US$)' : 'Valor (R$)'}
           aria-label={`Valor para ${goal.name}`}
           value={amountInput}
           onChange={(e) => setAmountInput(e.target.value)}
@@ -175,4 +269,9 @@ function GoalCard({
       </div>
     </article>
   );
+}
+
+function formatDay(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
 }

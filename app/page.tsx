@@ -6,14 +6,17 @@ import Link from 'next/link';
 import { DashboardCharts } from '@/components/DashboardCharts';
 import { DebtsOverview } from '@/components/DebtsOverview';
 import { CategoryAvatar } from '@/components/CategoryAvatar';
-import { SectionTitle, Tile } from '@/components/ui';
+import { ExpandableTile, TileDetails } from '@/components/ExpandableTile';
+import { SectionTitle } from '@/components/ui';
 import {
   APP_TIME_ZONE,
   BRL,
+  debtsOnDashboard,
   expensesByCategory,
   summarizeDebts,
   summarizeMonth,
 } from '@/lib/finance';
+import { USD } from '@/lib/savings';
 import { useFinanceStore } from '@/lib/store';
 import { useHydrated } from '@/lib/useHydratedStore';
 
@@ -33,13 +36,26 @@ export default function DashboardPage() {
   const creditCards = useFinanceStore((s) => s.creditCards);
   const savingsGoals = useFinanceStore((s) => s.savingsGoals);
   const debts = useFinanceStore((s) => s.debts);
+  const settings = useFinanceStore((s) => s.settings);
 
   const month = summarizeMonth(transactions);
   const categories = expensesByCategory(transactions);
   const totalLimit = creditCards.reduce((sum, c) => sum + c.limit, 0);
   const totalInvoice = creditCards.reduce((sum, c) => sum + c.currentInvoiceAmount, 0);
-  const saved = savingsGoals.reduce((sum, g) => sum + g.currentAmount, 0);
-  const debtSummary = summarizeDebts(debts);
+  const saved = savingsGoals
+    .filter((g) => g.currency === 'BRL')
+    .reduce((sum, g) => sum + g.currentAmount, 0);
+  const savedUsd = savingsGoals
+    .filter((g) => g.currency === 'USD')
+    .reduce((sum, g) => sum + g.currentAmount, 0);
+  const dashboardDebts = debtsOnDashboard(debts, settings);
+  const debtSummary = summarizeDebts(dashboardDebts);
+  const counts = {
+    income: transactions.filter((t) => t.type === 'income').length,
+    expense: transactions.filter((t) => t.type === 'expense').length,
+    fixed: transactions.filter((t) => t.isFixed).length,
+    unpaid: transactions.filter((t) => !t.isPaid).length,
+  };
   const money = (n: number) => (hydrated ? BRL.format(n) : '—');
   // Pela data do lançamento, não pela ordem de cadastro (importações trazem datas antigas).
   const recent = [...transactions].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
@@ -71,34 +87,91 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Tile
+      <section className="grid grid-flow-row-dense grid-cols-2 items-start gap-3 lg:grid-cols-4">
+        <ExpandableTile
           tone="cyan"
           icon={CreditCard}
           label="Limite livre"
           value={money(Math.max(0, totalLimit - totalInvoice))}
           hint={creditCards.length === 0 ? 'Nenhum cartão' : `Fatura ${money(totalInvoice)}`}
-        />
-        <Tile
+        >
+          <TileDetails
+            empty="Nenhum cartão cadastrado."
+            rows={creditCards.map((c) => ({
+              key: c.id,
+              label: c.name,
+              value: money(Math.max(0, c.limit - c.currentInvoiceAmount)),
+              sub: `Fatura ${money(c.currentInvoiceAmount)} de ${money(c.limit)} · vence dia ${c.dueDay}`,
+              progress: (c.currentInvoiceAmount / Math.max(1, c.limit)) * 100,
+            }))}
+          />
+        </ExpandableTile>
+        <ExpandableTile
           tone="violet"
           icon={PiggyBank}
           label="Guardado"
           value={money(saved)}
-          hint={`${savingsGoals.length} caixinha(s)`}
-        />
-        <Tile
+          hint={savedUsd > 0 ? `+ ${USD.format(savedUsd)} em dólar` : `${savingsGoals.length} caixinha(s)`}
+        >
+          <TileDetails
+            empty="Nenhuma caixinha ainda."
+            footer={{ href: '/caixinhas', label: 'Ver caixinhas' }}
+            rows={savingsGoals.map((g) => {
+              const fmt = g.currency === 'USD' ? USD : BRL;
+              const pct = Math.round((g.currentAmount / Math.max(1, g.targetAmount)) * 100);
+              return {
+                key: g.id,
+                label: g.name,
+                value: hydrated ? fmt.format(g.currentAmount) : '—',
+                sub: [g.institution, `${pct}% de ${hydrated ? fmt.format(g.targetAmount) : '—'}`]
+                  .filter(Boolean)
+                  .join(' · '),
+                progress: pct,
+              };
+            })}
+          />
+        </ExpandableTile>
+        <ExpandableTile
           tone={debtSummary.overdue > 0 ? 'red' : 'amber'}
           icon={Landmark}
           label="Dívidas"
           value={money(debtSummary.total)}
           hint={debtSummary.overdue > 0 ? `${money(debtSummary.overdue)} vencida` : 'Nada vencido'}
-        />
-        <Tile
+        >
+          <TileDetails
+            empty="Nenhuma dívida no painel."
+            footer={{ href: '/dividas', label: 'Ver dívidas' }}
+            rows={[...dashboardDebts]
+              .sort((a, b) => b.currentAmount + b.overdueAmount - (a.currentAmount + a.overdueAmount))
+              .map((d) => ({
+                key: d.id,
+                label: d.creditor,
+                value: money(d.currentAmount + d.overdueAmount),
+                sub: d.overdueAmount > 0 ? `${money(d.overdueAmount)} vencida` : d.description,
+              }))}
+          />
+        </ExpandableTile>
+        <ExpandableTile
           tone="graphite"
           label="Lançamentos"
           value={hydrated ? transactions.length : '—'}
           hint="no total"
-        />
+        >
+          <TileDetails
+            empty="Nada lançado ainda."
+            footer={{ href: '/transacoes', label: 'Ver transações' }}
+            rows={
+              transactions.length === 0
+                ? []
+                : [
+                    { key: 'income', label: 'Entradas', value: counts.income },
+                    { key: 'expense', label: 'Saídas', value: counts.expense },
+                    { key: 'fixed', label: 'Fixos', value: counts.fixed },
+                    { key: 'unpaid', label: 'A pagar', value: counts.unpaid },
+                  ]
+            }
+          />
+        </ExpandableTile>
       </section>
 
       {hydrated && categories.length > 0 && (
@@ -186,7 +259,8 @@ export default function DashboardPage() {
                     </div>
                     <progress className="progress progress-primary h-3 w-full" value={pct} max={100} />
                     <p className="text-base-content/60 text-xs">
-                      {BRL.format(g.currentAmount)} de {BRL.format(g.targetAmount)}
+                      {(g.currency === 'USD' ? USD : BRL).format(g.currentAmount)} de{' '}
+                      {(g.currency === 'USD' ? USD : BRL).format(g.targetAmount)}
                     </p>
                   </li>
                 );
@@ -196,7 +270,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {hydrated && <DebtsOverview compact />}
+      {hydrated && <DebtsOverview />}
     </div>
   );
 }
