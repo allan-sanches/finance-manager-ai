@@ -1,0 +1,164 @@
+import type {
+  Debt,
+  DebtSource,
+  PaymentMethod,
+  Transaction,
+  TransactionType,
+} from '@/types/finance';
+
+export const BRL = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+});
+
+export const CATEGORIES: ReadonlyArray<string> = [
+  'Alimentação',
+  'Moradia',
+  'Transporte',
+  'Lazer',
+  'Saúde',
+  'Educação',
+  'Salário',
+  'Investimentos',
+  'Assinaturas',
+  'Outros',
+];
+
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  cash: 'Dinheiro',
+  debit: 'Débito',
+  credit_card: 'Cartão de crédito',
+  pix: 'Pix',
+  bank_transfer: 'Transferência',
+};
+
+export const TRANSACTION_TYPE_LABEL: Record<TransactionType, string> = {
+  income: 'Receita',
+  expense: 'Despesa',
+};
+
+export const DEBT_SOURCE_LABEL: Record<DebtSource, string> = {
+  scr: 'Registrato (SCR)',
+  serasa: 'Serasa',
+};
+
+export type DebtSummary = { current: number; overdue: number; total: number };
+
+export function summarizeDebts(debts: ReadonlyArray<Debt>): DebtSummary {
+  let current = 0;
+  let overdue = 0;
+  for (const d of debts) {
+    current += d.currentAmount;
+    overdue += d.overdueAmount;
+  }
+  return { current, overdue, total: current + overdue };
+}
+
+export const MONTH_LABELS = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+] as const;
+
+export const APP_TIME_ZONE = 'America/Sao_Paulo';
+
+// en-CA formata como YYYY-MM-DD; toISOString() usaria UTC e viraria o dia após as 21h em Brasília.
+const isoDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: APP_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+export function todayISO(now: Date = new Date()): string {
+  return isoDateFormatter.format(now);
+}
+
+export function monthKey(dateISO: string): string {
+  return dateISO.slice(0, 7);
+}
+
+export function currentMonthKey(): string {
+  return todayISO().slice(0, 7);
+}
+
+export function isSameMonth(dateISO: string, key: string): boolean {
+  return monthKey(dateISO) === key;
+}
+
+export type MonthlySummary = {
+  income: number;
+  expense: number;
+  balance: number;
+};
+
+export function summarizeMonth(
+  transactions: ReadonlyArray<Transaction>,
+  key: string = currentMonthKey(),
+): MonthlySummary {
+  let income = 0;
+  let expense = 0;
+  for (const tx of transactions) {
+    if (!isSameMonth(tx.date, key)) continue;
+    if (tx.type === 'income') income += tx.amount;
+    else expense += tx.amount;
+  }
+  return { income, expense, balance: income - expense };
+}
+
+export type CashflowPoint = { mes: string; entradas: number; saidas: number };
+
+export function cashflowLastMonths(
+  transactions: ReadonlyArray<Transaction>,
+  months: number = 6,
+): CashflowPoint[] {
+  const now = new Date();
+  const points: CashflowPoint[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const summary = summarizeMonth(transactions, key);
+    points.push({
+      mes: MONTH_LABELS[d.getMonth()],
+      entradas: summary.income,
+      saidas: summary.expense,
+    });
+  }
+  return points;
+}
+
+export type CategorySlice = { name: string; value: number };
+
+export function expensesByCategory(
+  transactions: ReadonlyArray<Transaction>,
+  key: string = currentMonthKey(),
+): CategorySlice[] {
+  const map = new Map<string, number>();
+  for (const tx of transactions) {
+    if (tx.type !== 'expense') continue;
+    if (!isSameMonth(tx.date, key)) continue;
+    map.set(tx.category, (map.get(tx.category) ?? 0) + tx.amount);
+  }
+  return Array.from(map.entries())
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+export function classifyTransaction(
+  tx: Transaction,
+): 'fixed' | 'variable' | 'credit' | 'debt' {
+  if (tx.paymentMethod === 'credit_card') return 'credit';
+  if (tx.category.toLowerCase().includes('dívida') || tx.category.toLowerCase().includes('divida')) {
+    return 'debt';
+  }
+  return tx.isFixed ? 'fixed' : 'variable';
+}

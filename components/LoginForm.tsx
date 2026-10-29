@@ -1,0 +1,39 @@
+'use client';
+
+import { useActionState } from 'react';
+
+import { login, type LoginState } from '@/app/actions/auth';
+
+const initialState: LoginState = { error: null };
+
+export function LoginForm({ next }: { next: string }) {
+  const [state, formAction, pending] = useActionState(login, initialState);
+
+  return (
+    <form action={formAction} className="flex flex-col gap-3">
+      <input type="hidden" name="next" value={next} />
+      <label className="form-control w-full">
+        <span className="label-text mb-1 font-medium">Senha</span>
+        <input
+          type="password"
+          name="password"
+          className="input input-bordered w-full"
+          autoComplete="current-password"
+          autoFocus
+          required
+        />
+      </label>
+
+      {state.error && (
+        <div role="alert" className="alert alert-error py-2 text-sm">
+          <span>{state.error}</span>
+        </div>
+      )}
+
+      <button type="submit" className="btn btn-primary" disabled={pending}>
+        {pending && <span className="loading loading-spinner loading-sm" />}
+        Entrar
+      </button>
+    </form>
+  );
+}

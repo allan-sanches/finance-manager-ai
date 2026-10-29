@@ -1,0 +1,44 @@
+{
+  "name": "finance-manager-ai",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node scripts/migrate.mjs"
+  },
+  "dependencies": {
+    "@google/genai": "^2.5.0",
+    "drizzle-orm": "^0.45.4",
+    "next": "^16.2.6",
+    "postgres": "^4.0.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "recharts": "^3.8.1",
+    "server-only": "^0.0.1",
+    "unpdf": "^2.0.0",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.13"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.13",
+    "@eslint/eslintrc": "^3.3.5",
+    "@tailwindcss/postcss": "^4.3.0",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "daisyui": "^5.5.20",
+    "drizzle-kit": "^0.31.11",
+    "eslint": "^10.4.0",
+    "eslint-config-next": "^16.2.6",
+    "railway": "^3.16.0",
+    "tailwindcss": "^4.3.0",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
+  }
+}
