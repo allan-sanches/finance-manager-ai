@@ -1,7 +1,4 @@
-import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
-
-import { TONE_CLASS, type Tone } from '@/lib/tones';
 
 /** Cabeçalho das páginas. No celular o título já está no topo (MobileNavbar), então só a linha de apoio aparece. */
 export function PageHeader({
@@ -21,37 +18,6 @@ export function PageHeader({
       </div>
       {action}
     </header>
-  );
-}
-
-/** Bloco colorido com rótulo, número grande e linha de apoio. */
-export function Tile({
-  tone,
-  label,
-  icon: Icon,
-  value,
-  hint,
-  className = '',
-  children,
-}: {
-  tone: Tone;
-  label: string;
-  icon?: LucideIcon;
-  value?: ReactNode;
-  hint?: ReactNode;
-  className?: string;
-  children?: ReactNode;
-}) {
-  return (
-    <article className={`tile flex flex-col gap-2 p-4 ${TONE_CLASS[tone]} ${className}`}>
-      <div className="eyebrow flex items-center gap-1.5 !opacity-90">
-        {Icon && <Icon className="h-3.5 w-3.5" aria-hidden />}
-        {label}
-      </div>
-      {value !== undefined && <div className="metric text-2xl sm:text-3xl">{value}</div>}
-      {hint && <div className="text-xs font-medium opacity-80">{hint}</div>}
-      {children}
-    </article>
   );
 }
 
