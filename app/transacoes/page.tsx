@@ -1,13 +1,14 @@
 'use client';
 
-import { CalendarClock, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CalendarClock, Pencil, Plus, ReceiptText, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { CreditCardFormDialog } from '@/components/CreditCardFormDialog';
+import { CreditCardInvoicesDialog } from '@/components/CreditCardInvoicesDialog';
 import { MonthCard } from '@/components/MonthCard';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
 import { EmptyState, PageHeader } from '@/components/ui';
-import { BRL, cardLimit, monthKey, todayISO } from '@/lib/finance';
+import { BRL, cardLimit, monthKey, nextOpenInvoice, shortDate, todayISO } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import { groupByMonth, splitByTiming } from '@/lib/transaction-months';
 import { useHydrated } from '@/lib/useHydratedStore';
@@ -131,9 +132,11 @@ const CARD_TONES = [
 function CreditCardsSection() {
   const creditCards = useFinanceStore((s) => s.creditCards);
   const savingsGoals = useFinanceStore((s) => s.savingsGoals);
+  const invoices = useFinanceStore((s) => s.creditCardInvoices);
   const removeCreditCard = useFinanceStore((s) => s.removeCreditCard);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CreditCard | undefined>(undefined);
+  const [invoicesOf, setInvoicesOf] = useState<CreditCard | undefined>(undefined);
 
   return (
     <div className="grid gap-4">
@@ -160,6 +163,7 @@ function CreditCardsSection() {
               (g) => g.id === c.limitSavingsGoalId && g.currency === 'BRL',
             );
             const pct = Math.min(100, Math.round((c.currentInvoiceAmount / Math.max(1, limit)) * 100));
+            const next = nextOpenInvoice(invoices, c.id);
             return (
               <article
                 key={c.id}
@@ -169,10 +173,20 @@ function CreditCardsSection() {
                   <div>
                     <h3 className="text-xl font-extrabold">{c.name}</h3>
                     <p className="text-xs font-semibold opacity-80">
-                      Fecha dia {c.closingDay} · vence dia {c.dueDay}
+                      {next
+                        ? `Fecha ${shortDate(next.closingDate)} · vence ${shortDate(next.dueDate)}`
+                        : `Fecha dia ${c.closingDay} · vence dia ${c.dueDay}`}
                     </p>
                   </div>
                   <div className="flex">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm btn-square text-white"
+                      aria-label={`Faturas de ${c.name}`}
+                      onClick={() => setInvoicesOf(c)}
+                    >
+                      <ReceiptText className="h-4 w-4" aria-hidden />
+                    </button>
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm btn-square text-white"
@@ -210,6 +224,14 @@ function CreditCardsSection() {
                     {limitGoal && ` · garantido pela caixinha ${limitGoal.name}`}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  className="btn min-h-11 border-0 bg-white/20 text-white hover:bg-white/30"
+                  onClick={() => setInvoicesOf(c)}
+                >
+                  <ReceiptText className="h-4 w-4" aria-hidden />
+                  {next ? `Fatura de ${BRL.format(next.amount)} em aberto` : 'Lançar fatura'}
+                </button>
               </article>
             );
           })}
@@ -217,6 +239,11 @@ function CreditCardsSection() {
       )}
 
       <CreditCardFormDialog open={open} onClose={() => setOpen(false)} initial={editing} />
+      <CreditCardInvoicesDialog
+        open={invoicesOf !== undefined}
+        onClose={() => setInvoicesOf(undefined)}
+        card={invoicesOf}
+      />
     </div>
   );
 }

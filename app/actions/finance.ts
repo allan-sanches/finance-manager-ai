@@ -7,6 +7,8 @@ import { CATEGORIES } from '@/lib/finance';
 import {
   amountSchema,
   categorySchema,
+  creditCardInvoicePatchSchema,
+  creditCardInvoiceSchema,
   creditCardPatchSchema,
   creditCardSchema,
   debtBatchSchema,
@@ -123,6 +125,22 @@ export async function updateCreditCard(id: unknown, patch: unknown) {
 export async function removeCreditCard(id: unknown) {
   const cardId = idSchema.parse(id);
   return run((db) => repo.removeCreditCard(db, cardId));
+}
+
+export async function addCreditCardInvoice(input: unknown) {
+  const data = creditCardInvoiceSchema.parse(input);
+  return run((db) => repo.addCreditCardInvoice(db, data));
+}
+
+export async function updateCreditCardInvoice(id: unknown, patch: unknown) {
+  const invoiceId = idSchema.parse(id);
+  const data = creditCardInvoicePatchSchema.parse(patch);
+  return run((db) => repo.updateCreditCardInvoice(db, invoiceId, data));
+}
+
+export async function removeCreditCardInvoice(id: unknown) {
+  const invoiceId = idSchema.parse(id);
+  return run((db) => repo.removeCreditCardInvoice(db, invoiceId));
 }
 
 export async function addSavingsGoal(input: unknown) {

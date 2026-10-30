@@ -23,7 +23,8 @@ function readLegacyData(): LegacyData | null {
       creditCards: state.creditCards ?? [],
       savingsGoals: state.savingsGoals ?? [],
       shoppingItems: state.shoppingItems ?? [],
-      debts: [], // dívidas e categorias não existiam na época do localStorage
+      creditCardInvoices: [], // faturas, dívidas e categorias não existiam na época do localStorage
+      debts: [],
       categories: [],
     };
     const total =

@@ -44,6 +44,30 @@ export const creditCardPatchSchema = creditCardSchema
   .omit({ id: true, currentInvoiceAmount: true })
   .partial();
 
+export const creditCardInvoiceSchema = z
+  .object({
+    id,
+    creditCardId: id,
+    closingDate: isoDate,
+    dueDate: isoDate,
+    amount: money,
+    paymentDate: nullable(isoDate),
+  })
+  .refine((i) => i.dueDate >= i.closingDate, {
+    message: 'O vencimento não pode ser antes do fechamento.',
+    path: ['dueDate'],
+  });
+
+// O cartão da fatura não muda depois de criada.
+export const creditCardInvoicePatchSchema = z
+  .object({
+    closingDate: isoDate,
+    dueDate: isoDate,
+    amount: money,
+    paymentDate: isoDate.nullable(),
+  })
+  .partial();
+
 export const savingsGoalSchema = z.object({
   id,
   name: z.string().trim().min(1).max(80),

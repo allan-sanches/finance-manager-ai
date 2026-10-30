@@ -14,6 +14,8 @@ import {
   cardLimit,
   debtsOnDashboard,
   expensesByCategory,
+  nextOpenInvoice,
+  shortDate,
   summarizeDebts,
   summarizeMonth,
 } from '@/lib/finance';
@@ -36,6 +38,7 @@ export default function DashboardPage() {
   const transactions = useFinanceStore((s) => s.transactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const savingsGoals = useFinanceStore((s) => s.savingsGoals);
+  const invoices = useFinanceStore((s) => s.creditCardInvoices);
   const debts = useFinanceStore((s) => s.debts);
   const settings = useFinanceStore((s) => s.settings);
 
@@ -100,11 +103,13 @@ export default function DashboardPage() {
             empty="Nenhum cartão cadastrado."
             rows={creditCards.map((c) => {
               const limit = cardLimit(c, savingsGoals);
+              const next = nextOpenInvoice(invoices, c.id);
+              const due = next ? shortDate(next.dueDate) : `dia ${c.dueDay}`;
               return {
                 key: c.id,
                 label: c.name,
                 value: money(Math.max(0, limit - c.currentInvoiceAmount)),
-                sub: `Fatura ${money(c.currentInvoiceAmount)} de ${money(limit)} · vence dia ${c.dueDay}`,
+                sub: `Fatura ${money(c.currentInvoiceAmount)} de ${money(limit)} · vence ${due}`,
                 progress: (c.currentInvoiceAmount / Math.max(1, limit)) * 100,
               };
             })}

@@ -50,6 +50,13 @@
       "when": 1793319364575,
       "tag": "0006_card_limit_savings_goal",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793320550293,
+      "tag": "0007_credit_card_invoices",
+      "breakpoints": true
     }
   ]
 }

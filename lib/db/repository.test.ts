@@ -311,3 +311,45 @@ describe('conta', () => {
     expect(JSON.stringify(await repo.getSnapshot(db))).not.toContain('scrypt');
   });
 });
+
+describe('faturas do cartão', () => {
+  const inv = {
+    id: 'inv-1',
+    creditCardId: 'card-1',
+    closingDate: '2026-11-05',
+    dueDate: '2026-11-12',
+    amount: 300,
+    paymentDate: null,
+  };
+
+  beforeEach(async () => {
+    await repo.addCreditCard(db, card({ currentInvoiceAmount: 500 }));
+  });
+
+  it('fatura em aberto não mexe no saldo; pagar desconta e desfazer devolve', async () => {
+    await repo.addCreditCardInvoice(db, inv);
+    expect(await invoice()).toBe(500);
+    await repo.updateCreditCardInvoice(db, 'inv-1', { paymentDate: '2026-11-10' });
+    expect(await invoice()).toBe(200);
+    await repo.updateCreditCardInvoice(db, 'inv-1', { amount: 350 });
+    expect(await invoice()).toBe(150);
+    await repo.updateCreditCardInvoice(db, 'inv-1', { paymentDate: null });
+    expect(await invoice()).toBe(500);
+  });
+
+  it('lança já paga e devolve o valor ao apagar', async () => {
+    await repo.addCreditCardInvoice(db, { ...inv, paymentDate: '2026-11-10' });
+    expect(await invoice()).toBe(200);
+    expect((await repo.getSnapshot(db)).creditCardInvoices).toEqual([
+      { ...inv, paymentDate: '2026-11-10' },
+    ]);
+    await repo.removeCreditCardInvoice(db, 'inv-1');
+    expect(await invoice()).toBe(500);
+  });
+
+  it('apagar o cartão apaga as faturas dele', async () => {
+    await repo.addCreditCardInvoice(db, inv);
+    await repo.removeCreditCard(db, 'card-1');
+    expect((await repo.getSnapshot(db)).creditCardInvoices).toEqual([]);
+  });
+});

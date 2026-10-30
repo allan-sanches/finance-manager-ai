@@ -9,6 +9,7 @@ import type {
   AppSettings,
   Category,
   CreditCard,
+  CreditCardInvoice,
   Debt,
   DebtSource,
   FinanceSnapshot,
@@ -21,7 +22,7 @@ import type {
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 type Executor = Pick<Db, 'select' | 'insert' | 'update' | 'delete'>;
 
-const { account, categories, creditCards, debts, savingsGoals, settings, shoppingItems, transactions } = schema;
+const { account, categories, creditCardInvoices, creditCards, debts, savingsGoals, settings, shoppingItems, transactions } = schema;
 
 async function readSettings(db: Pick<Db, 'select'>): Promise<AppSettings> {
   const rows = await db.select().from(settings);
@@ -30,9 +31,13 @@ async function readSettings(db: Pick<Db, 'select'>): Promise<AppSettings> {
 }
 
 export async function getSnapshot(db: Db): Promise<FinanceSnapshot> {
-  const [txRows, cardRows, goalRows, itemRows, debtRows, categoryRows, appSettings] = await Promise.all([
+  const [txRows, cardRows, invoiceRows, goalRows, itemRows, debtRows, categoryRows, appSettings] = await Promise.all([
     db.select().from(transactions).orderBy(desc(transactions.createdAt), desc(transactions.id)),
     db.select().from(creditCards).orderBy(asc(creditCards.createdAt), asc(creditCards.id)),
+    db
+      .select()
+      .from(creditCardInvoices)
+      .orderBy(desc(creditCardInvoices.closingDate), desc(creditCardInvoices.id)),
     db.select().from(savingsGoals).orderBy(asc(savingsGoals.createdAt), asc(savingsGoals.id)),
     db.select().from(shoppingItems).orderBy(desc(shoppingItems.createdAt), desc(shoppingItems.id)),
     db.select().from(debts).orderBy(asc(debts.createdAt), asc(debts.id)),
@@ -45,6 +50,7 @@ export async function getSnapshot(db: Db): Promise<FinanceSnapshot> {
       ({ createdAt: _, ...t }): Transaction => ({ ...t, creditCardId: t.creditCardId ?? null }),
     ),
     creditCards: cardRows.map(({ createdAt: _, ...c }): CreditCard => c),
+    creditCardInvoices: invoiceRows.map(({ createdAt: _, ...i }): CreditCardInvoice => i),
     savingsGoals: goalRows.map(({ createdAt: _, ...g }): SavingsGoal => g),
     shoppingItems: itemRows.map(
       ({ createdAt: _, priority, ...i }): ShoppingItem => ({
@@ -189,6 +195,46 @@ export async function updateCreditCard(
 /** A FK com ON DELETE SET NULL desvincula as transações do cartão removido. */
 export async function removeCreditCard(db: Db, id: string): Promise<void> {
   await db.delete(creditCards).where(eq(creditCards.id, id));
+}
+
+// ---------- Faturas ----------
+
+// O que está em currentInvoiceAmount é o que ainda não foi pago: fatura paga sai dali.
+const paidContribution = (i: Pick<CreditCardInvoice, 'paymentDate' | 'amount'>) =>
+  i.paymentDate ? i.amount : 0;
+
+export async function addCreditCardInvoice(db: Db, input: CreditCardInvoice): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.insert(creditCardInvoices).values(input);
+    await adjustInvoice(tx, input.creditCardId, -paidContribution(input));
+  });
+}
+
+export async function updateCreditCardInvoice(
+  db: Db,
+  id: string,
+  patch: Partial<Omit<CreditCardInvoice, 'id' | 'creditCardId'>>,
+): Promise<void> {
+  if (Object.keys(patch).length === 0) return;
+  await db.transaction(async (tx) => {
+    const [prev] = await tx
+      .select()
+      .from(creditCardInvoices)
+      .where(eq(creditCardInvoices.id, id))
+      .for('update');
+    if (!prev) return;
+    await tx.update(creditCardInvoices).set(patch).where(eq(creditCardInvoices.id, id));
+    const next = { ...prev, ...patch };
+    await adjustInvoice(tx, prev.creditCardId, paidContribution(prev) - paidContribution(next));
+  });
+}
+
+/** Apagar uma fatura paga devolve o valor ao saldo do cartão. */
+export async function removeCreditCardInvoice(db: Db, id: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [prev] = await tx.delete(creditCardInvoices).where(eq(creditCardInvoices.id, id)).returning();
+    if (prev) await adjustInvoice(tx, prev.creditCardId, paidContribution(prev));
+  });
 }
 
 // ---------- Caixinhas ----------

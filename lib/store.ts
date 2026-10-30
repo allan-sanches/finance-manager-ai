@@ -8,6 +8,7 @@ import type {
   AppSettings,
   Category,
   CreditCard,
+  CreditCardInvoice,
   Debt,
   DebtEntry,
   DebtSource,
@@ -50,6 +51,14 @@ type FinanceState = FinanceSnapshot & {
   updateCreditCard: (id: string, patch: Partial<Omit<CreditCard, 'id'>>) => void;
   removeCreditCard: (id: string) => void;
 
+  // Faturas
+  addCreditCardInvoice: (draft: Omit<CreditCardInvoice, 'id'>) => CreditCardInvoice;
+  updateCreditCardInvoice: (
+    id: string,
+    patch: Partial<Omit<CreditCardInvoice, 'id' | 'creditCardId'>>,
+  ) => void;
+  removeCreditCardInvoice: (id: string) => void;
+
   // Savings goals
   addSavingsGoal: (draft: Omit<SavingsGoal, 'id' | 'currentAmount'>) => SavingsGoal;
   /** Em caixinha com prazo de resgate, o depósito também marca a data (hoje) para o resgate provável. */
@@ -75,6 +84,7 @@ const newId = (): string =>
 const initialState: FinanceSnapshot = {
   transactions: [],
   creditCards: [],
+  creditCardInvoices: [],
   savingsGoals: [],
   shoppingItems: [],
   debts: [],
@@ -263,11 +273,37 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     removeCreditCard: (id) => {
       set((s) => ({
         creditCards: s.creditCards.filter((c) => c.id !== id),
+        creditCardInvoices: s.creditCardInvoices.filter((i) => i.creditCardId !== id),
         transactions: s.transactions.map((t) =>
           t.creditCardId === id ? { ...t, creditCardId: null } : t,
         ),
       }));
       sync(() => actions.removeCreditCard(id));
+    },
+
+    addCreditCardInvoice: (draft) => {
+      const invoice: CreditCardInvoice = { id: newId(), ...draft, paymentDate: draft.paymentDate ?? null };
+      set((s) => ({ creditCardInvoices: [invoice, ...s.creditCardInvoices] }));
+      payInvoiceLocally(invoice.creditCardId, paidContribution(invoice), set);
+      sync(() => actions.addCreditCardInvoice(invoice));
+      return invoice;
+    },
+
+    updateCreditCardInvoice: (id, patch) => {
+      const prev = get().creditCardInvoices.find((i) => i.id === id);
+      if (!prev) return;
+      const next: CreditCardInvoice = { ...prev, ...patch, id, creditCardId: prev.creditCardId };
+      set((s) => ({ creditCardInvoices: s.creditCardInvoices.map((i) => (i.id === id ? next : i)) }));
+      payInvoiceLocally(prev.creditCardId, paidContribution(next) - paidContribution(prev), set);
+      sync(() => actions.updateCreditCardInvoice(id, patch));
+    },
+
+    removeCreditCardInvoice: (id) => {
+      const prev = get().creditCardInvoices.find((i) => i.id === id);
+      if (!prev) return;
+      set((s) => ({ creditCardInvoices: s.creditCardInvoices.filter((i) => i.id !== id) }));
+      payInvoiceLocally(prev.creditCardId, -paidContribution(prev), set);
+      sync(() => actions.removeCreditCardInvoice(id));
     },
 
     addSavingsGoal: (draft) => {
@@ -385,5 +421,18 @@ function adjustInvoiceOnTxChange(prev: Transaction, next: Transaction, set: SetS
         currentInvoiceAmount: Math.max(0, card.currentInvoiceAmount + delta),
       };
     }),
+  }));
+}
+
+// Espelha o repositório: fatura paga sai do saldo em aberto do cartão.
+const paidContribution = (i: Pick<CreditCardInvoice, 'paymentDate' | 'amount'>) =>
+  i.paymentDate ? i.amount : 0;
+
+function payInvoiceLocally(cardId: string, paid: number, set: SetState) {
+  if (paid === 0) return;
+  set((s) => ({
+    creditCards: s.creditCards.map((c) =>
+      c.id === cardId ? { ...c, currentInvoiceAmount: Math.max(0, c.currentInvoiceAmount - paid) } : c,
+    ),
   }));
 }

@@ -33,6 +33,19 @@ export type CreditCard = {
   limitSavingsGoalId?: string | null;
 };
 
+/**
+ * Fatura de um cartão, com as datas digitadas pelo usuário (os bancos mudam o fechamento de mês a mês).
+ * Pagar a fatura (paymentDate preenchida) desconta o valor de currentInvoiceAmount e libera o limite.
+ */
+export type CreditCardInvoice = {
+  id: string;
+  creditCardId: string;
+  closingDate: string; // ISO YYYY-MM-DD
+  dueDate: string; // ISO YYYY-MM-DD
+  amount: number;
+  paymentDate?: string | null; // ISO YYYY-MM-DD; vazia = em aberto
+};
+
 export type Currency = 'BRL' | 'USD';
 
 export type SavingsGoal = {
@@ -102,6 +115,7 @@ export type TransactionDraft = Omit<Transaction, 'id' | 'isPaid'> & {
 export type FinanceSnapshot = {
   transactions: Transaction[];
   creditCards: CreditCard[];
+  creditCardInvoices: CreditCardInvoice[];
   savingsGoals: SavingsGoal[];
   shoppingItems: ShoppingItem[];
   debts: Debt[];

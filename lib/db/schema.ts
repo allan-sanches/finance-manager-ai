@@ -28,6 +28,19 @@ export const creditCards = pgTable('credit_cards', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Apagar o cartão apaga as faturas dele.
+export const creditCardInvoices = pgTable('credit_card_invoices', {
+  id: text('id').primaryKey(),
+  creditCardId: text('credit_card_id')
+    .notNull()
+    .references(() => creditCards.id, { onDelete: 'cascade' }),
+  closingDate: date('closing_date', { mode: 'string' }).notNull(),
+  dueDate: date('due_date', { mode: 'string' }).notNull(),
+  amount: money('amount').notNull(),
+  paymentDate: date('payment_date', { mode: 'string' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const transactions = pgTable('transactions', {
   id: text('id').primaryKey(),
   description: text('description').notNull(),

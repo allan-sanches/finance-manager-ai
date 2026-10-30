@@ -2,6 +2,7 @@ import { normalizeCategoryName } from '@/lib/tones';
 import type {
   AppSettings,
   CreditCard,
+  CreditCardInvoice,
   Debt,
   DebtSource,
   DebtStatus,
@@ -135,6 +136,32 @@ const isoDateFormatter = new Intl.DateTimeFormat('en-CA', {
 
 export function todayISO(now: Date = new Date()): string {
   return isoDateFormatter.format(now);
+}
+
+// Datas ISO são dias de calendário: formatar em UTC evita que meia-noite vire o dia anterior.
+const SHORT_DATE = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
+
+/** "2026-11-05" → "05/11". */
+export const shortDate = (dateISO: string): string => SHORT_DATE.format(new Date(`${dateISO}T00:00:00Z`));
+
+export type InvoiceStatus = 'paid' | 'open' | 'overdue';
+
+export function invoiceStatus(
+  invoice: Pick<CreditCardInvoice, 'dueDate' | 'paymentDate'>,
+  today: string = todayISO(),
+): InvoiceStatus {
+  if (invoice.paymentDate) return 'paid';
+  return invoice.dueDate < today ? 'overdue' : 'open';
+}
+
+/** Fatura em aberto que vence primeiro (a que o usuário precisa pagar agora). */
+export function nextOpenInvoice<T extends Pick<CreditCardInvoice, 'creditCardId' | 'dueDate' | 'paymentDate'>>(
+  invoices: ReadonlyArray<T>,
+  cardId: string,
+): T | undefined {
+  return invoices
+    .filter((i) => i.creditCardId === cardId && !i.paymentDate)
+    .reduce<T | undefined>((first, i) => (!first || i.dueDate < first.dueDate ? i : first), undefined);
 }
 
 export function monthKey(dateISO: string): string {
