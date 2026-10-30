@@ -24,7 +24,14 @@ export type StructuredJsonRequest = {
   geminiSchema: Schema;
   jsonExample: unknown;
   maxOutputTokens: number;
+  /** Prints/fotos enviados junto do texto (ex.: telas do app do Serasa). Nem todo provedor lê imagem. */
+  images?: ReadonlyArray<PromptImage>;
 };
+
+export type PromptImage = { mimeType: 'image/png' | 'image/jpeg' | 'image/webp'; base64: string };
+
+export const IMAGES_NOT_SUPPORTED_ERROR =
+  'O provedor de IA selecionado não lê imagens. Escolha o Vercel AI Gateway ou o Gemini em Configurações.';
 
 export type StructuredJsonResult =
   | { ok: true; value: unknown }

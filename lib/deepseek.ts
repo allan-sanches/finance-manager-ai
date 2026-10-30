@@ -2,6 +2,7 @@ import 'server-only';
 
 import {
   buildSystemInstruction,
+  IMAGES_NOT_SUPPORTED_ERROR,
   INVALID_OUTPUT_ERROR,
   NOT_CONFIGURED_ERROR,
   UPSTREAM_ERROR,
@@ -54,6 +55,10 @@ export async function generateJsonWithDeepseek(
 ): Promise<StructuredJsonResult> {
   if (!apiKey) {
     return { ok: false, code: 'not_configured', error: NOT_CONFIGURED_ERROR };
+  }
+  // A API do DeepSeek é só texto.
+  if (request.images?.length) {
+    return { ok: false, code: 'not_configured', error: IMAGES_NOT_SUPPORTED_ERROR };
   }
 
   const formatInstruction = [

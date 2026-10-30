@@ -82,3 +82,25 @@ describe('extractWithDeepseek', () => {
     },
   );
 });
+
+describe('generateJsonWithDeepseek com imagens', () => {
+  it('recusa sem chamar a API, porque o DeepSeek só lê texto', async () => {
+    vi.resetModules();
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('DEEPSEEK_API_KEY', 'k');
+    const { generateJsonWithDeepseek } = await import('@/lib/deepseek');
+    const result = await generateJsonWithDeepseek({
+      systemInstruction: 's',
+      content: 'c',
+      images: [{ mimeType: 'image/png', base64: 'AAA' }],
+      geminiSchema: {},
+      jsonExample: {},
+      maxOutputTokens: 10,
+    });
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('não lê imagens') });
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+});

@@ -118,3 +118,38 @@ describe('AI Gateway', () => {
     });
   });
 });
+
+describe('AI Gateway com imagens', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.resetModules();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('AI_GATEWAY_API_KEY', 'test-key');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('manda texto + imagens como conteúdo multimodal', async () => {
+    fetchMock.mockResolvedValue(completion(JSON.stringify({ entries: [] })));
+    const { generateJsonWithGateway } = await import('@/lib/ai-gateway');
+    const result = await generateJsonWithGateway({
+      systemInstruction: 's',
+      content: 'prints',
+      images: [{ mimeType: 'image/jpeg', base64: 'AAA' }],
+      geminiSchema: { type: Type.OBJECT },
+      jsonExample: {},
+      maxOutputTokens: 100,
+    });
+    expect(result.ok).toBe(true);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.messages[1].content).toEqual([
+      { type: 'text', text: 'prints' },
+      { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,AAA' } },
+    ]);
+  });
+});

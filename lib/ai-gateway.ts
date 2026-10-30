@@ -95,8 +95,23 @@ async function complete(
         model: gatewayModel,
         messages: [
           // "json" no prompt: alguns provedores do roteamento exigem a palavra para o modo JSON.
-          { role: 'system', content: `${request.systemInstruction} Responda somente com o objeto json do schema.` },
-          { role: 'user', content: request.content },
+          {
+            role: 'system',
+            content: `${request.systemInstruction} Responda somente com o objeto json do schema.`,
+          },
+          {
+            role: 'user',
+            // Com imagens, o conteúdo vira a lista multimodal do formato OpenAI (texto + data URIs).
+            content: request.images?.length
+              ? [
+                  { type: 'text', text: request.content },
+                  ...request.images.map((img) => ({
+                    type: 'image_url',
+                    image_url: { url: `data:${img.mimeType};base64,${img.base64}` },
+                  })),
+                ]
+              : request.content,
+          },
         ],
         response_format: {
           type: 'json_schema',
@@ -113,7 +128,9 @@ async function complete(
       console.error('[ai-gateway] chat/completions failed', response.status, await response.text());
       // 401/403 vêm de chave, plano ou modelo fora do plano: tentar de novo não resolve.
       const error =
-        response.status === 401 || response.status === 403 ? GATEWAY_REJECTED_ERROR : UPSTREAM_ERROR;
+        response.status === 401 || response.status === 403
+          ? GATEWAY_REJECTED_ERROR
+          : UPSTREAM_ERROR;
       return { ok: false, code: 'upstream_error', error };
     }
     const payload = (await response.json()) as ChatCompletionResponse;
@@ -131,7 +148,9 @@ async function complete(
   }
 }
 
-export function generateJsonWithGateway(request: StructuredJsonRequest): Promise<StructuredJsonResult> {
+export function generateJsonWithGateway(
+  request: StructuredJsonRequest,
+): Promise<StructuredJsonResult> {
   return complete(request, DOCUMENT_TIMEOUT_MS);
 }
 

@@ -37,15 +37,7 @@ export const buildExtractionSchema = (creditCards: ReadonlyArray<CreditCardRef>)
   properties: {
     transaction: {
       type: Type.OBJECT,
-      required: [
-        'description',
-        'amount',
-        'type',
-        'category',
-        'paymentMethod',
-        'date',
-        'isFixed',
-      ],
+      required: ['description', 'amount', 'type', 'category', 'paymentMethod', 'date', 'isFixed'],
       properties: {
         description: {
           type: Type.STRING,
@@ -113,7 +105,19 @@ export async function generateJsonWithGemini(
   try {
     const response = await ai.models.generateContent({
       model: geminiModel,
-      contents: request.content,
+      contents: request.images?.length
+        ? [
+            {
+              role: 'user',
+              parts: [
+                { text: request.content },
+                ...request.images.map((img) => ({
+                  inlineData: { mimeType: img.mimeType, data: img.base64 },
+                })),
+              ],
+            },
+          ]
+        : request.content,
       config: {
         systemInstruction: request.systemInstruction,
         responseMimeType: 'application/json',
