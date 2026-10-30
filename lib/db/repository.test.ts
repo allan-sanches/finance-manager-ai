@@ -125,6 +125,7 @@ describe('caixinhas e listas', () => {
       currency: 'BRL' as const,
       lockDays: null,
       depositDate: null,
+      monthlyContribution: 150,
     };
     await repo.addSavingsGoal(db, viagem);
     await repo.depositToGoal(db, 'g1', 200.5);

@@ -44,6 +44,7 @@ export type SavingsGoal = {
   currency: Currency;
   lockDays?: number | null; // Prazo de resgate (ex: 7, 30, 90 dias no porquinho em dólar)
   depositDate?: string | null; // Último depósito, para calcular o resgate provável
+  monthlyContribution?: number | null; // Aporte planejado por mês, para projetar quando a meta é batida
 };
 
 export type ListType = 'household' | 'wishlist';

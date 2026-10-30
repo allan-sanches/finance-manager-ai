@@ -54,6 +54,7 @@ export const savingsGoalSchema = z.object({
   currency: z.enum(['BRL', 'USD']).default('BRL'),
   lockDays: nullable(z.number().int().min(1).max(3650)),
   depositDate: nullable(isoDate),
+  monthlyContribution: nullable(money),
 });
 
 // Patches são escritos à mão, sem .default()/transform: em um .partial() eles preencheriam campos
@@ -68,6 +69,7 @@ export const savingsGoalPatchSchema = z
     currency: z.enum(['BRL', 'USD']),
     lockDays: z.number().int().min(1).max(3650).nullable(),
     depositDate: isoDate.nullable(),
+    monthlyContribution: money.nullable(),
   })
   .partial();
 

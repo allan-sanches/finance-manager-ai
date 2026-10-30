@@ -281,6 +281,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         currency: draft.currency,
         lockDays: draft.lockDays ?? null,
         depositDate: draft.depositDate ?? null,
+        monthlyContribution: draft.monthlyContribution ?? null,
         currentAmount: 0,
       };
       set((s) => ({ savingsGoals: [...s.savingsGoals, goal] }));

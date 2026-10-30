@@ -50,6 +50,7 @@ export const savingsGoals = pgTable('savings_goals', {
   currency: text('currency').$type<Currency>().notNull().default('BRL'),
   lockDays: integer('lock_days'),
   depositDate: date('deposit_date', { mode: 'string' }),
+  monthlyContribution: money('monthly_contribution'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

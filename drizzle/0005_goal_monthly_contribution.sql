@@ -1,0 +1,1 @@
+ALTER TABLE "savings_goals" ADD COLUMN "monthly_contribution" numeric(14, 2);

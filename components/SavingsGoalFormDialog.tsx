@@ -2,8 +2,12 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
+import { BRL, todayISO } from '@/lib/finance';
 import { parseAmount } from '@/lib/import/statement';
+import { goalRateAt, monthlyRateFromCdi, projectGoal, SAVINGS_BANKS, USD } from '@/lib/savings';
 import { useFinanceStore } from '@/lib/store';
+import { useOpenedWith } from '@/lib/useMounted';
+import { useCdi } from '@/lib/useCdi';
 import type { Currency, SavingsGoal } from '@/types/finance';
 
 type Props = {
@@ -27,7 +31,10 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
   const [cdiPercent, setCdiPercent] = useState('');
   const [lockDays, setLockDays] = useState('');
   const [depositDate, setDepositDate] = useState('');
+  const [contribution, setContribution] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  const cdi = useCdi();
 
   useEffect(() => {
     const dlg = dialogRef.current;
@@ -36,8 +43,7 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
     if (!open && dlg.open) dlg.close();
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
+  if (useOpenedWith(open, initial)) {
     setName(initial?.name ?? '');
     setTarget(initial ? String(initial.targetAmount).replace('.', ',') : '');
     setDeadline(initial?.deadline ?? '');
@@ -46,8 +52,11 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
     setCdiPercent(initial?.cdiPercent != null ? String(initial.cdiPercent) : '');
     setLockDays(initial?.lockDays != null ? String(initial.lockDays) : '');
     setDepositDate(initial?.depositDate ?? '');
+    setContribution(
+      initial?.monthlyContribution ? String(initial.monthlyContribution).replace('.', ',') : '',
+    );
     setError(null);
-  }, [open, initial]);
+  }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -60,6 +69,8 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
     const lock = lockDays.trim() ? Number(lockDays) : null;
     if (lock !== null && (!Number.isInteger(lock) || lock < 1))
       return setError('Prazo de resgate inválido.');
+    const monthly = contribution.trim() ? parseAmount(contribution) : null;
+    if (monthly !== null && monthly < 0) return setError('Aporte mensal inválido.');
 
     const fields = {
       name: name.trim(),
@@ -71,6 +82,7 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
       cdiPercent: currency === 'BRL' ? cdi : null,
       lockDays: lock,
       depositDate: lock ? depositDate || null : null,
+      monthlyContribution: monthly || null,
     };
     if (initial) updateSavingsGoal(initial.id, fields);
     else addSavingsGoal(fields);
@@ -78,6 +90,27 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
   }
 
   const symbol = currency === 'USD' ? 'US$' : 'R$';
+  const money = currency === 'USD' ? USD : BRL;
+  const cdiNum = currency === 'BRL' && cdiPercent.trim() ? parseAmount(cdiPercent) : null;
+
+  // Prévia com o que está digitado, a partir do saldo atual da caixinha.
+  const preview = (() => {
+    const targetNum = parseAmount(target);
+    if (targetNum === null || targetNum <= 0) return null;
+    const draft = {
+      id: '',
+      name,
+      targetAmount: targetNum,
+      currentAmount: initial?.currentAmount ?? 0,
+      currency,
+      cdiPercent: cdiNum,
+      deadline: deadline || null,
+      monthlyContribution: contribution.trim() ? parseAmount(contribution) : null,
+    };
+    const today = todayISO();
+    const rateAt = goalRateAt(draft, cdi, today);
+    return rateAt === null ? null : projectGoal(draft, rateAt, today);
+  })();
 
   return (
     <dialog
@@ -100,6 +133,39 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
               required
             />
           </label>
+
+          {currency === 'BRL' && (
+            <fieldset className="grid gap-2">
+              <legend className="label-text mb-1">Banco</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {SAVINGS_BANKS.map((b) => {
+                  const selected = institution === b.name && cdiNum === b.cdiPercent;
+                  const annual = cdi
+                    ? ((1 + monthlyRateFromCdi(b.cdiPercent, cdi.annualRate)) ** 12 - 1) * 100
+                    : null;
+                  return (
+                    <button
+                      key={b.name}
+                      type="button"
+                      aria-pressed={selected}
+                      className={`btn h-auto min-h-12 flex-col gap-0 py-2 ${selected ? 'btn-neutral' : 'btn-ghost bg-base-200'}`}
+                      onClick={() => {
+                        setInstitution(b.name);
+                        setCdiPercent(String(b.cdiPercent));
+                      }}
+                    >
+                      <span className="font-bold">{b.name}</span>
+                      <span className="text-xs font-normal opacity-80">
+                        {b.cdiPercent}% do CDI
+                        {annual !== null &&
+                          ` · ≈ ${annual.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% a.a.`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <label className="form-control">
@@ -192,15 +258,49 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
             )}
           </fieldset>
 
-          <label className="form-control">
-            <span className="label-text">Prazo da meta (opcional)</span>
-            <input
-              type="date"
-              className="input input-bordered w-full"
-              value={deadline}
-              onChange={(e) => setDeadline(e.target.value)}
-            />
-          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="form-control">
+              <span className="label-text">Aporte por mês ({symbol})</span>
+              <input
+                className="input input-bordered w-full"
+                inputMode="decimal"
+                value={contribution}
+                onChange={(e) => setContribution(e.target.value)}
+                placeholder="Opcional"
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text">Prazo da meta</span>
+              <input
+                type="date"
+                className="input input-bordered w-full"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+              />
+            </label>
+          </div>
+
+          {preview && (preview.atDeadline || preview.reachDate) && (
+            <div className="bg-base-200 rounded-box flex flex-col gap-1 p-3 text-sm">
+              {preview.atDeadline && (
+                <>
+                  <span>
+                    No prazo: <strong>{money.format(preview.atDeadline.amount)}</strong> líquido
+                    {preview.atDeadline.yieldAmount > 0.005 &&
+                      ` (${money.format(preview.atDeadline.yieldAmount)} de rendimento já sem IR)`}
+                  </span>
+                  <span>
+                    {preview.atDeadline.requiredContribution === 0
+                      ? 'Chega na meta só com o que já está guardado.'
+                      : `Para bater a meta: ${money.format(preview.atDeadline.requiredContribution)}/mês.`}
+                  </span>
+                </>
+              )}
+              {preview.reachDate && (
+                <span>Meta batida em {formatMonth(preview.reachDate)} nesse ritmo.</span>
+              )}
+            </div>
+          )}
 
           {error && (
             <div role="alert" className="alert alert-error">
@@ -223,4 +323,9 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
       </form>
     </dialog>
   );
+}
+
+function formatMonth(iso: string): string {
+  const [y, m] = iso.split('-');
+  return `${m}/${y}`;
 }

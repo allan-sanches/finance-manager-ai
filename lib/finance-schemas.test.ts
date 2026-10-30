@@ -13,6 +13,6 @@ describe('patches não preenchem campos ausentes', () => {
 
   it('caixinha nova sem moeda vira BRL e campos opcionais viram null', () => {
     const goal = savingsGoalSchema.parse({ id: 'g', name: 'X', targetAmount: 10, currentAmount: 0 });
-    expect(goal).toMatchObject({ currency: 'BRL', cdiPercent: null, lockDays: null, depositDate: null });
+    expect(goal).toMatchObject({ currency: 'BRL', cdiPercent: null, lockDays: null, depositDate: null, monthlyContribution: null });
   });
 });

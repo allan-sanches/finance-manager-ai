@@ -1,13 +1,20 @@
 'use client';
 
-import { CalendarClock, Pencil, Plus, Trash2, TrendingUp } from 'lucide-react';
+import { CalendarClock, Pencil, PiggyBank, Plus, Target, Trash2, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { SavingsGoalFormDialog } from '@/components/SavingsGoalFormDialog';
 import { EmptyState, PageHeader } from '@/components/ui';
 import { BRL, todayISO } from '@/lib/finance';
 import { parseAmount } from '@/lib/import/statement';
-import { daysBetween, estimatedMonthlyYield, redemptionDate, USD } from '@/lib/savings';
+import {
+  daysBetween,
+  estimatedMonthlyYield,
+  goalRateAt,
+  projectGoal,
+  redemptionDate,
+  USD,
+} from '@/lib/savings';
 import { useFinanceStore } from '@/lib/store';
 import { TONE_CLASS, type Tone } from '@/lib/tones';
 import { useCdi, type Cdi } from '@/lib/useCdi';
@@ -95,7 +102,14 @@ export default function CaixinhasPage() {
             {cdi
               ? `${cdi.annualRate.toLocaleString('pt-BR')}% a.a. (Banco Central, ${cdi.date})`
               : '…'}
-            , para as caixinhas com % do CDI preenchido.
+            , para as caixinhas com % do CDI preenchido.{' '}
+            {cdi && cdi.selicOutlook.length > 0
+              ? `Projeções seguem a Selic esperada pelo mercado (Focus de ${cdi.outlookDate?.split('-').reverse().join('/')}: ${cdi.selicOutlook
+                  .slice(0, 3)
+                  .map((o) => `${o.rate.toLocaleString('pt-BR')}% em ${o.year}`)
+                  .join(', ')})`
+              : 'Projeções consideram o CDI de hoje constante'}
+            {' '}e descontam o IR regressivo de cada aporte.
           </p>
 
           {groups.map(([institution, items]) => (
@@ -164,6 +178,14 @@ function GoalCard({
   const yieldPerMonth = cdi ? estimatedMonthlyYield(goal, cdi.annualRate) : null;
   const redemption = redemptionDate(goal);
   const daysLeft = redemption ? daysBetween(todayISO(), redemption) : null;
+  const projection = useMemo(() => {
+    if (done) return null;
+    const today = todayISO();
+    const rateAt = goalRateAt(goal, cdi, today);
+    return rateAt === null ? null : projectGoal(goal, rateAt, today);
+  }, [goal, cdi, done]);
+  const atDeadline = projection?.atDeadline;
+  const onTrack = atDeadline ? atDeadline.amount >= goal.targetAmount - 0.005 : null;
 
   function handleApply(direction: 'in' | 'out') {
     const v = parseAmount(amountInput); // aceita "1.234,56" e "1234.56"
@@ -232,6 +254,43 @@ function GoalCard({
             )}
           </div>
         )}
+        {projection && (atDeadline || projection.reachDate || goal.monthlyContribution) && (
+          <div
+            className={`rounded-box flex flex-col gap-1 p-3 text-sm ${
+              onTrack === false ? 'bg-amber-100 text-neutral-900' : 'bg-base-200'
+            }`}
+          >
+            {goal.monthlyContribution ? (
+              <span className="flex items-center gap-1 font-semibold">
+                <PiggyBank className="h-4 w-4" aria-hidden />
+                Aporte de {money.format(goal.monthlyContribution)}/mês
+              </span>
+            ) : null}
+            {atDeadline && (
+              <span>
+                No prazo: <strong>{money.format(atDeadline.amount)}</strong> líquido
+                {atDeadline.yieldAmount > 0.005 &&
+                  ` · ${money.format(atDeadline.yieldAmount)} de rendimento`}
+                {atDeadline.taxAmount > 0.005 && ` (IR de ${money.format(atDeadline.taxAmount)} já descontado)`}
+              </span>
+            )}
+            {atDeadline && !onTrack && (
+              <span className="flex items-center gap-1 font-semibold">
+                <Target className="h-4 w-4" aria-hidden />
+                {atDeadline.requiredContribution === 0
+                  ? 'Só o rendimento já leva à meta.'
+                  : `Guarde ${money.format(atDeadline.requiredContribution)}/mês para chegar no prazo`}
+              </span>
+            )}
+            {projection.reachDate ? (
+              <span>
+                {onTrack ? '✅ ' : ''}Meta batida em {formatMonth(projection.reachDate)} nesse ritmo
+              </span>
+            ) : (
+              !atDeadline && <span>Defina um aporte mensal para ver quando chega na meta.</span>
+            )}
+          </div>
+        )}
         <input
           className="input input-bordered w-full"
           inputMode="decimal"
@@ -274,4 +333,9 @@ function GoalCard({
 function formatDay(iso: string): string {
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
+}
+
+function formatMonth(iso: string): string {
+  const [y, m] = iso.split('-');
+  return `${m}/${y}`;
 }
