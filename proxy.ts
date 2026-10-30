@@ -24,6 +24,9 @@ export async function proxy(request: NextRequest) {
   return NextResponse.redirect(loginUrl);
 }
 
+// Arquivos do app instalável (manifest, ícones, service worker) são públicos: o celular os busca sem login.
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|robots.txt).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.webmanifest|icon/|apple-icon|sw.js|offline.html).*)',
+  ],
 };

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Space_Grotesk } from 'next/font/google';
 
 import { AppShell } from '@/components/AppShell';
+import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { themeInitScript } from '@/lib/theme';
 import { hasSession } from '@/lib/auth';
 import { getDb } from '@/lib/db';
@@ -44,6 +45,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </head>
       <body>
         <AppShell snapshot={snapshot}>{children}</AppShell>
+        <ServiceWorkerRegister />
       </body>
     </html>
   );
