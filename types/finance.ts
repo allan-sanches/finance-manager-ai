@@ -29,6 +29,8 @@ export type CreditCard = {
   closingDay: number;
   dueDay: number;
   currentInvoiceAmount: number;
+  // Limite garantido por investimento (ex: CDB do Inter): o limite passa a ser o saldo da caixinha.
+  limitSavingsGoalId?: string | null;
 };
 
 export type Currency = 'BRL' | 'USD';

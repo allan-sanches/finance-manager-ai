@@ -22,6 +22,9 @@ export const creditCards = pgTable('credit_cards', {
   closingDay: integer('closing_day').notNull(),
   dueDay: integer('due_day').notNull(),
   currentInvoiceAmount: money('current_invoice_amount').notNull().default(0),
+  // Sem FK: a importação do localStorage insere cartões antes das caixinhas. Caixinha inexistente
+  // faz o cartão voltar para o `limit` salvo (ver cardLimit).
+  limitSavingsGoalId: text('limit_savings_goal_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

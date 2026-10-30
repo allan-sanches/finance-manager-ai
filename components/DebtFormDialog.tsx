@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { DEBT_STATUS_LABEL, DEBT_STATUSES, todayISO } from '@/lib/finance';
 import { parseAmount } from '@/lib/import/statement';
 import { useFinanceStore } from '@/lib/store';
+import { useOpenedWith } from '@/lib/useMounted';
 import type { Debt, DebtStatus } from '@/types/finance';
 
 type Props = {
@@ -41,8 +42,7 @@ export function DebtFormDialog({ open, onClose, initial }: Props) {
     if (!open && dlg.open) dlg.close();
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
+  if (useOpenedWith(open, initial)) {
     setCreditor(initial?.creditor ?? '');
     setDescription(initial?.description ?? '');
     setCurrent(toInput(initial?.currentAmount ?? 0));
@@ -50,7 +50,7 @@ export function DebtFormDialog({ open, onClose, initial }: Props) {
     setStatus(initial?.status ?? 'active');
     setNotes(initial?.notes ?? '');
     setError(null);
-  }, [open, initial]);
+  }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

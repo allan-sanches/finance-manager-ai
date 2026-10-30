@@ -1,76 +1,54 @@
 'use client';
 
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { CalendarClock, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { CreditCardFormDialog } from '@/components/CreditCardFormDialog';
-import { DebtsOverview } from '@/components/DebtsOverview';
+import { MonthCard } from '@/components/MonthCard';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
-import { CategoryAvatar } from '@/components/CategoryAvatar';
 import { EmptyState, PageHeader } from '@/components/ui';
-import { BRL, PAYMENT_METHOD_LABEL, classifyTransaction } from '@/lib/finance';
+import { BRL, cardLimit, monthKey, todayISO } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
+import { groupByMonth, splitByTiming } from '@/lib/transaction-months';
 import { useHydrated } from '@/lib/useHydratedStore';
-import type { CreditCard, Transaction } from '@/types/finance';
+import type { CreditCard } from '@/types/finance';
 
-type Tab = 'all' | 'fixed' | 'variable' | 'credit' | 'debt' | 'cards';
+type View = 'months' | 'cards';
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'all', label: 'Todas' },
-  { id: 'fixed', label: 'Fixas' },
-  { id: 'variable', label: 'Variáveis' },
-  { id: 'credit', label: 'No cartão' },
-  { id: 'debt', label: 'Dívidas' },
+const VIEWS: { id: View; label: string }[] = [
+  { id: 'months', label: 'Por mês' },
   { id: 'cards', label: 'Meus cartões' },
 ];
-
-const DATE_LABEL = new Intl.DateTimeFormat('pt-BR', {
-  weekday: 'short',
-  day: '2-digit',
-  month: 'short',
-  timeZone: 'UTC',
-});
-
-const formatDay = (iso: string) => DATE_LABEL.format(new Date(`${iso}T00:00:00Z`));
 
 export default function TransacoesPage() {
   const hydrated = useHydrated();
   const transactions = useFinanceStore((s) => s.transactions);
-  const removeTransaction = useFinanceStore((s) => s.removeTransaction);
-  const toggleTransactionPaid = useFinanceStore((s) => s.toggleTransactionPaid);
 
-  const [tab, setTab] = useState<Tab>('all');
+  const [view, setView] = useState<View>('months');
   const [txDialogOpen, setTxDialogOpen] = useState(false);
-  const [editingTx, setEditingTx] = useState<Transaction | undefined>(undefined);
 
-  const filtered = useMemo(() => {
-    if (tab === 'all' || tab === 'cards') return transactions;
-    return transactions.filter((t) => classifyTransaction(t) === tab);
-  }, [transactions, tab]);
-
-  // Agrupa por dia, do mais recente para o mais antigo, como um extrato de banco.
-  const byDay = useMemo(() => {
-    const groups = new Map<string, Transaction[]>();
-    for (const t of [...filtered].sort((a, b) => b.date.localeCompare(a.date))) {
-      groups.set(t.date, [...(groups.get(t.date) ?? []), t]);
-    }
-    return [...groups.entries()];
-  }, [filtered]);
+  // Realizado (até hoje) e previsto (datas futuras) nunca se misturam no mesmo card.
+  const { history, forecast, currentKey } = useMemo(() => {
+    const today = todayISO();
+    const { realized, expected } = splitByTiming(transactions, today);
+    return {
+      history: groupByMonth(realized, 'desc'),
+      forecast: groupByMonth(expected, 'asc'),
+      currentKey: monthKey(today),
+    };
+  }, [transactions]);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col">
       <PageHeader
         title="Transações"
-        subtitle="Fixas, variáveis, cartões e dívidas."
+        subtitle="Mês a mês: o que já aconteceu e o que está previsto."
         action={
-          tab !== 'cards' && (
+          view === 'months' && (
             <button
               type="button"
               className="btn btn-primary hidden md:inline-flex"
-              onClick={() => {
-                setEditingTx(undefined);
-                setTxDialogOpen(true);
-              }}
+              onClick={() => setTxDialogOpen(true)}
             >
               <Plus className="h-5 w-5" aria-hidden /> Novo lançamento
             </button>
@@ -79,130 +57,67 @@ export default function TransacoesPage() {
       />
 
       <div role="tablist" className="no-scrollbar -mx-4 mb-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
-        {TABS.map((t) => (
+        {VIEWS.map((v) => (
           <button
-            key={t.id}
+            key={v.id}
             role="tab"
             type="button"
-            aria-selected={tab === t.id}
+            aria-selected={view === v.id}
             className={`btn btn-sm shrink-0 rounded-full ${
-              tab === t.id ? 'btn-neutral' : 'btn-ghost bg-base-100'
+              view === v.id ? 'btn-neutral' : 'btn-ghost bg-base-100'
             }`}
-            onClick={() => setTab(t.id)}
+            onClick={() => setView(v.id)}
           >
-            {t.label}
+            {v.label}
           </button>
         ))}
       </div>
 
-      {tab === 'debt' && hydrated && (
-        <div className="mb-4">
-          <DebtsOverview />
-        </div>
-      )}
-
-      {tab === 'cards' ? (
+      {view === 'cards' ? (
         <CreditCardsSection />
       ) : !hydrated ? (
         <p className="text-base-content/60 py-10 text-center text-sm">Carregando…</p>
-      ) : byDay.length === 0 ? (
-        <EmptyState emoji="🧾" title="Nenhum lançamento nessa visão">
+      ) : history.length === 0 && forecast.length === 0 ? (
+        <EmptyState emoji="🧾" title="Nenhum lançamento ainda">
           Toque no <strong>+</strong> para lançar um gasto ou receita.
         </EmptyState>
       ) : (
-        <div className="flex flex-col gap-4">
-          {byDay.map(([day, rows]) => (
-            <section key={day}>
-              <h2 className="eyebrow mb-2 px-1">{formatDay(day)}</h2>
-              <ul className="panel divide-base-content/5 divide-y overflow-hidden">
-                {rows.map((t) => (
-                  <TransactionRow
-                    key={t.id}
-                    tx={t}
-                    onEdit={() => {
-                      setEditingTx(t);
-                      setTxDialogOpen(true);
-                    }}
-                    onTogglePaid={() => toggleTransactionPaid(t.id)}
-                    onDelete={() => {
-                      if (confirm('Excluir esse lançamento?')) removeTransaction(t.id);
-                    }}
-                  />
+        <div className="flex flex-col gap-6">
+          {forecast.length > 0 && (
+            <section aria-labelledby="forecast-title" className="flex flex-col gap-3">
+              <div className="px-1">
+                <h2 id="forecast-title" className="eyebrow text-info flex items-center gap-1.5 !opacity-100">
+                  <CalendarClock className="h-3.5 w-3.5" aria-hidden /> Previsto
+                </h2>
+                <p className="text-base-content/60 mt-1 text-xs">
+                  Lançamentos com data futura. São expectativas: ainda não entraram nem saíram da sua conta.
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {forecast.map((m) => (
+                  <MonthCard key={m.key} totals={m} expected isCurrent={m.key === currentKey} />
                 ))}
-              </ul>
+              </div>
             </section>
-          ))}
+          )}
+
+          {history.length > 0 && (
+            <section aria-labelledby="history-title" className="flex flex-col gap-3">
+              <h2 id="history-title" className="eyebrow px-1">
+                Realizado
+              </h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                {history.map((m) => (
+                  <MonthCard key={m.key} totals={m} isCurrent={m.key === currentKey} />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       )}
 
-      <TransactionFormDialog
-        open={txDialogOpen}
-        onClose={() => setTxDialogOpen(false)}
-        initial={editingTx}
-      />
+      <TransactionFormDialog open={txDialogOpen} onClose={() => setTxDialogOpen(false)} />
     </div>
-  );
-}
-
-function TransactionRow({
-  tx,
-  onEdit,
-  onTogglePaid,
-  onDelete,
-}: {
-  tx: Transaction;
-  onEdit: () => void;
-  onTogglePaid: () => void;
-  onDelete: () => void;
-}) {
-  const card = useFinanceStore((s) =>
-    tx.creditCardId ? s.creditCards.find((c) => c.id === tx.creditCardId) : undefined,
-  );
-  const income = tx.type === 'income';
-
-  return (
-    <li className="flex items-center gap-3 p-3">
-      <button type="button" onClick={onEdit} className="flex min-w-0 flex-1 items-center gap-3 text-left">
-        <CategoryAvatar category={tx.category} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold">{tx.description}</p>
-          <p className="text-base-content/60 truncate text-xs">
-            {tx.category} · {card ? card.name : PAYMENT_METHOD_LABEL[tx.paymentMethod]}
-            {tx.isFixed && ' · fixa'}
-          </p>
-        </div>
-      </button>
-
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <span className={`font-bold tabular-nums ${income ? 'text-success' : ''}`}>
-          {income ? '+' : '−'} {BRL.format(tx.amount)}
-        </span>
-        <button
-          type="button"
-          onClick={onTogglePaid}
-          className={`badge badge-sm cursor-pointer font-semibold ${
-            tx.isPaid ? 'badge-success badge-soft' : 'badge-warning'
-          }`}
-          title="Alternar status"
-        >
-          {tx.isPaid ? (income ? 'Recebido' : 'Pago') : 'Em aberto'}
-        </button>
-      </div>
-
-      <div className="hidden shrink-0 md:flex">
-        <button type="button" className="btn btn-ghost btn-sm btn-square" onClick={onEdit} aria-label="Editar">
-          <Pencil className="h-4 w-4" aria-hidden />
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm btn-square text-error"
-          onClick={onDelete}
-          aria-label="Excluir"
-        >
-          <Trash2 className="h-4 w-4" aria-hidden />
-        </button>
-      </div>
-    </li>
   );
 }
 
@@ -215,6 +130,7 @@ const CARD_TONES = [
 
 function CreditCardsSection() {
   const creditCards = useFinanceStore((s) => s.creditCards);
+  const savingsGoals = useFinanceStore((s) => s.savingsGoals);
   const removeCreditCard = useFinanceStore((s) => s.removeCreditCard);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CreditCard | undefined>(undefined);
@@ -239,7 +155,11 @@ function CreditCardsSection() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {creditCards.map((c, i) => {
-            const pct = Math.min(100, Math.round((c.currentInvoiceAmount / Math.max(1, c.limit)) * 100));
+            const limit = cardLimit(c, savingsGoals);
+            const limitGoal = savingsGoals.find(
+              (g) => g.id === c.limitSavingsGoalId && g.currency === 'BRL',
+            );
+            const pct = Math.min(100, Math.round((c.currentInvoiceAmount / Math.max(1, limit)) * 100));
             return (
               <article
                 key={c.id}
@@ -285,8 +205,9 @@ function CreditCardsSection() {
                     <div className="h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
                   </div>
                   <p className="text-xs font-semibold opacity-90">
-                    {pct}% do limite de {BRL.format(c.limit)} · livre{' '}
-                    {BRL.format(Math.max(0, c.limit - c.currentInvoiceAmount))}
+                    {pct}% do limite de {BRL.format(limit)} · livre{' '}
+                    {BRL.format(Math.max(0, limit - c.currentInvoiceAmount))}
+                    {limitGoal && ` · garantido pela caixinha ${limitGoal.name}`}
                   </p>
                 </div>
               </article>

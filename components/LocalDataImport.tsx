@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { importLocalData } from '@/app/actions/finance';
 import { useFinanceStore } from '@/lib/store';
+import { useMounted } from '@/lib/useMounted';
 import type { FinanceSnapshot } from '@/types/finance';
 
 // Chave usada pelo zustand/persist antes da migração para o Postgres.
@@ -50,12 +51,12 @@ function archiveLegacyData() {
 export function LocalDataImport() {
   const hydrate = useFinanceStore((s) => s.hydrate);
   const hydrated = useFinanceStore((s) => s.hydrated);
-  const [legacy, setLegacy] = useState<LegacyData | null>(null);
+  const mounted = useMounted();
+  const stored = useMemo(() => (mounted ? readLegacyData() : null), [mounted]);
+  // undefined = ainda vale o que está no localStorage; null = importado ou ignorado.
+  const [handled, setLegacy] = useState<null | undefined>(undefined);
+  const legacy = handled === null ? null : stored;
   const [status, setStatus] = useState<'idle' | 'importing' | 'error'>('idle');
-
-  useEffect(() => {
-    setLegacy(readLegacyData());
-  }, []);
 
   if (!hydrated || !legacy) return null;
 

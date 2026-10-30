@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-
 import { useFinanceStore } from '@/lib/store';
+import { useMounted } from '@/lib/useMounted';
 
 /**
  * Garante que componentes só leem do localStorage após hidratação no client,
@@ -10,7 +9,5 @@ import { useFinanceStore } from '@/lib/store';
  */
 export function useHydrated(): boolean {
   const hydrated = useFinanceStore((s) => s.hydrated);
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  return mounted && hydrated;
+  return useMounted() && hydrated;
 }

@@ -1,9 +1,10 @@
 'use client';
 
 import { Monitor, Moon, Sun } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { THEME_BY_MODE, THEME_STORAGE_KEY } from '@/lib/theme';
+import { useMounted } from '@/lib/useMounted';
 
 type Mode = 'system' | 'light' | 'dark';
 
@@ -33,8 +34,10 @@ function applyMode(mode: Mode) {
 }
 
 export function ThemeToggle({ withLabel = false, className = '' }: { withLabel?: boolean; className?: string }) {
-  const [mode, setMode] = useState<Mode>('system');
-  useEffect(() => setMode(readMode()), []);
+  // Até o usuário trocar, o modo vem do localStorage (só depois de montar, para não dar mismatch).
+  const mounted = useMounted();
+  const [picked, setMode] = useState<Mode | null>(null);
+  const mode = picked ?? (mounted ? readMode() : 'system');
 
   const Icon = ICON[mode];
   return (

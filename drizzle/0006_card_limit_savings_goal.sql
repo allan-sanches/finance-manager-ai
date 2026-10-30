@@ -1,0 +1,1 @@
+ALTER TABLE "credit_cards" ADD COLUMN "limit_savings_goal_id" text;

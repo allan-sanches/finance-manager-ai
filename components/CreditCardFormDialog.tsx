@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
+import { BRL } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
+import { useOpenedWith } from '@/lib/useMounted';
 import type { CreditCard } from '@/types/finance';
 
 type Props = {
@@ -15,9 +17,13 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const addCreditCard = useFinanceStore((s) => s.addCreditCard);
   const updateCreditCard = useFinanceStore((s) => s.updateCreditCard);
+  // Só caixinhas em reais podem garantir limite (o cartão é em R$).
+  const allGoals = useFinanceStore((s) => s.savingsGoals);
+  const goals = allGoals.filter((g) => g.currency === 'BRL');
 
   const [name, setName] = useState('');
   const [limit, setLimit] = useState('');
+  const [limitGoalId, setLimitGoalId] = useState('');
   const [closingDay, setClosingDay] = useState('1');
   const [dueDay, setDueDay] = useState('10');
   const [error, setError] = useState<string | null>(null);
@@ -29,20 +35,22 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
     if (!open && dlg.open) dlg.close();
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
+  if (useOpenedWith(open, initial)) {
     setName(initial?.name ?? '');
     setLimit(initial ? String(initial.limit) : '');
+    setLimitGoalId(initial?.limitSavingsGoalId ?? '');
     setClosingDay(initial ? String(initial.closingDay) : '1');
     setDueDay(initial ? String(initial.dueDay) : '10');
     setError(null);
-  }, [open, initial]);
+  }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!name.trim()) return setError('Nome obrigatório.');
-    const limitNum = Number(limit.replace(',', '.'));
-    if (!Number.isFinite(limitNum) || limitNum <= 0) return setError('Limite inválido.');
+    const goal = goals.find((g) => g.id === limitGoalId);
+    // Com caixinha, o limite fixo vira só o último saldo conhecido (usado se a caixinha for apagada).
+    const limitNum = goal ? goal.currentAmount : Number(limit.replace(',', '.'));
+    if (!goal && (!Number.isFinite(limitNum) || limitNum <= 0)) return setError('Limite inválido.');
     const closing = Number(closingDay);
     const due = Number(dueDay);
     if (!Number.isInteger(closing) || closing < 1 || closing > 28) {
@@ -56,6 +64,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
       updateCreditCard(initial.id, {
         name: name.trim(),
         limit: limitNum,
+        limitSavingsGoalId: goal?.id ?? null,
         closingDay: closing,
         dueDay: due,
       });
@@ -63,6 +72,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
       addCreditCard({
         name: name.trim(),
         limit: limitNum,
+        limitSavingsGoalId: goal?.id ?? null,
         closingDay: closing,
         dueDay: due,
         currentInvoiceAmount: 0,
@@ -90,17 +100,42 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
             />
           </label>
 
-          <label className="form-control">
-            <span className="label-text">Limite total (R$)</span>
-            <input
-              className="input input-bordered"
-              inputMode="decimal"
-              value={limit}
-              onChange={(e) => setLimit(e.target.value)}
-              placeholder="0,00"
-              required
-            />
-          </label>
+          {goals.length > 0 && (
+            <label className="form-control">
+              <span className="label-text">De onde vem o limite</span>
+              <select
+                className="select select-bordered"
+                value={limitGoalId}
+                onChange={(e) => setLimitGoalId(e.target.value)}
+              >
+                <option value="">Valor fixo</option>
+                {goals.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    Saldo da caixinha {g.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          {limitGoalId && goals.some((g) => g.id === limitGoalId) ? (
+            <p className="text-base-content/70 text-sm">
+              O limite acompanha o saldo da caixinha: hoje{' '}
+              <strong>{BRL.format(goals.find((g) => g.id === limitGoalId)?.currentAmount ?? 0)}</strong>.
+            </p>
+          ) : (
+            <label className="form-control">
+              <span className="label-text">Limite total (R$)</span>
+              <input
+                className="input input-bordered"
+                inputMode="decimal"
+                value={limit}
+                onChange={(e) => setLimit(e.target.value)}
+                placeholder="0,00"
+                required
+              />
+            </label>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <label className="form-control">

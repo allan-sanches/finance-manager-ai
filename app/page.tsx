@@ -11,6 +11,7 @@ import { SectionTitle } from '@/components/ui';
 import {
   APP_TIME_ZONE,
   BRL,
+  cardLimit,
   debtsOnDashboard,
   expensesByCategory,
   summarizeDebts,
@@ -40,7 +41,7 @@ export default function DashboardPage() {
 
   const month = summarizeMonth(transactions);
   const categories = expensesByCategory(transactions);
-  const totalLimit = creditCards.reduce((sum, c) => sum + c.limit, 0);
+  const totalLimit = creditCards.reduce((sum, c) => sum + cardLimit(c, savingsGoals), 0);
   const totalInvoice = creditCards.reduce((sum, c) => sum + c.currentInvoiceAmount, 0);
   const saved = savingsGoals
     .filter((g) => g.currency === 'BRL')
@@ -97,13 +98,16 @@ export default function DashboardPage() {
         >
           <TileDetails
             empty="Nenhum cartão cadastrado."
-            rows={creditCards.map((c) => ({
-              key: c.id,
-              label: c.name,
-              value: money(Math.max(0, c.limit - c.currentInvoiceAmount)),
-              sub: `Fatura ${money(c.currentInvoiceAmount)} de ${money(c.limit)} · vence dia ${c.dueDay}`,
-              progress: (c.currentInvoiceAmount / Math.max(1, c.limit)) * 100,
-            }))}
+            rows={creditCards.map((c) => {
+              const limit = cardLimit(c, savingsGoals);
+              return {
+                key: c.id,
+                label: c.name,
+                value: money(Math.max(0, limit - c.currentInvoiceAmount)),
+                sub: `Fatura ${money(c.currentInvoiceAmount)} de ${money(limit)} · vence dia ${c.dueDay}`,
+                progress: (c.currentInvoiceAmount / Math.max(1, limit)) * 100,
+              };
+            })}
           />
         </ExpandableTile>
         <ExpandableTile

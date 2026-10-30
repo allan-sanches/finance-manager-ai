@@ -10,6 +10,7 @@ import {
   todayISO,
 } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
+import { useOpenedWith } from '@/lib/useMounted';
 import { useCategories } from '@/lib/useCategories';
 import type {
   PaymentMethod,
@@ -55,8 +56,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
   }, [open]);
 
   // prefill from `initial` (edit) or `initialDraft` (e.g. coming from IA)
-  useEffect(() => {
-    if (!open) return;
+  if (useOpenedWith(open, initial, initialDraft)) {
     const src = initial ?? initialDraft;
     if (src) {
       setDescription(src.description);
@@ -80,7 +80,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
       setIsPaid(true);
     }
     setError(null);
-  }, [open, initial, initialDraft]);
+  }
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();

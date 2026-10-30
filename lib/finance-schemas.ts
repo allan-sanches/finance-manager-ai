@@ -28,6 +28,8 @@ export const transactionPatchSchema = transactionSchema.omit({ id: true }).parti
 
 const day = z.number().int().min(1).max(31);
 
+const nullable = <T extends z.ZodType>(schema: T) => schema.nullish().transform((v) => v ?? null);
+
 export const creditCardSchema = z.object({
   id,
   name: z.string().trim().min(1).max(80),
@@ -35,13 +37,12 @@ export const creditCardSchema = z.object({
   closingDay: day,
   dueDay: day,
   currentInvoiceAmount: money,
+  limitSavingsGoalId: nullable(id),
 });
 
 export const creditCardPatchSchema = creditCardSchema
   .omit({ id: true, currentInvoiceAmount: true })
   .partial();
-
-const nullable = <T extends z.ZodType>(schema: T) => schema.nullish().transform((v) => v ?? null);
 
 export const savingsGoalSchema = z.object({
   id,

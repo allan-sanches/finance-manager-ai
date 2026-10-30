@@ -43,6 +43,13 @@
       "when": 1793318423946,
       "tag": "0005_goal_monthly_contribution",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793319364575,
+      "tag": "0006_card_limit_savings_goal",
+      "breakpoints": true
     }
   ]
 }

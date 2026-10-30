@@ -1,10 +1,12 @@
 import { normalizeCategoryName } from '@/lib/tones';
 import type {
   AppSettings,
+  CreditCard,
   Debt,
   DebtSource,
   DebtStatus,
   PaymentMethod,
+  SavingsGoal,
   Transaction,
   TransactionType,
 } from '@/types/finance';
@@ -39,6 +41,20 @@ export function mergeCategoryNames(custom: ReadonlyArray<{ name: string }>): str
     .filter((name) => !taken.has(normalizeCategoryName(name)))
     .sort((a, b) => a.localeCompare(b, 'pt-BR'));
   return [...builtIn, ...own, OTHERS];
+}
+
+/**
+ * Limite efetivo do cartão: se ele é garantido por uma caixinha em reais, vale o saldo dela;
+ * senão (ou se a caixinha sumiu), o limite fixo cadastrado.
+ */
+export function cardLimit(
+  card: Pick<CreditCard, 'limit' | 'limitSavingsGoalId'>,
+  goals: ReadonlyArray<Pick<SavingsGoal, 'id' | 'currency' | 'currentAmount'>>,
+): number {
+  const goal = card.limitSavingsGoalId
+    ? goals.find((g) => g.id === card.limitSavingsGoalId && g.currency === 'BRL')
+    : undefined;
+  return goal ? goal.currentAmount : card.limit;
 }
 
 /** Abandonadas e quitadas ficam fora do dashboard até o usuário mudar a preferência. */
