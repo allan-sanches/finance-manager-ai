@@ -1,7 +1,7 @@
 'use client';
 
 import { X } from 'lucide-react';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { DebtImportReview } from '@/components/DebtImportReview';
 import { StatementImportReview } from '@/components/StatementImportReview';
@@ -33,11 +33,19 @@ const KINDS: { id: ImportKind; label: string; accept: string; hint: string; mult
     },
   ];
 
+type Picked = { file: File; thumb: string | null };
+
+const revokeThumb = (p: Picked | undefined) => {
+  if (p?.thumb) URL.revokeObjectURL(p.thumb);
+};
+
 type ApiResponse = { ok: true; data: ImportPreview } | { ok: false; error: string };
 
 export function ImportPanel() {
   const [kind, setKind] = useState<ImportKind>('statement');
-  const [files, setFiles] = useState<File[]>([]);
+  // Cada arquivo com a miniatura (blob URL) quando é imagem.
+  const [picked, setPicked] = useState<Picked[]>([]);
+  const files = picked.map((p) => p.file);
   const [inputKey, setInputKey] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,15 +54,30 @@ export function ImportPanel() {
 
   const current = KINDS.find((k) => k.id === kind)!;
 
-  // Miniaturas dos prints escolhidos (URLs liberadas ao trocar a seleção).
-  const [thumbs, setThumbs] = useState<string[]>([]);
-  useEffect(() => {
-    const urls = files
-      .filter((f) => f.type.startsWith('image/'))
-      .map((f) => URL.createObjectURL(f));
-    setThumbs(urls);
-    return () => urls.forEach((u) => URL.revokeObjectURL(u));
-  }, [files]);
+  // As miniaturas são criadas e liberadas junto com a seleção; o ref guarda a seleção atual
+  // para liberar o que sobrar quando a tela sai.
+  const pickedRef = useRef<Picked[]>([]);
+  useEffect(() => () => pickedRef.current.forEach(revokeThumb), []);
+
+  function pick(next: Picked[]) {
+    pickedRef.current = next;
+    setPicked(next);
+  }
+
+  function setFiles(next: File[]) {
+    picked.forEach(revokeThumb);
+    pick(
+      next.map((file) => ({
+        file,
+        thumb: file.type.startsWith('image/') ? URL.createObjectURL(file) : null,
+      })),
+    );
+  }
+
+  function removeFile(index: number) {
+    revokeThumb(picked[index]);
+    pick(picked.filter((_, i) => i !== index));
+  }
 
   function reset() {
     setFiles([]);
@@ -134,9 +157,9 @@ export function ImportPanel() {
             onChange={(e) => setFiles(Array.from(e.target.files ?? []))}
             disabled={loading}
           />
-          {thumbs.length > 0 && (
+          {picked.some((p) => p.thumb) && (
             <ul className="no-scrollbar flex gap-2 overflow-x-auto">
-              {thumbs.map((src, i) => (
+              {picked.map(({ thumb: src }, i) => src && (
                 <li key={src} className="relative shrink-0">
                   {/* eslint-disable-next-line @next/next/no-img-element -- blob local, sem otimização */}
                   <img
@@ -148,11 +171,7 @@ export function ImportPanel() {
                     type="button"
                     className="btn btn-circle btn-xs absolute -top-2 -right-2"
                     aria-label={`Remover print ${i + 1}`}
-                    onClick={() =>
-                      setFiles((prev) =>
-                        prev.filter((f) => f.type.startsWith('image/')).filter((_, j) => j !== i),
-                      )
-                    }
+                    onClick={() => removeFile(i)}
                     disabled={loading}
                   >
                     <X className="h-3 w-3" aria-hidden />
