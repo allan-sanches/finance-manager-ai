@@ -17,6 +17,7 @@ export type Transaction = {
   category: string;
   paymentMethod: PaymentMethod;
   creditCardId?: string | null;
+  bankAccountId?: string | null; // Tag do banco (Inter, Mercado Pago, Santander…)
   date: string;
   isFixed: boolean;
   isPaid: boolean;

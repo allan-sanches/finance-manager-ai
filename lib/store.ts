@@ -113,6 +113,7 @@ const transactionFromDraft = (draft: TransactionDraft): Transaction => ({
   category: draft.category,
   paymentMethod: draft.paymentMethod,
   creditCardId: draft.creditCardId ?? null,
+  bankAccountId: draft.bankAccountId ?? null,
   date: draft.date,
   isFixed: draft.isFixed,
   isPaid: draft.isPaid ?? false,
@@ -362,7 +363,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
 
     removeBankAccount: (id) => {
-      set((s) => ({ bankAccounts: s.bankAccounts.filter((a) => a.id !== id) }));
+      // O banco solta a tag das transações (on delete set null); aqui faz o mesmo na hora.
+      set((s) => ({
+        bankAccounts: s.bankAccounts.filter((a) => a.id !== id),
+        transactions: s.transactions.map((t) => (t.bankAccountId === id ? { ...t, bankAccountId: null } : t)),
+      }));
       sync((actor) => actions.removeBankAccount(actor, id));
     },
 

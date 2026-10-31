@@ -11,24 +11,33 @@ import { useFinanceStore } from '@/lib/store';
 import { groupByMonth, splitByTiming } from '@/lib/transaction-months';
 import { useHydrated } from '@/lib/useHydratedStore';
 
+const NO_BANK = '__sem-banco__';
+
 export default function TransacoesPage() {
   const hydrated = useHydrated();
   const transactions = useFinanceStore((s) => s.transactions);
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
+  const bankAccounts = useFinanceStore((s) => s.bankAccounts);
 
   const [txDialogOpen, setTxDialogOpen] = useState(false);
+  // '' = todos os bancos; NO_BANK = só os sem tag.
+  const [bankFilter, setBankFilter] = useState('');
 
   // Realizado (até hoje) e previsto (datas futuras) nunca se misturam no mesmo card.
   const { history, forecast, currentKey } = useMemo(() => {
     const today = todayISO();
-    const { realized, expected } = splitByTiming(transactions, today);
-    const payments = invoiceOutflows(invoices, today);
+    const filtered = bankFilter
+      ? transactions.filter((t) => (t.bankAccountId ?? NO_BANK) === bankFilter)
+      : transactions;
+    const { realized, expected } = splitByTiming(filtered, today);
+    // Faturas não têm banco: com filtro ligado, ficam de fora para os totais serem só do banco.
+    const payments = bankFilter ? { realized: [], expected: [] } : invoiceOutflows(invoices, today);
     return {
       history: groupByMonth(realized, 'desc', payments.realized),
       forecast: groupByMonth(expected, 'asc', payments.expected),
       currentKey: monthKey(today),
     };
-  }, [transactions, invoices]);
+  }, [transactions, invoices, bankFilter]);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col">
@@ -45,6 +54,28 @@ export default function TransacoesPage() {
           </button>
         }
       />
+
+      {hydrated && bankAccounts.length > 0 && (
+        <div className="-mt-2 mb-4 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filtrar por banco">
+          {[
+            { id: '', name: 'Todos' },
+            ...bankAccounts.map((a) => ({ id: a.id, name: a.name })),
+            { id: NO_BANK, name: 'Sem banco' },
+          ].map((o) => (
+            <button
+              key={o.id || 'todos'}
+              type="button"
+              aria-pressed={bankFilter === o.id}
+              className={`btn btn-sm min-h-11 shrink-0 rounded-full ${
+                bankFilter === o.id ? 'btn-neutral' : 'btn-ghost bg-base-200'
+              }`}
+              onClick={() => setBankFilter(o.id)}
+            >
+              {o.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {!hydrated ? (
         <p className="text-base-content/60 py-10 text-center text-sm">Carregando…</p>

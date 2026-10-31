@@ -108,7 +108,11 @@ export async function getSnapshot(db: Db, userId: string): Promise<FinanceSnapsh
 
   return {
     transactions: txRows.map(
-      ({ createdAt: _, userId: __, ...t }): Transaction => ({ ...t, creditCardId: t.creditCardId ?? null }),
+      ({ createdAt: _, userId: __, ...t }): Transaction => ({
+        ...t,
+        creditCardId: t.creditCardId ?? null,
+        bankAccountId: t.bankAccountId ?? null,
+      }),
     ),
     creditCards: cardRows.map(({ createdAt: _, userId: __, ...c }): CreditCard => c),
     creditCardInvoices: invoiceRows.map(({ createdAt: _, userId: __, ...i }): CreditCardInvoice => i),
@@ -154,6 +158,24 @@ async function existingCardId(db: Executor, userId: string, cardId: string | nul
   return row?.id ?? null;
 }
 
+/** Mesma ideia do existingCardId, para a tag de banco. */
+async function existingAccountId(db: Executor, userId: string, accountId: string | null | undefined) {
+  if (!accountId) return null;
+  const [row] = await db
+    .select({ id: bankAccounts.id })
+    .from(bankAccounts)
+    .where(ownAccount(userId, accountId));
+  return row?.id ?? null;
+}
+
+async function userAccountIds(db: Executor, userId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ id: bankAccounts.id })
+    .from(bankAccounts)
+    .where(eq(bankAccounts.userId, userId));
+  return new Set(rows.map((r) => r.id));
+}
+
 async function userCardIds(db: Executor, userId: string): Promise<Set<string>> {
   const rows = await db
     .select({ id: creditCards.id })
@@ -165,7 +187,8 @@ async function userCardIds(db: Executor, userId: string): Promise<Set<string>> {
 export async function addTransaction(db: Db, userId: string, input: Transaction): Promise<void> {
   await db.transaction(async (tx) => {
     const creditCardId = await existingCardId(tx, userId, input.creditCardId);
-    const row = { ...input, userId, creditCardId };
+    const bankAccountId = await existingAccountId(tx, userId, input.bankAccountId);
+    const row = { ...input, userId, creditCardId, bankAccountId };
     await tx.insert(transactions).values(row);
     await adjustInvoice(tx, userId, creditCardId, invoiceContribution(row));
   });
@@ -182,6 +205,7 @@ export async function updateTransaction(
     if (!prev) return;
     const next = { ...prev, ...patch, id: prev.id };
     next.creditCardId = await existingCardId(tx, userId, next.creditCardId);
+    next.bankAccountId = await existingAccountId(tx, userId, next.bankAccountId);
 
     await tx
       .update(transactions)
@@ -192,6 +216,7 @@ export async function updateTransaction(
         category: next.category,
         paymentMethod: next.paymentMethod,
         creditCardId: next.creditCardId,
+        bankAccountId: next.bankAccountId,
         date: next.date,
         isFixed: next.isFixed,
         isPaid: next.isPaid,
@@ -216,10 +241,12 @@ export async function addTransactions(db: Db, userId: string, inputs: Transactio
   const base = Date.now();
   await db.transaction(async (tx) => {
     const cardIds = await userCardIds(tx, userId);
+    const accountIds = await userAccountIds(tx, userId);
     const rows = inputs.map((t, i) => ({
       ...t,
       userId,
       creditCardId: t.creditCardId && cardIds.has(t.creditCardId) ? t.creditCardId : null,
+      bankAccountId: t.bankAccountId && accountIds.has(t.bankAccountId) ? t.bankAccountId : null,
       createdAt: new Date(base - i),
     }));
     for (const part of chunk(rows)) {

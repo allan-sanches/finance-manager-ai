@@ -33,6 +33,7 @@ const PAYMENT_OPTIONS: PaymentMethod[] = ['pix', 'debit', 'credit_card', 'cash',
 export function TransactionFormDialog({ open, onClose, initial, initialDraft }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const creditCards = useFinanceStore((s) => s.creditCards);
+  const bankAccounts = useFinanceStore((s) => s.bankAccounts);
   const addTransaction = useFinanceStore((s) => s.addTransaction);
   const updateTransaction = useFinanceStore((s) => s.updateTransaction);
   const removeTransaction = useFinanceStore((s) => s.removeTransaction);
@@ -44,6 +45,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
   const [category, setCategory] = useState<string>(CATEGORIES[0]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [creditCardId, setCreditCardId] = useState<string>('');
+  const [bankAccountId, setBankAccountId] = useState<string>('');
   const [date, setDate] = useState(todayISO());
   const [isFixed, setIsFixed] = useState(false);
   const [isPaid, setIsPaid] = useState(true);
@@ -67,6 +69,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
       setCategory(src.category);
       setPaymentMethod(src.paymentMethod);
       setCreditCardId(src.creditCardId ?? '');
+      setBankAccountId(src.bankAccountId ?? '');
       setDate(src.date);
       setIsFixed(src.isFixed);
       setIsPaid('isPaid' in src ? Boolean(src.isPaid) : true);
@@ -77,6 +80,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
       setCategory(CATEGORIES[0]);
       setPaymentMethod('pix');
       setCreditCardId('');
+      setBankAccountId('');
       setDate(todayISO());
       setIsFixed(false);
       setIsPaid(true);
@@ -101,6 +105,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
       category,
       paymentMethod,
       creditCardId: paymentMethod === 'credit_card' ? creditCardId : null,
+      bankAccountId: bankAccountId || null,
       date,
       isFixed,
       isPaid,
@@ -195,20 +200,38 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
             </label>
           </div>
 
-          <label className="form-control">
-            <span className="label-text">Forma de pagamento</span>
-            <select
-              className="select select-bordered"
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-            >
-              {PAYMENT_OPTIONS.map((p) => (
-                <option key={p} value={p}>
-                  {PAYMENT_METHOD_LABEL[p]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="form-control">
+              <span className="label-text">Forma de pagamento</span>
+              <select
+                className="select select-bordered"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+              >
+                {PAYMENT_OPTIONS.map((p) => (
+                  <option key={p} value={p}>
+                    {PAYMENT_METHOD_LABEL[p]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="form-control">
+              <span className="label-text">Banco</span>
+              <select
+                className="select select-bordered"
+                value={bankAccountId}
+                onChange={(e) => setBankAccountId(e.target.value)}
+              >
+                <option value="">Sem banco</option>
+                {bankAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
           {paymentMethod === 'credit_card' && (
             <label className="form-control">

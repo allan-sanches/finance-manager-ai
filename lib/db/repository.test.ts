@@ -328,6 +328,25 @@ describe('contas', () => {
     expect((await repo.getSnapshot(db, 'u2')).bankAccounts).toEqual([]);
     expect((await repo.getSnapshot(db, OWNER)).bankAccounts[0].balance).toBe(100);
   });
+
+  it('tag de banco: grava, troca na edição, descarta conta alheia e solta ao apagar a conta', async () => {
+    await repo.createUser(db, { id: 'u2', email: 'outra@exemplo.com', passwordHash: 'scrypt$x' });
+    await repo.addBankAccount(db, OWNER, { id: 'a1', name: 'Inter', balance: 0, balanceDate: '2026-10-30' });
+    await repo.addBankAccount(db, OWNER, { id: 'a2', name: 'Mercado Pago', balance: 0, balanceDate: '2026-10-30' });
+    await repo.addBankAccount(db, 'u2', { id: 'b1', name: 'Santander', balance: 0, balanceDate: '2026-10-30' });
+
+    await repo.addTransaction(db, OWNER, tx({ id: 't1', bankAccountId: 'a1' }));
+    await repo.addTransactions(db, OWNER, [tx({ id: 't2', bankAccountId: 'b1' })]);
+    await repo.updateTransaction(db, OWNER, 't1', { bankAccountId: 'a2' });
+
+    let byId = Object.fromEntries((await repo.getSnapshot(db, OWNER)).transactions.map((t) => [t.id, t]));
+    expect(byId.t1.bankAccountId).toBe('a2');
+    expect(byId.t2.bankAccountId).toBeNull();
+
+    await repo.removeBankAccount(db, OWNER, 'a2');
+    byId = Object.fromEntries((await repo.getSnapshot(db, OWNER)).transactions.map((t) => [t.id, t]));
+    expect(byId.t1.bankAccountId).toBeNull();
+  });
 });
 
 describe('usuários', () => {

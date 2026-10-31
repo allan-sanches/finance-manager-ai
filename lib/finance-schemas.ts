@@ -19,6 +19,7 @@ export const transactionSchema = z.object({
   category: z.string().trim().min(1).max(80),
   paymentMethod: z.enum(['cash', 'debit', 'credit_card', 'pix', 'bank_transfer']),
   creditCardId: id.nullish().transform((v) => v ?? null),
+  bankAccountId: id.nullish().transform((v) => v ?? null),
   date: isoDate,
   isFixed: z.boolean(),
   isPaid: z.boolean(),

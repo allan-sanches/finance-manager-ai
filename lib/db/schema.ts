@@ -94,6 +94,8 @@ export const transactions = pgTable('transactions', {
   category: text('category').notNull(),
   paymentMethod: text('payment_method').$type<PaymentMethod>().notNull(),
   creditCardId: text('credit_card_id').references(() => creditCards.id, { onDelete: 'set null' }),
+  // Tag do banco (Inter, Mercado Pago…) para separar as transações por conta.
+  bankAccountId: text('bank_account_id').references(() => bankAccounts.id, { onDelete: 'set null' }),
   date: date('date', { mode: 'string' }).notNull(),
   isFixed: boolean('is_fixed').notNull().default(false),
   isPaid: boolean('is_paid').notNull().default(false),

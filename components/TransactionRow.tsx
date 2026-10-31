@@ -7,6 +7,15 @@ import { BRL, PAYMENT_METHOD_LABEL } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import type { Transaction } from '@/types/finance';
 
+/** Cor da tag pelo banco (cores das marcas); conta nova sem cor própria fica neutra. */
+export function bankTagClass(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes('inter')) return 'bg-orange-500 text-white';
+  if (n.includes('mercado')) return 'bg-sky-400 text-neutral-900';
+  if (n.includes('santander')) return 'bg-red-600 text-white';
+  return 'bg-base-300';
+}
+
 /** Linha de lançamento: toque abre a edição, o selo alterna pago/em aberto. */
 export function TransactionRow({
   tx,
@@ -25,6 +34,9 @@ export function TransactionRow({
   const card = useFinanceStore((s) =>
     tx.creditCardId ? s.creditCards.find((c) => c.id === tx.creditCardId) : undefined,
   );
+  const bank = useFinanceStore((s) =>
+    tx.bankAccountId ? s.bankAccounts.find((a) => a.id === tx.bankAccountId) : undefined,
+  );
   const income = tx.type === 'income';
 
   return (
@@ -32,7 +44,14 @@ export function TransactionRow({
       <button type="button" onClick={onEdit} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <CategoryAvatar category={tx.category} />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold">{tx.description}</p>
+          <p className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate font-semibold">{tx.description}</span>
+            {bank && (
+              <span className={`badge badge-xs shrink-0 border-0 font-semibold ${bankTagClass(bank.name)}`}>
+                {bank.name}
+              </span>
+            )}
+          </p>
           <p className="text-base-content/60 truncate text-xs">
             {tx.category} · {card ? card.name : PAYMENT_METHOD_LABEL[tx.paymentMethod]}
             {tx.isFixed && ' · fixa'}
