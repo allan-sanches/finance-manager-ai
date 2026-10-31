@@ -15,7 +15,10 @@ const SUGGESTED_ACCOUNTS = ['Inter', 'Mercado Pago'];
 
 type Dialog = { initial?: BankAccount; presetName?: string } | null;
 
-/** Saldo do mês no topo do dashboard; ao toque abre o saldo de cada conta. */
+/**
+ * Topo do dashboard: o que importa é quanto tem nas contas (soma dos saldos calculados). O resultado
+ * do mês (entrou − saiu) fica num selo menor. Ao toque abre o saldo de cada conta.
+ */
 export function MonthBalanceTile({
   balance,
   income,
@@ -38,11 +41,13 @@ export function MonthBalanceTile({
   const totalInAccounts = accounts.reduce((sum, a) => sum + (current.get(a.id)?.balance ?? a.balance), 0);
   const existing = new Set(accounts.map((a) => normalizeCategoryName(a.name)));
   const suggestions = SUGGESTED_ACCOUNTS.filter((n) => !existing.has(normalizeCategoryName(n)));
+  // Sem contas cadastradas, o número grande volta a ser o resultado do mês.
+  const headline = accounts.length > 0 ? totalInAccounts : balance;
 
   return (
     <section
       className={`tile relative flex flex-col p-5 sm:p-6 ${
-        balance >= 0 ? 'bg-lime-300 text-neutral-900' : 'bg-red-500 text-white'
+        headline >= 0 ? 'bg-lime-300 text-neutral-900' : 'bg-red-500 text-white'
       }`}
     >
       <button
@@ -53,17 +58,18 @@ export function MonthBalanceTile({
         className="flex w-full cursor-pointer flex-col gap-4 text-left"
       >
         <span className="eyebrow flex w-full items-center gap-1.5 pr-12">
-          <span className="flex-1">Resultado do mês</span>
-          <span className="normal-case tracking-normal">
-            {accounts.length > 0 ? `Em contas ${money(totalInAccounts)}` : 'Ver contas'}
-          </span>
+          <span className="flex-1">{accounts.length > 0 ? 'Saldo nas contas' : 'Resultado do mês'}</span>
+          <span className="normal-case tracking-normal">{accounts.length > 0 ? 'Ver contas' : 'Cadastrar contas'}</span>
           <ChevronDown
             className={`h-4 w-4 shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
             aria-hidden
           />
         </span>
-        <span className="metric text-5xl sm:text-6xl">{money(balance)}</span>
+        <span className="metric text-5xl sm:text-6xl">{money(headline)}</span>
         <span className="flex flex-wrap gap-2">
+          {accounts.length > 0 && (
+            <span className="sticker bg-white text-neutral-900">Resultado do mês {money(balance)}</span>
+          )}
           <span className="sticker bg-white text-neutral-900">
             <ArrowUpRight className="h-3.5 w-3.5" aria-hidden /> Entradas {money(income)}
           </span>
