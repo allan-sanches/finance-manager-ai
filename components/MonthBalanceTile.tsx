@@ -4,6 +4,7 @@ import { ArrowDownRight, ArrowUpRight, ChevronDown, Plus } from 'lucide-react';
 import { useId, useState } from 'react';
 
 import { BankAccountFormDialog } from '@/components/BankAccountFormDialog';
+import { PrivacyToggle } from '@/components/PrivacyToggle';
 import { accountBalance, shortDate } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import { normalizeCategoryName } from '@/lib/tones';
@@ -43,7 +44,7 @@ export function MonthBalanceTile({
 
   return (
     <section
-      className={`tile flex flex-col p-5 sm:p-6 ${
+      className={`tile relative flex flex-col p-5 sm:p-6 ${
         balance >= 0 ? 'bg-lime-300 text-neutral-900' : 'bg-red-500 text-white'
       }`}
     >
@@ -54,7 +55,7 @@ export function MonthBalanceTile({
         onClick={() => setOpen((o) => !o)}
         className="flex w-full cursor-pointer flex-col gap-4 text-left"
       >
-        <span className="eyebrow flex w-full items-center gap-1.5">
+        <span className="eyebrow flex w-full items-center gap-1.5 pr-12">
           <span className="flex-1">Resultado do mês</span>
           <span className="normal-case tracking-normal">
             {accounts.length > 0 ? `Em contas ${money(totalInAccounts)}` : 'Ver contas'}
@@ -81,6 +82,9 @@ export function MonthBalanceTile({
           </span>
         </span>
       </button>
+
+      {/* Olho dos bancos: fora do botão do card (botão dentro de botão não é válido). */}
+      <PrivacyToggle className="absolute top-2 right-2 sm:top-3 sm:right-3" />
 
       <div
         id={detailsId}

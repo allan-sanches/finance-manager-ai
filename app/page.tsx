@@ -47,6 +47,7 @@ export default function DashboardPage() {
   // Limite do cartão é real: usa tudo. O resto (totais, gráfico, recentes) esconde as categorias ocultas.
   const allTransactions = useFinanceStore((s) => s.transactions);
   const transactions = useVisibleTransactions();
+  const hiddenCount = useFinanceStore((s) => s.settings.hiddenCategories?.length ?? 0);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const savingsGoals = useFinanceStore((s) => s.savingsGoals);
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
@@ -235,7 +236,20 @@ export default function DashboardPage() {
 
       {hydrated && categories.length > 0 && (
         <section className="panel p-4">
-          <SectionTitle>Para onde foi o dinheiro</SectionTitle>
+          <SectionTitle
+            action={
+              <Link href="/configuracoes#categorias" className="link link-hover text-sm font-semibold">
+                Ocultar categorias
+              </Link>
+            }
+          >
+            Para onde foi o dinheiro
+          </SectionTitle>
+          {hiddenCount > 0 && (
+            <p className="text-base-content/60 -mt-1 mb-2 text-xs">
+              {hiddenCount === 1 ? '1 categoria oculta' : `${hiddenCount} categorias ocultas`}: fora destes totais.
+            </p>
+          )}
           <ul className="flex flex-wrap gap-2">
             {categories.map((c) => (
               <li
