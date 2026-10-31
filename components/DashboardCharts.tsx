@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Tooltip,
   XAxis,
+  YAxis,
 } from 'recharts';
 
 import { SectionTitle } from '@/components/ui';
@@ -26,6 +27,15 @@ const tooltipStyle = {
   borderRadius: 12,
   color: 'var(--color-base-content)',
 };
+
+// Eixo Y curto para caber no celular: "R$ 1,5 mil", "R$ 12 mil".
+const BRL_COMPACT = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  notation: 'compact',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+});
 
 export function DashboardCharts() {
   const hydrated = useHydrated();
@@ -47,6 +57,14 @@ export function DashboardCharts() {
             <BarChart data={cashflow} barGap={4}>
               <CartesianGrid vertical={false} strokeOpacity={0.12} />
               <XAxis dataKey="mes" stroke="currentColor" fontSize={12} tickLine={false} axisLine={false} />
+              <YAxis
+                width="auto"
+                stroke="currentColor"
+                fontSize={11}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value: number) => BRL_COMPACT.format(value)}
+              />
               <Tooltip
                 formatter={(value) => BRL.format(Number(value))}
                 contentStyle={tooltipStyle}
