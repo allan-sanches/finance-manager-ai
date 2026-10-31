@@ -1,30 +1,23 @@
 'use client';
 
-import { Eye, EyeOff, Plus, StickyNote } from 'lucide-react';
+import { Eye, EyeOff, Pencil, Plus, StickyNote } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { DebtFormDialog } from '@/components/DebtFormDialog';
+import { DebtStatusesDialog } from '@/components/DebtStatusesDialog';
 import { EmptyState, PageHeader, SectionTitle } from '@/components/ui';
 import {
   BRL,
   DEBT_SOURCE_LABEL,
-  DEBT_STATUS_LABEL,
-  DEBT_STATUSES,
+  debtStatusOption,
   debtsOnDashboard,
   summarizeDebts,
 } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
+import { TONE_CLASS } from '@/lib/tones';
 import { useHydrated } from '@/lib/useHydratedStore';
 import type { Debt, DebtStatus } from '@/types/finance';
-
-const STATUS_TONE: Record<DebtStatus, string> = {
-  active: 'bg-amber-300 text-neutral-900',
-  awaiting_offer: 'bg-cyan-300 text-neutral-900',
-  negotiated: 'bg-violet-500 text-white',
-  abandoned: 'bg-slate-200 text-neutral-900',
-  paid: 'bg-emerald-300 text-neutral-900',
-};
 
 type Filter = 'all' | DebtStatus;
 
@@ -37,6 +30,8 @@ export default function DividasPage() {
   const [filter, setFilter] = useState<Filter>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Debt | undefined>(undefined);
+  const [statusesOpen, setStatusesOpen] = useState(false);
+  const statuses = settings.debtStatuses;
 
   const visible = useMemo(
     () =>
@@ -93,9 +88,14 @@ export default function DividasPage() {
       </section>
 
       <section className="panel p-4">
-        <SectionTitle>Aparecem no dashboard</SectionTitle>
+        <div className="flex items-start justify-between gap-2">
+          <SectionTitle>Aparecem no dashboard</SectionTitle>
+          <button type="button" className="btn btn-ghost btn-sm min-h-11" onClick={() => setStatusesOpen(true)}>
+            <Pencil className="h-4 w-4" aria-hidden /> Editar situações
+          </button>
+        </div>
         <div className="flex flex-wrap gap-2">
-          {DEBT_STATUSES.map((s) => {
+          {statuses.map(({ id: s, label }) => {
             const on = settings.dashboardDebtStatuses.includes(s);
             return (
               <button
@@ -110,7 +110,7 @@ export default function DividasPage() {
                 ) : (
                   <EyeOff className="h-4 w-4" aria-hidden />
                 )}
-                {DEBT_STATUS_LABEL[s]}
+                {label}
               </button>
             );
           })}
@@ -125,7 +125,7 @@ export default function DividasPage() {
         role="tablist"
         className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:px-0"
       >
-        {(['all', ...DEBT_STATUSES] as Filter[]).map((f) => (
+        {(['all', ...statuses.map((s) => s.id)] as Filter[]).map((f) => (
           <button
             key={f}
             role="tab"
@@ -134,7 +134,7 @@ export default function DividasPage() {
             className={`btn btn-sm shrink-0 rounded-full ${filter === f ? 'btn-neutral' : 'btn-ghost bg-base-100'}`}
             onClick={() => setFilter(f)}
           >
-            {f === 'all' ? `Todas (${debts.length})` : `${DEBT_STATUS_LABEL[f]} (${countBy(f)})`}
+            {f === 'all' ? `Todas (${debts.length})` : `${debtStatusOption(settings, f).label} (${countBy(f)})`}
           </button>
         ))}
       </div>
@@ -169,8 +169,10 @@ export default function DividasPage() {
                   <p className="truncate font-semibold">{d.creditor}</p>
                   <p className="text-base-content/70 line-clamp-2 text-sm">{d.description}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className={`badge badge-sm border-0 font-bold ${STATUS_TONE[d.status]}`}>
-                      {DEBT_STATUS_LABEL[d.status]}
+                    <span
+                      className={`badge badge-sm border-0 font-bold ${TONE_CLASS[debtStatusOption(settings, d.status).tone]}`}
+                    >
+                      {debtStatusOption(settings, d.status).label}
                     </span>
                     <span className="badge badge-sm badge-ghost">
                       {DEBT_SOURCE_LABEL[d.source]}
@@ -205,6 +207,7 @@ export default function DividasPage() {
       )}
 
       <DebtFormDialog open={dialogOpen} onClose={() => setDialogOpen(false)} initial={editing} />
+      <DebtStatusesDialog open={statusesOpen} onClose={() => setStatusesOpen(false)} />
     </div>
   );
 }

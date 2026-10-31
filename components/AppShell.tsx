@@ -12,17 +12,25 @@ import type { FinanceSnapshot } from '@/types/finance';
 
 export function AppShell({
   snapshot,
+  userId,
+  canImportLegacy,
   children,
 }: {
   snapshot: FinanceSnapshot | null;
+  userId: string | null;
+  /** Só a conta original pode importar os dados antigos do navegador. */
+  canImportLegacy: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const hydrate = useFinanceStore((s) => s.hydrate);
+  const reset = useFinanceStore((s) => s.reset);
 
+  // Sem sessão (logout), a memória da aba é apagada: os dados de uma conta não ficam para a próxima.
   useEffect(() => {
-    if (snapshot) hydrate(snapshot);
-  }, [snapshot, hydrate]);
+    if (snapshot && userId) hydrate(snapshot, userId);
+    else reset();
+  }, [snapshot, userId, hydrate, reset]);
 
   if (pathname === '/login') return <>{children}</>;
 
@@ -33,7 +41,7 @@ export function AppShell({
         <MobileNavbar />
         <main className="pb-tabbar flex-1 px-4 pt-2 md:px-8 md:pt-8 md:pb-10">
           <SyncErrorAlert />
-          <LocalDataImport />
+          {canImportLegacy && <LocalDataImport />}
           {children}
         </main>
       </div>

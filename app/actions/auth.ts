@@ -3,7 +3,7 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-import { checkAccountPassword } from '@/lib/account';
+import { authenticate } from '@/lib/account';
 import { createRateLimiter } from '@/lib/rate-limit';
 import {
   SESSION_COOKIE,
@@ -32,13 +32,16 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     return { error: `Muitas tentativas. Tente de novo em ${rate.retryAfterSeconds}s.` };
   }
 
+  const email = formData.get('email') ?? '';
   const password = formData.get('password');
-  if (typeof password !== 'string' || !(await checkAccountPassword(password))) {
-    return { error: 'Senha incorreta.' };
+  if (typeof email !== 'string' || typeof password !== 'string') {
+    return { error: 'E-mail ou senha incorretos.' };
   }
+  const userId = await authenticate(email, password);
+  if (!userId) return { error: 'E-mail ou senha incorretos.' };
 
   const store = await cookies();
-  store.set(SESSION_COOKIE, await createSessionToken(), {
+  store.set(SESSION_COOKIE, await createSessionToken(userId), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',

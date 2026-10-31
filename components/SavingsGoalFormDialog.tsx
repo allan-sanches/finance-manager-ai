@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
+import { MoneyInput } from '@/components/MoneyInput';
 import { BRL, todayISO } from '@/lib/finance';
 import { parseAmount } from '@/lib/import/statement';
+import { toMoneyInput } from '@/lib/money-mask';
 import { goalRateAt, monthlyRateFromCdi, projectGoal, SAVINGS_BANKS, USD } from '@/lib/savings';
 import { useFinanceStore } from '@/lib/store';
 import { useOpenedWith } from '@/lib/useMounted';
@@ -45,16 +47,14 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
 
   if (useOpenedWith(open, initial)) {
     setName(initial?.name ?? '');
-    setTarget(initial ? String(initial.targetAmount).replace('.', ',') : '');
+    setTarget(toMoneyInput(initial?.targetAmount));
     setDeadline(initial?.deadline ?? '');
     setInstitution(initial?.institution ?? '');
     setCurrency(initial?.currency ?? 'BRL');
     setCdiPercent(initial?.cdiPercent != null ? String(initial.cdiPercent) : '');
     setLockDays(initial?.lockDays != null ? String(initial.lockDays) : '');
     setDepositDate(initial?.depositDate ?? '');
-    setContribution(
-      initial?.monthlyContribution ? String(initial.monthlyContribution).replace('.', ',') : '',
-    );
+    setContribution(toMoneyInput(initial?.monthlyContribution));
     setError(null);
   }
 
@@ -89,7 +89,6 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
     onClose();
   }
 
-  const symbol = currency === 'USD' ? 'US$' : 'R$';
   const money = currency === 'USD' ? USD : BRL;
   const cdiNum = currency === 'BRL' && cdiPercent.trim() ? parseAmount(cdiPercent) : null;
 
@@ -193,15 +192,8 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
 
           <div className="grid grid-cols-2 gap-3">
             <label className="form-control">
-              <span className="label-text">Meta ({symbol})</span>
-              <input
-                className="input input-bordered w-full"
-                inputMode="decimal"
-                value={target}
-                onChange={(e) => setTarget(e.target.value)}
-                placeholder="0,00"
-                required
-              />
+              <span className="label-text">Meta</span>
+              <MoneyInput currency={currency} value={target} onChange={setTarget} required />
             </label>
             {currency === 'BRL' && (
               <label className="form-control">
@@ -260,12 +252,11 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
 
           <div className="grid grid-cols-2 gap-3">
             <label className="form-control">
-              <span className="label-text">Aporte por mês ({symbol})</span>
-              <input
-                className="input input-bordered w-full"
-                inputMode="decimal"
+              <span className="label-text">Aporte por mês</span>
+              <MoneyInput
+                currency={currency}
                 value={contribution}
-                onChange={(e) => setContribution(e.target.value)}
+                onChange={setContribution}
                 placeholder="Opcional"
               />
             </label>

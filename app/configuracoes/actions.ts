@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 
 import { isAiProviderConfigured } from '@/lib/ai';
 import { AI_PROVIDER_COOKIE, AI_PROVIDER_LABEL, isAiProvider } from '@/lib/ai-provider';
-import { requireSession } from '@/lib/auth';
+import { requireUserId } from '@/lib/auth';
 
 export type SaveAiProviderState = { ok: boolean; message: string } | null;
 
@@ -15,7 +15,7 @@ export async function saveAiProvider(
   _prev: SaveAiProviderState,
   formData: FormData,
 ): Promise<SaveAiProviderState> {
-  await requireSession();
+  await requireUserId();
 
   const provider = formData.get('provider');
   if (!isAiProvider(provider)) {

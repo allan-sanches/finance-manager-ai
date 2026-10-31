@@ -18,36 +18,44 @@ describe('session', () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
-  it('aceita um token recém-criado', async () => {
-    const token = await createSessionToken();
-    expect(await verifySessionToken(token)).toBe(true);
+  it('aceita um token recém-criado e devolve o usuário', async () => {
+    const token = await createSessionToken('owner');
+    expect(await verifySessionToken(token)).toBe('owner');
   });
 
   it('rejeita token expirado', async () => {
     const now = Date.now();
-    const token = await createSessionToken(now);
-    expect(await verifySessionToken(token, now + (SESSION_TTL_SECONDS + 1) * 1000)).toBe(false);
+    const token = await createSessionToken('owner', now);
+    expect(await verifySessionToken(token, now + (SESSION_TTL_SECONDS + 1) * 1000)).toBeNull();
   });
 
   it('rejeita token adulterado', async () => {
-    const token = await createSessionToken();
-    const [exp, sig] = token.split('.');
-    expect(await verifySessionToken(`${Number(exp) + 1000}.${sig}`)).toBe(false);
-    expect(await verifySessionToken(`${exp}.${sig}x`)).toBe(false);
-    expect(await verifySessionToken('lixo')).toBe(false);
-    expect(await verifySessionToken(undefined)).toBe(false);
+    const token = await createSessionToken('owner');
+    const [user, exp, sig] = token.split('.');
+    expect(await verifySessionToken(`${user}.${Number(exp) + 1000}.${sig}`)).toBeNull();
+    expect(await verifySessionToken(`${user}.${exp}.${sig}x`)).toBeNull();
+    expect(await verifySessionToken('lixo')).toBeNull();
+    expect(await verifySessionToken(undefined)).toBeNull();
+  });
+
+  it('não deixa trocar o usuário de um token válido', async () => {
+    const token = await createSessionToken('owner');
+    const [, exp, sig] = token.split('.');
+    expect(await verifySessionToken(`outro-usuario.${exp}.${sig}`)).toBeNull();
+    expect(await verifySessionToken(`${exp}.${sig}`)).toBeNull();
+    await expect(createSessionToken('a.b')).rejects.toThrow();
   });
 
   it('rejeita token assinado com outro segredo', async () => {
-    const token = await createSessionToken();
+    const token = await createSessionToken('owner');
     vi.stubEnv('SESSION_SECRET', 'y'.repeat(40));
-    expect(await verifySessionToken(token)).toBe(false);
+    expect(await verifySessionToken(token)).toBeNull();
   });
 
   it('não funciona com segredo curto', async () => {
     vi.stubEnv('SESSION_SECRET', 'curto');
     expect(isAuthConfigured()).toBe(false);
-    await expect(createSessionToken()).rejects.toThrow();
+    await expect(createSessionToken('owner')).rejects.toThrow();
     expect(await verifyPassword('senha-forte')).toBe(false);
   });
 

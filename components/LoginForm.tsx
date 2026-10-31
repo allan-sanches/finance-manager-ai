@@ -12,6 +12,19 @@ export function LoginForm({ next }: { next: string }) {
   return (
     <form action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="next" value={next} />
+      {/* Sem required: a conta original entra só com a senha enquanto não cadastrar e-mail no perfil. */}
+      <label className="form-control w-full">
+        <span className="eyebrow mb-2 block">E-mail</span>
+        <input
+          type="email"
+          name="email"
+          placeholder="voce@exemplo.com"
+          className="input input-bordered input-lg w-full"
+          autoComplete="username"
+          inputMode="email"
+          autoFocus
+        />
+      </label>
       <label className="form-control w-full">
         <span className="eyebrow mb-2 block">Senha</span>
         <input
@@ -19,7 +32,6 @@ export function LoginForm({ next }: { next: string }) {
           name="password"
           className="input input-bordered input-lg w-full"
           autoComplete="current-password"
-          autoFocus
           required
         />
       </label>

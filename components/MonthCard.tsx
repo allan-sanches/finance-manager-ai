@@ -1,4 +1,4 @@
-import { ArrowDownRight, ArrowUpRight, ChevronRight, Landmark, type LucideIcon } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ChevronRight, CreditCard, Landmark, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 
 import { BRL } from '@/lib/finance';
@@ -63,6 +63,7 @@ export function MonthCard({
         <SubCard tone="coral" icon={ArrowDownRight} label="Despesas" value={totals.expense} muted={expected} />
         <SubCard tone="violet" icon={Landmark} label="Dívidas" value={totals.debt} muted={expected} />
       </div>
+      <CardNote totals={totals} expected={expected} />
     </Link>
   );
 }
@@ -93,5 +94,26 @@ export function SubCard({
       </span>
       <span className="metric truncate text-sm sm:text-base">{BRL.format(value)}</span>
     </div>
+  );
+}
+
+/**
+ * Compras no crédito não entram no saldo (só a fatura, quando é paga): esta linha mostra as duas
+ * coisas para o total não parecer que "sumiu".
+ */
+export function CardNote({ totals, expected = false }: { totals: MonthTotals; expected?: boolean }) {
+  if (totals.card <= 0 && totals.invoices <= 0) return null;
+  const parts: string[] = [];
+  if (totals.invoices > 0) {
+    parts.push(`${expected ? 'Fatura a pagar' : 'Fatura paga'} ${BRL.format(totals.invoices)} (entra no saldo)`);
+  }
+  if (totals.card > 0) {
+    parts.push(`${BRL.format(totals.card)} em compras no cartão (saem do saldo quando a fatura for paga)`);
+  }
+  return (
+    <p className="text-base-content/70 flex items-start gap-1.5 text-xs">
+      <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span>{parts.join(' · ')}</span>
+    </p>
   );
 }

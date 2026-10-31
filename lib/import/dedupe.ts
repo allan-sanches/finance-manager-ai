@@ -29,3 +29,37 @@ export function findDuplicateEntries(
   });
   return duplicates;
 }
+
+const DAY_MS = 86_400_000;
+const daysApart = (a: string, b: string) =>
+  Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / DAY_MS;
+
+/**
+ * Índices dos lançamentos da fatura que já existem no crédito desse cartão. A descrição da fatura
+ * ("IFOOD *RESTAURANTE") quase nunca bate com a digitada ("Jantar"), então compara tipo e valor,
+ * com até 1 dia de diferença na data. Cada transação existente casa com uma linha só.
+ */
+export function findDuplicateCardEntries(
+  entries: ReadonlyArray<Pick<Transaction, 'date' | 'type' | 'amount'>>,
+  existing: ReadonlyArray<Transaction>,
+  cardId: string,
+): Set<number> {
+  const pool = existing.filter((t) => t.paymentMethod === 'credit_card' && t.creditCardId === cardId);
+  const used = new Set<string>();
+  const duplicates = new Set<number>();
+  entries.forEach((entry, i) => {
+    const cents = Math.round(entry.amount * 100);
+    const match = pool.find(
+      (t) =>
+        !used.has(t.id) &&
+        t.type === entry.type &&
+        Math.round(t.amount * 100) === cents &&
+        daysApart(t.date, entry.date) <= 1,
+    );
+    if (match) {
+      used.add(match.id);
+      duplicates.add(i);
+    }
+  });
+  return duplicates;
+}

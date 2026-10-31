@@ -3,12 +3,14 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
+import { MoneyInput } from '@/components/MoneyInput';
 import {
   CATEGORIES,
   PAYMENT_METHOD_LABEL,
   TRANSACTION_TYPE_LABEL,
   todayISO,
 } from '@/lib/finance';
+import { parseMoneyInput, toMoneyInput } from '@/lib/money-mask';
 import { useFinanceStore } from '@/lib/store';
 import { useOpenedWith } from '@/lib/useMounted';
 import { useCategories } from '@/lib/useCategories';
@@ -60,7 +62,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
     const src = initial ?? initialDraft;
     if (src) {
       setDescription(src.description);
-      setAmount(String(src.amount));
+      setAmount(toMoneyInput(src.amount));
       setType(src.type);
       setCategory(src.category);
       setPaymentMethod(src.paymentMethod);
@@ -84,7 +86,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const parsedAmount = parseAmount(amount);
+    const parsedAmount = parseMoneyInput(amount);
     if (!description.trim()) return setError('Descrição obrigatória.');
     if (!parsedAmount || parsedAmount <= 0) return setError('Valor deve ser maior que zero.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return setError('Data inválida.');
@@ -139,15 +141,8 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
 
           <div className="grid grid-cols-2 gap-3">
             <label className="form-control">
-              <span className="label-text">Valor (R$)</span>
-              <input
-                className="input input-bordered"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0,00"
-                required
-              />
+              <span className="label-text">Valor</span>
+              <MoneyInput value={amount} onChange={setAmount} required />
             </label>
 
             <label className="form-control">
@@ -296,11 +291,4 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
       </form>
     </dialog>
   );
-}
-
-function parseAmount(input: string): number | null {
-  if (!input) return null;
-  const normalized = input.replace(/\./g, '').replace(',', '.');
-  const n = Number(normalized);
-  return Number.isFinite(n) ? n : null;
 }

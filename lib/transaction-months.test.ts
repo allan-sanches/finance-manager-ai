@@ -56,7 +56,31 @@ describe('totalsOf', () => {
   });
 });
 
+describe('totalsOf com cartão', () => {
+  it('compra no crédito não sai do saldo; a fatura paga sai', () => {
+    const totals = totalsOf(
+      '2026-10',
+      [
+        tx({ type: 'income', amount: 5000, category: 'Salário' }),
+        tx({ amount: 300, paymentMethod: 'debit' }),
+        tx({ amount: 450, paymentMethod: 'credit_card', creditCardId: 'c1' }),
+      ],
+      [{ date: '2026-10-12', amount: 1200 }],
+    );
+    expect(totals).toMatchObject({ expense: 300, card: 450, invoices: 1200, balance: 3500, count: 3 });
+  });
+});
+
 describe('groupByMonth', () => {
+  it('cria o mês só com pagamento de fatura', () => {
+    const months = groupByMonth([tx({ date: '2026-10-05' })], 'desc', [{ date: '2026-11-10', amount: 80 }]);
+    expect(months.map((m) => [m.key, m.invoices])).toEqual([
+      ['2026-11', 80],
+      ['2026-10', 0],
+    ]);
+  });
+
+
   const rows = [tx({ date: '2026-08-01' }), tx({ date: '2026-10-05' }), tx({ date: '2026-10-20' })];
 
   it('ordena do mais recente para o mais antigo por padrão', () => {

@@ -6,7 +6,7 @@ const PUBLIC_PATHS = new Set(['/login', '/api/health']);
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-  const authenticated = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
+  const authenticated = (await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value)) !== null;
 
   if (pathname === '/login' && authenticated) {
     return NextResponse.redirect(new URL('/', request.url));

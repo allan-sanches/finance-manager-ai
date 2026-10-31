@@ -7,6 +7,7 @@ import { userCategoryNames } from '@/lib/categories-server';
 import {
   extractDebtsFromImages,
   extractDebtsFromText,
+  extractInvoice,
   extractStatementFromText,
   MAX_DOCUMENT_CHARS,
 } from '@/lib/import/ai-documents';
@@ -20,10 +21,12 @@ import {
 } from '@/lib/import/pdf-text';
 import { decodeText } from '@/lib/import/statement';
 import { clientKeyFromRequest, createRateLimiter } from '@/lib/rate-limit';
-import type { ImportPreview } from '@/types/finance';
+import type { ImportPreview, InvoicePreview } from '@/types/finance';
 
 // Recebe o arquivo, devolve só a PRÉVIA tipada. Nada é gravado aqui: o usuário revisa na tela e
 // confirma pelas Server Actions (importTransactions / replaceDebts), que validam tudo de novo.
+// Fatura de cartão ('invoice') preenche o formulário de fatura e lista as compras para revisão;
+// quem salva é o usuário.
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,7 +36,7 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGES = 8;
 const checkRateLimit = createRateLimiter({ limit: 10, windowMs: 60_000 });
 
-const kindSchema = z.enum(['statement', 'scr', 'serasa']);
+const kindSchema = z.enum(['statement', 'scr', 'serasa', 'invoice']);
 
 const STATUS_BY_ERROR: Record<ExtractionErrorCode, number> = {
   not_configured: 503,
@@ -65,11 +68,13 @@ export async function POST(request: Request) {
   if (files.length === 0) return fail('Selecione um arquivo.', 400);
   if (files.some((f) => f.size > MAX_FILE_BYTES))
     return fail('Arquivo muito grande (máximo 5 MB).', 413);
-  if (files.length > 1 && kind.data !== 'serasa') return fail('Envie um arquivo por vez.', 400);
+  // Serasa e fatura aceitam prints (vários de uma vez); os outros, um arquivo só.
+  const acceptsImages = kind.data === 'serasa' || kind.data === 'invoice';
+  if (files.length > 1 && !acceptsImages) return fail('Envie um arquivo por vez.', 400);
   if (files.length > MAX_IMAGES) return fail(`Envie no máximo ${MAX_IMAGES} prints por vez.`, 400);
 
-  // Prints do Serasa (uma ou mais imagens): a IA lê as imagens direto.
-  if (kind.data === 'serasa') {
+  // Prints (uma ou mais imagens): a IA lê as imagens direto.
+  if (acceptsImages) {
     const images = await Promise.all(
       files.map(async (f) => toPromptImage(new Uint8Array(await f.arrayBuffer()))),
     );
@@ -81,7 +86,10 @@ export async function POST(request: Request) {
           503,
         );
       }
-      const result = await extractDebtsFromImages(provider, images);
+      const result =
+        kind.data === 'invoice'
+          ? await extractInvoice(provider, { images }, await userCategoryNames())
+          : await extractDebtsFromImages(provider, images);
       if (!result.ok) return fail(result.error, STATUS_BY_ERROR[result.code]);
       return ok(result.preview);
     }
@@ -113,7 +121,9 @@ export async function POST(request: Request) {
     return fail(
       kind.data === 'serasa'
         ? 'Envie o PDF do Serasa ou prints da tela (PNG, JPG ou WebP).'
-        : 'O relatório do Registrato deve ser enviado em PDF.',
+        : kind.data === 'invoice'
+          ? 'Envie o PDF da fatura ou prints da tela (PNG, JPG ou WebP).'
+          : 'O relatório do Registrato deve ser enviado em PDF.',
       415,
     );
   }
@@ -149,12 +159,14 @@ export async function POST(request: Request) {
   const result =
     kind.data === 'statement'
       ? await extractStatementFromText(provider, layoutText, await userCategoryNames())
-      : await extractDebtsFromText(provider, kind.data, layoutText);
+      : kind.data === 'invoice'
+        ? await extractInvoice(provider, { layoutText }, await userCategoryNames())
+        : await extractDebtsFromText(provider, kind.data, layoutText);
   if (!result.ok) return fail(result.error, STATUS_BY_ERROR[result.code]);
   return ok(result.preview);
 }
 
-function ok(data: ImportPreview) {
+function ok(data: ImportPreview | InvoicePreview) {
   return NextResponse.json({ ok: true, data }, { status: 200 });
 }
 

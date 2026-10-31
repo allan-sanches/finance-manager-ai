@@ -1,22 +1,28 @@
-import { ProfileEmailForm, ProfilePasswordForm } from '@/components/ProfileForms';
+import { ProfileEmailForm, ProfilePasswordForm, ProfileUsersPanel } from '@/components/ProfileForms';
 import { PageHeader } from '@/components/ui';
-import { requireSession } from '@/lib/auth';
+import { requireUserId } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { getAccount } from '@/lib/db/repository';
+import { OWNER_ID, getUser, listUsers } from '@/lib/db/repository';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PerfilPage() {
-  await requireSession();
-  const { email, passwordHash } = await getAccount(getDb());
+  const userId = await requireUserId();
+  const db = getDb();
+  const user = await getUser(db, userId);
+  const others = user?.isAdmin ? (await listUsers(db)).filter((u) => u.id !== userId) : null;
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <PageHeader title="Perfil" subtitle="Seu e-mail e a senha de acesso ao app." />
+      <PageHeader title="Perfil" subtitle="Seu e-mail de acesso e a senha do app." />
 
-      <ProfileEmailForm email={email ?? ''} />
+      <ProfileEmailForm email={user?.email ?? ''} />
 
-      <ProfilePasswordForm usingInitialPassword={!passwordHash} />
+      <ProfilePasswordForm usingInitialPassword={userId === OWNER_ID && !user?.passwordHash} />
+
+      {others && (
+        <ProfileUsersPanel users={others.map((u) => ({ id: u.id, email: u.email ?? '(sem e-mail)' }))} />
+      )}
     </div>
   );
 }

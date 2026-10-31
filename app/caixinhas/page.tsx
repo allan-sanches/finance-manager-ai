@@ -3,10 +3,11 @@
 import { CalendarClock, Pencil, PiggyBank, Plus, Target, Trash2, TrendingUp } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { MoneyInput } from '@/components/MoneyInput';
 import { SavingsGoalFormDialog } from '@/components/SavingsGoalFormDialog';
 import { EmptyState, PageHeader } from '@/components/ui';
 import { BRL, todayISO } from '@/lib/finance';
-import { parseAmount } from '@/lib/import/statement';
+import { parseMoneyInput } from '@/lib/money-mask';
 import {
   daysBetween,
   estimatedMonthlyYield,
@@ -188,7 +189,7 @@ function GoalCard({
   const onTrack = atDeadline ? atDeadline.amount >= goal.targetAmount - 0.005 : null;
 
   function handleApply(direction: 'in' | 'out') {
-    const v = parseAmount(amountInput); // aceita "1.234,56" e "1234.56"
+    const v = parseMoneyInput(amountInput);
     if (v === null || v <= 0) return;
     if (direction === 'in') onDeposit(v);
     else onWithdraw(v);
@@ -291,13 +292,12 @@ function GoalCard({
             )}
           </div>
         )}
-        <input
-          className="input input-bordered w-full"
-          inputMode="decimal"
-          placeholder={goal.currency === 'USD' ? 'Valor (US$)' : 'Valor (R$)'}
+        <MoneyInput
+          currency={goal.currency}
+          placeholder="Valor"
           aria-label={`Valor para ${goal.name}`}
           value={amountInput}
-          onChange={(e) => setAmountInput(e.target.value)}
+          onChange={setAmountInput}
         />
         <div className="grid grid-cols-2 gap-2">
           <button

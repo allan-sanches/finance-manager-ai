@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
-import { DEBT_STATUS_LABEL, DEBT_STATUSES, todayISO } from '@/lib/finance';
+import { MoneyInput } from '@/components/MoneyInput';
+import { DEFAULT_DEBT_STATUS, todayISO } from '@/lib/finance';
 import { parseAmount } from '@/lib/import/statement';
+import { toMoneyInput } from '@/lib/money-mask';
 import { useFinanceStore } from '@/lib/store';
 import { useOpenedWith } from '@/lib/useMounted';
 import type { Debt, DebtStatus } from '@/types/finance';
@@ -15,19 +17,18 @@ type Props = {
   initial?: Debt;
 };
 
-const toInput = (n: number) => (n ? String(n).replace('.', ',') : '');
-
 export function DebtFormDialog({ open, onClose, initial }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const addDebt = useFinanceStore((s) => s.addDebt);
   const updateDebt = useFinanceStore((s) => s.updateDebt);
   const removeDebt = useFinanceStore((s) => s.removeDebt);
+  const statuses = useFinanceStore((s) => s.settings.debtStatuses);
 
   const [creditor, setCreditor] = useState('');
   const [description, setDescription] = useState('');
   const [current, setCurrent] = useState('');
   const [overdue, setOverdue] = useState('');
-  const [status, setStatus] = useState<DebtStatus>('active');
+  const [status, setStatus] = useState<DebtStatus>(DEFAULT_DEBT_STATUS);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -45,9 +46,9 @@ export function DebtFormDialog({ open, onClose, initial }: Props) {
   if (useOpenedWith(open, initial)) {
     setCreditor(initial?.creditor ?? '');
     setDescription(initial?.description ?? '');
-    setCurrent(toInput(initial?.currentAmount ?? 0));
-    setOverdue(toInput(initial?.overdueAmount ?? 0));
-    setStatus(initial?.status ?? 'active');
+    setCurrent(toMoneyInput(initial?.currentAmount));
+    setOverdue(toMoneyInput(initial?.overdueAmount));
+    setStatus(initial?.status ?? DEFAULT_DEBT_STATUS);
     setNotes(initial?.notes ?? '');
     setError(null);
   }
@@ -123,24 +124,12 @@ export function DebtFormDialog({ open, onClose, initial }: Props) {
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="form-control">
-                  <span className="label-text">Em dia (R$)</span>
-                  <input
-                    className="input input-bordered w-full"
-                    inputMode="decimal"
-                    value={current}
-                    onChange={(e) => setCurrent(e.target.value)}
-                    placeholder="0,00"
-                  />
+                  <span className="label-text">Em dia</span>
+                  <MoneyInput value={current} onChange={setCurrent} />
                 </label>
                 <label className="form-control">
-                  <span className="label-text">Vencida (R$)</span>
-                  <input
-                    className="input input-bordered w-full"
-                    inputMode="decimal"
-                    value={overdue}
-                    onChange={(e) => setOverdue(e.target.value)}
-                    placeholder="0,00"
-                  />
+                  <span className="label-text">Vencida</span>
+                  <MoneyInput value={overdue} onChange={setOverdue} />
                 </label>
               </div>
             </>
@@ -149,14 +138,14 @@ export function DebtFormDialog({ open, onClose, initial }: Props) {
           <fieldset>
             <legend className="label-text mb-2">Situação</legend>
             <div className="flex flex-wrap gap-2">
-              {DEBT_STATUSES.map((s) => (
+              {statuses.map((s) => (
                 <button
-                  key={s}
+                  key={s.id}
                   type="button"
-                  className={`btn btn-sm rounded-full ${status === s ? 'btn-neutral' : 'btn-ghost bg-base-200'}`}
-                  onClick={() => setStatus(s)}
+                  className={`btn btn-sm rounded-full ${status === s.id ? 'btn-neutral' : 'btn-ghost bg-base-200'}`}
+                  onClick={() => setStatus(s.id)}
                 >
-                  {DEBT_STATUS_LABEL[s]}
+                  {s.label}
                 </button>
               ))}
             </div>

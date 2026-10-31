@@ -88,8 +88,17 @@ export type DebtSource = 'scr' | 'serasa' | 'manual';
 /** Origens que chegam por relatório importado (cada importação substitui a anterior da mesma origem). */
 export type ReportDebtSource = Exclude<DebtSource, 'manual'>;
 
-/** Situação que o usuário controla; define se a dívida entra no dashboard (ver AppSettings). */
-export type DebtStatus = 'active' | 'awaiting_offer' | 'negotiated' | 'abandoned' | 'paid';
+/**
+ * Id da situação da dívida. As situações são do usuário (AppSettings.debtStatuses): ele renomeia,
+ * cria e apaga. As padrão usam ids fixos ('active', 'awaiting_offer', 'negotiated', 'abandoned', 'paid').
+ */
+export type DebtStatus = string;
+
+export type DebtStatusOption = {
+  id: DebtStatus;
+  label: string; // Ex: "Abandonada", "Em negociação"
+  tone: Tone;
+};
 
 export type Debt = {
   id: string;
@@ -106,6 +115,8 @@ export type Debt = {
 export type AppSettings = {
   /** Status de dívida que entram nos totais e no card de dívidas do dashboard. */
   dashboardDebtStatuses: DebtStatus[];
+  /** Situações de dívida, na ordem em que aparecem. 'active' é a de dívidas novas e não pode ser apagada. */
+  debtStatuses: DebtStatusOption[];
 };
 
 export type TransactionDraft = Omit<Transaction, 'id' | 'isPaid'> & {
@@ -155,6 +166,19 @@ export type DebtReportPreview = {
 };
 
 export type ImportPreview = StatementPreview | DebtReportPreview;
+
+/** Lançamento lido de uma fatura de cartão: vira transação no crédito daquele cartão se o usuário marcar. */
+export type InvoiceEntry = Omit<StatementEntry, 'paymentMethod'>;
+
+/** Dados de uma fatura de cartão lidos de print ou PDF, para preencher o formulário de fatura. */
+export type InvoicePreview = {
+  kind: 'invoice';
+  closingDate: string | null; // ISO YYYY-MM-DD
+  dueDate: string | null; // ISO YYYY-MM-DD
+  amount: number | null; // Total a pagar
+  entries: InvoiceEntry[];
+  warnings: string[];
+};
 
 export type ChatExtraction = {
   transaction: TransactionDraft;

@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 
 import { SectionTitle } from '@/components/ui';
-import { BRL, cashflowLastMonths, expensesByCategory } from '@/lib/finance';
+import { BRL, cashflowLastMonths, expensesByCategory, invoiceOutflows } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import { TONE_HEX } from '@/lib/tones';
 import { useCategories } from '@/lib/useCategories';
@@ -30,9 +30,12 @@ const tooltipStyle = {
 export function DashboardCharts() {
   const hydrated = useHydrated();
   const transactions = useFinanceStore((s) => s.transactions);
+  const invoices = useFinanceStore((s) => s.creditCardInvoices);
   const { styleOf } = useCategories();
 
-  const cashflow = cashflowLastMonths(hydrated ? transactions : [], 6);
+  const cashflow = hydrated
+    ? cashflowLastMonths(transactions, 6, invoiceOutflows(invoices).realized)
+    : cashflowLastMonths([], 6);
   const categories = hydrated ? expensesByCategory(transactions) : [];
 
   return (

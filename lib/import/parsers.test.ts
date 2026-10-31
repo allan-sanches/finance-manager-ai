@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseCsv } from '@/lib/import/csv';
-import { findDuplicateEntries } from '@/lib/import/dedupe';
+import { findDuplicateCardEntries, findDuplicateEntries } from '@/lib/import/dedupe';
 import { looksLikeOfx, parseOfx } from '@/lib/import/ofx';
 import { readScrTotals } from '@/lib/import/scr-totals';
 import { decodeText, inferPaymentMethod, parseAmount, parseDate } from '@/lib/import/statement';
@@ -230,5 +230,33 @@ describe('readScrTotals', () => {
 
   it('devolve null sem o cabeçalho do relatório', () => {
     expect(readScrTotals('qualquer coisa')).toBeNull();
+  });
+});
+
+describe('findDuplicateCardEntries', () => {
+  const existing = (o: Partial<Transaction>): Transaction => ({
+    id: Math.random().toString(36),
+    description: 'Jantar',
+    amount: 45.9,
+    type: 'expense',
+    category: 'Alimentação',
+    paymentMethod: 'credit_card',
+    creditCardId: 'c1',
+    date: '2026-10-20',
+    isFixed: false,
+    isPaid: false,
+    ...o,
+  });
+  const line = { date: '2026-10-21', type: 'expense' as const, amount: 45.9 };
+
+  it('casa por valor e tipo com até 1 dia de diferença, ignorando a descrição', () => {
+    expect(findDuplicateCardEntries([line], [existing({})], 'c1')).toEqual(new Set([0]));
+    expect(findDuplicateCardEntries([{ ...line, date: '2026-10-23' }], [existing({})], 'c1').size).toBe(0);
+  });
+
+  it('só considera compras no crédito do mesmo cartão, e cada uma casa uma vez', () => {
+    expect(findDuplicateCardEntries([line], [existing({ creditCardId: 'c2' })], 'c1').size).toBe(0);
+    expect(findDuplicateCardEntries([line], [existing({ paymentMethod: 'debit', creditCardId: null })], 'c1').size).toBe(0);
+    expect(findDuplicateCardEntries([line, line], [existing({})], 'c1')).toEqual(new Set([0]));
   });
 });

@@ -118,7 +118,8 @@ export const categorySchema = z.object({
 });
 
 export const debtSourceSchema = z.enum(['scr', 'serasa', 'manual']);
-export const debtStatusSchema = z.enum(['active', 'awaiting_offer', 'negotiated', 'abandoned', 'paid']);
+// Situações são do usuário (settings.debtStatuses): o id é livre, só o formato é validado.
+export const debtStatusSchema = z.string().trim().min(1).max(60);
 
 const debtFields = z.object({
   id,
@@ -150,8 +151,22 @@ export const debtPatchSchema = z
   })
   .partial();
 
+const debtStatusOptionSchema = z.object({
+  id: debtStatusSchema,
+  label: z.string().trim().min(1).max(40),
+  tone: z.enum(TONES),
+});
+
 export const settingsPatchSchema = z
-  .object({ dashboardDebtStatuses: z.array(debtStatusSchema).max(10) })
+  .object({
+    dashboardDebtStatuses: z.array(debtStatusSchema).max(30),
+    debtStatuses: z
+      .array(debtStatusOptionSchema)
+      .min(1)
+      .max(30)
+      .refine((list) => new Set(list.map((s) => s.id)).size === list.length, 'Situação repetida.')
+      .refine((list) => list.some((s) => s.id === 'active'), 'A situação padrão não pode ser apagada.'),
+  })
   .partial();
 
 export const idSchema = id;

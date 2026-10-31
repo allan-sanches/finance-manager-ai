@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
+import { MoneyInput } from '@/components/MoneyInput';
 import { BRL } from '@/lib/finance';
+import { parseMoneyInput, toMoneyInput } from '@/lib/money-mask';
 import { useFinanceStore } from '@/lib/store';
 import { useOpenedWith } from '@/lib/useMounted';
 import type { CreditCard } from '@/types/finance';
@@ -37,7 +39,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
 
   if (useOpenedWith(open, initial)) {
     setName(initial?.name ?? '');
-    setLimit(initial ? String(initial.limit) : '');
+    setLimit(toMoneyInput(initial?.limit));
     setLimitGoalId(initial?.limitSavingsGoalId ?? '');
     setClosingDay(initial ? String(initial.closingDay) : '1');
     setDueDay(initial ? String(initial.dueDay) : '10');
@@ -49,7 +51,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
     if (!name.trim()) return setError('Nome obrigatório.');
     const goal = goals.find((g) => g.id === limitGoalId);
     // Com caixinha, o limite fixo vira só o último saldo conhecido (usado se a caixinha for apagada).
-    const limitNum = goal ? goal.currentAmount : Number(limit.replace(',', '.'));
+    const limitNum = goal ? goal.currentAmount : (parseMoneyInput(limit) ?? 0);
     if (!goal && (!Number.isFinite(limitNum) || limitNum <= 0)) return setError('Limite inválido.');
     const closing = Number(closingDay);
     const due = Number(dueDay);
@@ -125,15 +127,8 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
             </p>
           ) : (
             <label className="form-control">
-              <span className="label-text">Limite total (R$)</span>
-              <input
-                className="input input-bordered"
-                inputMode="decimal"
-                value={limit}
-                onChange={(e) => setLimit(e.target.value)}
-                placeholder="0,00"
-                required
-              />
+              <span className="label-text">Limite total</span>
+              <MoneyInput value={limit} onChange={setLimit} required />
             </label>
           )}
 

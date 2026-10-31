@@ -1,6 +1,6 @@
 'use server';
 
-import { requireSession } from '@/lib/auth';
+import { requireUserId } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import * as repo from '@/lib/db/repository';
 import { CATEGORIES } from '@/lib/finance';
@@ -32,168 +32,186 @@ import type { FinanceSnapshot } from '@/types/finance';
 
 // Cada action devolve o snapshot completo: o store do cliente troca o estado otimista
 // pelo que o banco tem, então regras como o saldo da fatura ficam com o servidor.
+//
+// `actor` é o usuário que a aba acredita estar usando. O cookie de sessão é do navegador inteiro:
+// se alguém sair e entrar com outra conta em outra aba, uma aba antiga mandaria as alterações da
+// pessoa anterior com o cookie da nova. Nesse caso nada é gravado e o cliente recarrega a tela.
 
-async function run(mutation: (db: repo.Db) => Promise<void>): Promise<FinanceSnapshot> {
-  await requireSession();
+/** A sessão mudou desde que a aba carregou os dados; nada foi gravado. */
+export type SessionChanged = { sessionChanged: true };
+
+async function run(
+  actor: unknown,
+  mutation: (db: repo.Db, userId: string) => Promise<void>,
+): Promise<FinanceSnapshot | SessionChanged> {
+  const userId = await requireUserId();
+  if (actor !== userId) return { sessionChanged: true };
   const db = getDb();
-  await mutation(db);
-  return repo.getSnapshot(db);
+  await mutation(db, userId);
+  return repo.getSnapshot(db, userId);
 }
 
-export async function loadSnapshot() {
-  return run(async () => {});
+export async function loadSnapshot(actor: unknown) {
+  return run(actor, async () => {});
 }
 
-export async function addTransaction(input: unknown) {
+export async function addTransaction(actor: unknown, input: unknown) {
   const data = transactionSchema.parse(input);
-  return run((db) => repo.addTransaction(db, data));
+  return run(actor, (db, userId) => repo.addTransaction(db, userId, data));
 }
 
-export async function updateTransaction(id: unknown, patch: unknown) {
+export async function updateTransaction(actor: unknown, id: unknown, patch: unknown) {
   const txId = idSchema.parse(id);
   const data = transactionPatchSchema.parse(patch);
-  return run((db) => repo.updateTransaction(db, txId, data));
+  return run(actor, (db, userId) => repo.updateTransaction(db, userId, txId, data));
 }
 
-export async function importTransactions(input: unknown) {
+export async function importTransactions(actor: unknown, input: unknown) {
   const data = transactionBatchSchema.parse(input);
-  return run((db) => repo.addTransactions(db, data));
+  return run(actor, (db, userId) => repo.addTransactions(db, userId, data));
 }
 
-export async function replaceDebts(source: unknown, input: unknown) {
+export async function replaceDebts(actor: unknown, source: unknown, input: unknown) {
   const debtSource = debtSourceSchema.parse(source);
   const data = debtBatchSchema.parse(input).map((d) => ({ ...d, source: debtSource }));
-  return run((db) => repo.replaceDebts(db, debtSource, data));
+  return run(actor, (db, userId) => repo.replaceDebts(db, userId, debtSource, data));
 }
 
-export async function removeDebt(id: unknown) {
+export async function removeDebt(actor: unknown, id: unknown) {
   const debtId = idSchema.parse(id);
-  return run((db) => repo.removeDebt(db, debtId));
+  return run(actor, (db, userId) => repo.removeDebt(db, userId, debtId));
 }
 
 /** Só dívidas manuais nascem pelo app; as de relatório chegam por replaceDebts. */
-export async function addDebt(input: unknown) {
+export async function addDebt(actor: unknown, input: unknown) {
   const data = debtSchema.parse(input);
-  return run((db) => repo.addDebt(db, { ...data, source: 'manual' }));
+  return run(actor, (db, userId) => repo.addDebt(db, userId, { ...data, source: 'manual' }));
 }
 
-export async function updateDebt(id: unknown, patch: unknown) {
+export async function updateDebt(actor: unknown, id: unknown, patch: unknown) {
   const debtId = idSchema.parse(id);
   const data = debtPatchSchema.parse(patch);
-  return run((db) => repo.updateDebt(db, debtId, data));
+  return run(actor, (db, userId) => repo.updateDebt(db, userId, debtId, data));
 }
 
-export async function updateSettings(patch: unknown) {
+export async function updateSettings(actor: unknown, patch: unknown) {
   const data = settingsPatchSchema.parse(patch);
-  return run((db) => repo.updateSettings(db, data));
+  return run(actor, (db, userId) => repo.updateSettings(db, userId, data));
 }
 
-export async function addCategory(input: unknown) {
+export async function addCategory(actor: unknown, input: unknown) {
   const data = categorySchema.parse(input);
   const key = normalizeCategoryName(data.name);
   // Mesmo nome de uma categoria padrão: não duplica.
-  if (CATEGORIES.some((c) => normalizeCategoryName(c) === key)) return run(async () => {});
-  return run((db) => repo.addCategory(db, data));
+  if (CATEGORIES.some((c) => normalizeCategoryName(c) === key)) return run(actor, async () => {});
+  return run(actor, (db, userId) => repo.addCategory(db, userId, data));
 }
 
-export async function removeCategory(id: unknown) {
+export async function removeCategory(actor: unknown, id: unknown) {
   const categoryId = idSchema.parse(id);
-  return run((db) => repo.removeCategory(db, categoryId));
+  return run(actor, (db, userId) => repo.removeCategory(db, userId, categoryId));
 }
 
-export async function removeTransaction(id: unknown) {
+export async function removeTransaction(actor: unknown, id: unknown) {
   const txId = idSchema.parse(id);
-  return run((db) => repo.removeTransaction(db, txId));
+  return run(actor, (db, userId) => repo.removeTransaction(db, userId, txId));
 }
 
-export async function toggleTransactionPaid(id: unknown) {
+export async function toggleTransactionPaid(actor: unknown, id: unknown) {
   const txId = idSchema.parse(id);
-  return run((db) => repo.toggleTransactionPaid(db, txId));
+  return run(actor, (db, userId) => repo.toggleTransactionPaid(db, userId, txId));
 }
 
-export async function addCreditCard(input: unknown) {
+export async function addCreditCard(actor: unknown, input: unknown) {
   const data = creditCardSchema.parse(input);
-  return run((db) => repo.addCreditCard(db, data));
+  return run(actor, (db, userId) => repo.addCreditCard(db, userId, data));
 }
 
-export async function updateCreditCard(id: unknown, patch: unknown) {
+export async function updateCreditCard(actor: unknown, id: unknown, patch: unknown) {
   const cardId = idSchema.parse(id);
   const data = creditCardPatchSchema.parse(patch);
-  return run((db) => repo.updateCreditCard(db, cardId, data));
+  return run(actor, (db, userId) => repo.updateCreditCard(db, userId, cardId, data));
 }
 
-export async function removeCreditCard(id: unknown) {
+export async function removeCreditCard(actor: unknown, id: unknown) {
   const cardId = idSchema.parse(id);
-  return run((db) => repo.removeCreditCard(db, cardId));
+  return run(actor, (db, userId) => repo.removeCreditCard(db, userId, cardId));
 }
 
-export async function addCreditCardInvoice(input: unknown) {
+export async function addCreditCardInvoice(actor: unknown, input: unknown) {
   const data = creditCardInvoiceSchema.parse(input);
-  return run((db) => repo.addCreditCardInvoice(db, data));
+  return run(actor, (db, userId) => repo.addCreditCardInvoice(db, userId, data));
 }
 
-export async function updateCreditCardInvoice(id: unknown, patch: unknown) {
+export async function updateCreditCardInvoice(actor: unknown, id: unknown, patch: unknown) {
   const invoiceId = idSchema.parse(id);
   const data = creditCardInvoicePatchSchema.parse(patch);
-  return run((db) => repo.updateCreditCardInvoice(db, invoiceId, data));
+  return run(actor, (db, userId) => repo.updateCreditCardInvoice(db, userId, invoiceId, data));
 }
 
-export async function removeCreditCardInvoice(id: unknown) {
+export async function removeCreditCardInvoice(actor: unknown, id: unknown) {
   const invoiceId = idSchema.parse(id);
-  return run((db) => repo.removeCreditCardInvoice(db, invoiceId));
+  return run(actor, (db, userId) => repo.removeCreditCardInvoice(db, userId, invoiceId));
 }
 
-export async function addSavingsGoal(input: unknown) {
+export async function addSavingsGoal(actor: unknown, input: unknown) {
   const data = savingsGoalSchema.parse(input);
-  return run((db) => repo.addSavingsGoal(db, data));
+  return run(actor, (db, userId) => repo.addSavingsGoal(db, userId, data));
 }
 
-export async function depositToGoal(id: unknown, amount: unknown, depositDate?: unknown) {
+export async function depositToGoal(actor: unknown, id: unknown, amount: unknown, depositDate?: unknown) {
   const goalId = idSchema.parse(id);
   const value = amountSchema.parse(amount);
   const date = isoDateSchema.optional().parse(depositDate);
-  return run((db) => repo.depositToGoal(db, goalId, value, date));
+  return run(actor, (db, userId) => repo.depositToGoal(db, userId, goalId, value, date));
 }
 
-export async function withdrawFromGoal(id: unknown, amount: unknown) {
+export async function withdrawFromGoal(actor: unknown, id: unknown, amount: unknown) {
   const goalId = idSchema.parse(id);
   const value = amountSchema.parse(amount);
-  return run((db) => repo.withdrawFromGoal(db, goalId, value));
+  return run(actor, (db, userId) => repo.withdrawFromGoal(db, userId, goalId, value));
 }
 
-export async function updateSavingsGoal(id: unknown, patch: unknown) {
+export async function updateSavingsGoal(actor: unknown, id: unknown, patch: unknown) {
   const goalId = idSchema.parse(id);
   const data = savingsGoalPatchSchema.parse(patch);
-  return run((db) => repo.updateSavingsGoal(db, goalId, data));
+  return run(actor, (db, userId) => repo.updateSavingsGoal(db, userId, goalId, data));
 }
 
-export async function removeSavingsGoal(id: unknown) {
+export async function removeSavingsGoal(actor: unknown, id: unknown) {
   const goalId = idSchema.parse(id);
-  return run((db) => repo.removeSavingsGoal(db, goalId));
+  return run(actor, (db, userId) => repo.removeSavingsGoal(db, userId, goalId));
 }
 
-export async function addShoppingItem(input: unknown) {
+export async function addShoppingItem(actor: unknown, input: unknown) {
   const data = shoppingItemSchema.parse(input);
-  return run((db) => repo.addShoppingItem(db, data));
+  return run(actor, (db, userId) => repo.addShoppingItem(db, userId, data));
 }
 
-export async function toggleShoppingItem(id: unknown) {
+export async function toggleShoppingItem(actor: unknown, id: unknown) {
   const itemId = idSchema.parse(id);
-  return run((db) => repo.toggleShoppingItem(db, itemId));
+  return run(actor, (db, userId) => repo.toggleShoppingItem(db, userId, itemId));
 }
 
-export async function updateShoppingItem(id: unknown, patch: unknown) {
+export async function updateShoppingItem(actor: unknown, id: unknown, patch: unknown) {
   const itemId = idSchema.parse(id);
   const data = shoppingItemPatchSchema.parse(patch);
-  return run((db) => repo.updateShoppingItem(db, itemId, data));
+  return run(actor, (db, userId) => repo.updateShoppingItem(db, userId, itemId, data));
 }
 
-export async function removeShoppingItem(id: unknown) {
+export async function removeShoppingItem(actor: unknown, id: unknown) {
   const itemId = idSchema.parse(id);
-  return run((db) => repo.removeShoppingItem(db, itemId));
+  return run(actor, (db, userId) => repo.removeShoppingItem(db, userId, itemId));
 }
 
-export async function importLocalData(input: unknown) {
+/**
+ * Dados do localStorage da época de usuário único: são da conta original. Outra pessoa logada no
+ * mesmo navegador não pode puxá-los para a conta dela.
+ */
+export async function importLocalData(actor: unknown, input: unknown) {
   const data = snapshotSchema.parse(input);
-  return run((db) => repo.importSnapshot(db, data));
+  return run(actor, async (db, userId) => {
+    if (userId !== repo.OWNER_ID) return;
+    await repo.importSnapshot(db, userId, data);
+  });
 }

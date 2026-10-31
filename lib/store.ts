@@ -3,7 +3,8 @@
 import { create } from 'zustand';
 
 import * as actions from '@/app/actions/finance';
-import { DEFAULT_SETTINGS, todayISO } from '@/lib/finance';
+import type { SessionChanged } from '@/app/actions/finance';
+import { DEFAULT_DEBT_STATUS, DEFAULT_SETTINGS, todayISO } from '@/lib/finance';
 import type {
   AppSettings,
   Category,
@@ -22,8 +23,13 @@ import type {
 type FinanceState = FinanceSnapshot & {
   hydrated: boolean;
   syncError: string | null;
+  /** Dono dos dados carregados; vai em toda alteração para o servidor recusar se a sessão mudou. */
+  sessionUserId: string | null;
 
-  hydrate: (snapshot: FinanceSnapshot) => void;
+  /** `userId` muda quando outra conta entra: a fila da conta anterior é descartada. */
+  hydrate: (snapshot: FinanceSnapshot, userId?: string) => void;
+  /** Logout: apaga os dados da memória da aba. */
+  reset: () => void;
   dismissSyncError: () => void;
 
   // Transactions
@@ -110,23 +116,42 @@ const transactionFromDraft = (draft: TransactionDraft): Transaction => ({
 // não sobrescrever uma mudança local mais nova.
 let queue: Promise<unknown> = Promise.resolve();
 let pending = 0;
+// Muda a cada troca de conta/logout: o que estava na fila da conta anterior não é enviado
+// e respostas dela que chegarem depois são ignoradas.
+let generation = 0;
+
+type SyncResult = FinanceSnapshot | SessionChanged;
+const sessionChanged = (r: SyncResult): r is SessionChanged => 'sessionChanged' in r;
+
+/** Outra conta entrou neste navegador: recarrega para a aba mostrar os dados dela. */
+function reloadForNewSession() {
+  if (typeof window !== 'undefined') window.location.reload();
+}
 
 export const useFinanceStore = create<FinanceState>()((set, get) => {
-  function sync(request: () => Promise<FinanceSnapshot>) {
+  function sync(request: (actor: string) => Promise<SyncResult>) {
+    const actor = get().sessionUserId;
+    const gen = generation;
+    if (!actor) return; // Sem dados carregados não há o que enviar.
     pending += 1;
     queue = queue
-      .then(request)
-      .then((snapshot) => {
+      .then(() => (gen === generation ? request(actor) : null))
+      .then((result) => {
         pending -= 1;
-        if (pending === 0) set({ ...snapshot });
+        if (!result || gen !== generation) return;
+        if (sessionChanged(result)) return reloadForNewSession();
+        if (pending === 0) set({ ...result });
       })
       .catch(async (err: unknown) => {
         pending -= 1;
+        if (gen !== generation) return;
         console.error('[store] sync failed', err);
         set({ syncError: 'Não foi possível salvar a última alteração. Os dados foram recarregados do servidor.' });
         try {
-          const snapshot = await actions.loadSnapshot();
-          if (pending === 0) set({ ...snapshot });
+          const result = await actions.loadSnapshot(actor);
+          if (gen !== generation) return;
+          if (sessionChanged(result)) return reloadForNewSession();
+          if (pending === 0) set({ ...result });
         } catch {
           // Sem conexão: mantém o estado local e o aviso na tela.
         }
@@ -137,8 +162,17 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     ...initialState,
     hydrated: false,
     syncError: null,
+    sessionUserId: null,
 
-    hydrate: (snapshot) => set({ ...snapshot, hydrated: true }),
+    hydrate: (snapshot, userId) => {
+      const sessionUserId = userId ?? get().sessionUserId;
+      if (sessionUserId !== get().sessionUserId) generation += 1;
+      set({ ...snapshot, hydrated: true, sessionUserId });
+    },
+    reset: () => {
+      generation += 1;
+      set({ ...initialState, hydrated: false, syncError: null, sessionUserId: null });
+    },
     dismissSyncError: () => set({ syncError: null }),
 
     addTransaction: (draft) => {
@@ -153,7 +187,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
           ),
         }));
       }
-      sync(() => actions.addTransaction(tx));
+      sync((actor) => actions.addTransaction(actor, tx));
       return tx;
     },
 
@@ -165,7 +199,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         transactions: s.transactions.map((t) => (t.id === id ? next : t)),
       }));
       adjustInvoiceOnTxChange(prev, next, set);
-      sync(() => actions.updateTransaction(id, patch));
+      sync((actor) => actions.updateTransaction(actor, id, patch));
     },
 
     removeTransaction: (id) => {
@@ -184,7 +218,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
           ),
         }));
       }
-      sync(() => actions.removeTransaction(id));
+      sync((actor) => actions.removeTransaction(actor, id));
     },
 
     toggleTransactionPaid: (id) => {
@@ -193,7 +227,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
           t.id === id ? { ...t, isPaid: !t.isPaid } : t,
         ),
       }));
-      sync(() => actions.toggleTransactionPaid(id));
+      sync((actor) => actions.toggleTransactionPaid(actor, id));
     },
 
     importTransactions: (drafts) => {
@@ -211,53 +245,53 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
           return delta ? { ...card, currentInvoiceAmount: card.currentInvoiceAmount + delta } : card;
         }),
       }));
-      sync(() => actions.importTransactions(txs));
+      sync((actor) => actions.importTransactions(actor, txs));
     },
 
     replaceDebts: (source, entries) => {
-      const next: Debt[] = entries.map((e) => ({ ...e, id: newId(), source, status: 'active', notes: null }));
+      const next: Debt[] = entries.map((e) => ({ ...e, id: newId(), source, status: DEFAULT_DEBT_STATUS, notes: null }));
       set((s) => ({ debts: [...s.debts.filter((d) => d.source !== source), ...next] }));
-      sync(() => actions.replaceDebts(source, next));
+      sync((actor) => actions.replaceDebts(actor, source, next));
     },
 
     removeDebt: (id) => {
       set((s) => ({ debts: s.debts.filter((d) => d.id !== id) }));
-      sync(() => actions.removeDebt(id));
+      sync((actor) => actions.removeDebt(actor, id));
     },
 
     addDebt: (draft) => {
       const debt: Debt = { ...draft, id: newId(), source: 'manual', notes: draft.notes ?? null };
       set((s) => ({ debts: [...s.debts, debt] }));
-      sync(() => actions.addDebt(debt));
+      sync((actor) => actions.addDebt(actor, debt));
       return debt;
     },
 
     updateDebt: (id, patch) => {
       set((s) => ({ debts: s.debts.map((d) => (d.id === id ? { ...d, ...patch, id } : d)) }));
-      sync(() => actions.updateDebt(id, patch));
+      sync((actor) => actions.updateDebt(actor, id, patch));
     },
 
     updateSettings: (patch) => {
       set((s) => ({ settings: { ...s.settings, ...patch } }));
-      sync(() => actions.updateSettings(patch));
+      sync((actor) => actions.updateSettings(actor, patch));
     },
 
     addCategory: (draft) => {
       const category: Category = { id: newId(), ...draft, name: draft.name.trim() };
       set((s) => ({ categories: [...s.categories, category] }));
-      sync(() => actions.addCategory(category));
+      sync((actor) => actions.addCategory(actor, category));
       return category;
     },
 
     removeCategory: (id) => {
       set((s) => ({ categories: s.categories.filter((c) => c.id !== id) }));
-      sync(() => actions.removeCategory(id));
+      sync((actor) => actions.removeCategory(actor, id));
     },
 
     addCreditCard: (draft) => {
       const card: CreditCard = { id: newId(), ...draft };
       set((s) => ({ creditCards: [...s.creditCards, card] }));
-      sync(() => actions.addCreditCard(card));
+      sync((actor) => actions.addCreditCard(actor, card));
       return card;
     },
 
@@ -267,7 +301,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       }));
       // currentInvoiceAmount é mantido pelo servidor a partir das transações.
       const { currentInvoiceAmount: _, ...serverPatch } = patch;
-      sync(() => actions.updateCreditCard(id, serverPatch));
+      sync((actor) => actions.updateCreditCard(actor, id, serverPatch));
     },
 
     removeCreditCard: (id) => {
@@ -278,14 +312,14 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
           t.creditCardId === id ? { ...t, creditCardId: null } : t,
         ),
       }));
-      sync(() => actions.removeCreditCard(id));
+      sync((actor) => actions.removeCreditCard(actor, id));
     },
 
     addCreditCardInvoice: (draft) => {
       const invoice: CreditCardInvoice = { id: newId(), ...draft, paymentDate: draft.paymentDate ?? null };
       set((s) => ({ creditCardInvoices: [invoice, ...s.creditCardInvoices] }));
       payInvoiceLocally(invoice.creditCardId, paidContribution(invoice), set);
-      sync(() => actions.addCreditCardInvoice(invoice));
+      sync((actor) => actions.addCreditCardInvoice(actor, invoice));
       return invoice;
     },
 
@@ -295,7 +329,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       const next: CreditCardInvoice = { ...prev, ...patch, id, creditCardId: prev.creditCardId };
       set((s) => ({ creditCardInvoices: s.creditCardInvoices.map((i) => (i.id === id ? next : i)) }));
       payInvoiceLocally(prev.creditCardId, paidContribution(next) - paidContribution(prev), set);
-      sync(() => actions.updateCreditCardInvoice(id, patch));
+      sync((actor) => actions.updateCreditCardInvoice(actor, id, patch));
     },
 
     removeCreditCardInvoice: (id) => {
@@ -303,7 +337,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       if (!prev) return;
       set((s) => ({ creditCardInvoices: s.creditCardInvoices.filter((i) => i.id !== id) }));
       payInvoiceLocally(prev.creditCardId, -paidContribution(prev), set);
-      sync(() => actions.removeCreditCardInvoice(id));
+      sync((actor) => actions.removeCreditCardInvoice(actor, id));
     },
 
     addSavingsGoal: (draft) => {
@@ -321,7 +355,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         currentAmount: 0,
       };
       set((s) => ({ savingsGoals: [...s.savingsGoals, goal] }));
-      sync(() => actions.addSavingsGoal(goal));
+      sync((actor) => actions.addSavingsGoal(actor, goal));
       return goal;
     },
 
@@ -336,7 +370,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
             : g,
         ),
       }));
-      sync(() => actions.depositToGoal(id, amount, depositDate));
+      sync((actor) => actions.depositToGoal(actor, id, amount, depositDate));
     },
 
     withdrawFromGoal: (id, amount) => {
@@ -348,7 +382,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
             : g,
         ),
       }));
-      sync(() => actions.withdrawFromGoal(id, amount));
+      sync((actor) => actions.withdrawFromGoal(actor, id, amount));
     },
 
     updateSavingsGoal: (id, patch) => {
@@ -357,12 +391,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       }));
       // currentAmount só muda por depósito/retirada.
       const { currentAmount: _, ...serverPatch } = patch;
-      sync(() => actions.updateSavingsGoal(id, serverPatch));
+      sync((actor) => actions.updateSavingsGoal(actor, id, serverPatch));
     },
 
     removeSavingsGoal: (id) => {
       set((s) => ({ savingsGoals: s.savingsGoals.filter((g) => g.id !== id) }));
-      sync(() => actions.removeSavingsGoal(id));
+      sync((actor) => actions.removeSavingsGoal(actor, id));
     },
 
     addShoppingItem: (draft) => {
@@ -375,7 +409,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         isPurchased: false,
       };
       set((s) => ({ shoppingItems: [item, ...s.shoppingItems] }));
-      sync(() => actions.addShoppingItem(item));
+      sync((actor) => actions.addShoppingItem(actor, item));
       return item;
     },
 
@@ -385,19 +419,19 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
           i.id === id ? { ...i, isPurchased: !i.isPurchased } : i,
         ),
       }));
-      sync(() => actions.toggleShoppingItem(id));
+      sync((actor) => actions.toggleShoppingItem(actor, id));
     },
 
     updateShoppingItem: (id, patch) => {
       set((s) => ({
         shoppingItems: s.shoppingItems.map((i) => (i.id === id ? { ...i, ...patch, id } : i)),
       }));
-      sync(() => actions.updateShoppingItem(id, patch));
+      sync((actor) => actions.updateShoppingItem(actor, id, patch));
     },
 
     removeShoppingItem: (id) => {
       set((s) => ({ shoppingItems: s.shoppingItems.filter((i) => i.id !== id) }));
-      sync(() => actions.removeShoppingItem(id));
+      sync((actor) => actions.removeShoppingItem(actor, id));
     },
   };
 });

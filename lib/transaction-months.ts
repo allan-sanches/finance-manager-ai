@@ -1,4 +1,4 @@
-import { monthKey } from '@/lib/finance';
+import { isCardPurchase, monthKey, type InvoicePayment } from '@/lib/finance';
 import type { Transaction } from '@/types/finance';
 
 /** Lançamento de dívida: despesa na categoria "Dívidas" (parcela de empréstimo, acordo etc.). */
@@ -25,23 +25,42 @@ export function splitByTiming(
 export type MonthTotals = {
   key: string; // YYYY-MM
   income: number;
-  expense: number; // Sem as dívidas
+  expense: number; // Sem as dívidas e sem compras no cartão
   debt: number;
+  card: number; // Compras no cartão: só saem do saldo quando a fatura é paga
+  invoices: number; // Faturas pagas (ou a pagar, no previsto)
   balance: number;
   count: number;
   openCount: number; // Ainda não pagos/recebidos
 };
 
-export function totalsOf(key: string, transactions: ReadonlyArray<Transaction>): MonthTotals {
-  const totals: MonthTotals = { key, income: 0, expense: 0, debt: 0, balance: 0, count: 0, openCount: 0 };
+/** `payments`: faturas pagas/a pagar do mês (ver invoiceOutflows). */
+export function totalsOf(
+  key: string,
+  transactions: ReadonlyArray<Transaction>,
+  payments: ReadonlyArray<InvoicePayment> = [],
+): MonthTotals {
+  const totals: MonthTotals = {
+    key,
+    income: 0,
+    expense: 0,
+    debt: 0,
+    card: 0,
+    invoices: 0,
+    balance: 0,
+    count: 0,
+    openCount: 0,
+  };
   for (const tx of transactions) {
-    if (tx.type === 'income') totals.income += tx.amount;
+    if (isCardPurchase(tx)) totals.card += tx.type === 'income' ? -tx.amount : tx.amount;
+    else if (tx.type === 'income') totals.income += tx.amount;
     else if (isDebtPayment(tx)) totals.debt += tx.amount;
     else totals.expense += tx.amount;
     totals.count += 1;
     if (!tx.isPaid) totals.openCount += 1;
   }
-  totals.balance = totals.income - totals.expense - totals.debt;
+  for (const p of payments) totals.invoices += p.amount;
+  totals.balance = totals.income - totals.expense - totals.debt - totals.invoices;
   return totals;
 }
 
@@ -49,13 +68,17 @@ export function totalsOf(key: string, transactions: ReadonlyArray<Transaction>):
 export function groupByMonth(
   transactions: ReadonlyArray<Transaction>,
   order: 'asc' | 'desc' = 'desc',
+  payments: ReadonlyArray<InvoicePayment> = [],
 ): MonthTotals[] {
-  const groups = new Map<string, Transaction[]>();
-  for (const tx of transactions) {
-    const key = monthKey(tx.date);
-    groups.set(key, [...(groups.get(key) ?? []), tx]);
-  }
-  const months = [...groups.entries()].map(([key, rows]) => totalsOf(key, rows));
+  const groups = new Map<string, { rows: Transaction[]; payments: InvoicePayment[] }>();
+  const group = (key: string) => {
+    let g = groups.get(key);
+    if (!g) groups.set(key, (g = { rows: [], payments: [] }));
+    return g;
+  };
+  for (const tx of transactions) group(monthKey(tx.date)).rows.push(tx);
+  for (const p of payments) group(monthKey(p.date)).payments.push(p);
+  const months = [...groups.entries()].map(([key, g]) => totalsOf(key, g.rows, g.payments));
   return months.sort((a, b) => (order === 'desc' ? b.key.localeCompare(a.key) : a.key.localeCompare(b.key)));
 }
 

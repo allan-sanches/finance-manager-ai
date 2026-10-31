@@ -1,4 +1,16 @@
-import { boolean, date, integer, jsonb, numeric, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  date,
+  index,
+  integer,
+  jsonb,
+  numeric,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  unique,
+} from 'drizzle-orm/pg-core';
 
 import type { Tone } from '@/lib/tones';
 import type {
@@ -15,8 +27,28 @@ import type {
 
 const money = (name: string) => numeric(name, { precision: 14, scale: 2, mode: 'number' });
 
+// Pessoas com acesso ao app. A conta original é a linha id = 'owner' (admin), dona dos dados que
+// existiam antes do multiusuário. Fica fora de `settings` porque o snapshot vai para o navegador, e
+// o hash da senha nunca pode ir. Owner sem hash entra com APP_PASSWORD do env até a primeira troca.
+export const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  // Sempre minúsculo. Nulo só no owner que ainda não cadastrou e-mail (ver authenticate).
+  email: text('email').unique(),
+  passwordHash: text('password_hash'),
+  isAdmin: boolean('is_admin').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// Toda linha de dado tem dono; apagar o usuário apaga os dados dele.
+const userId = () =>
+  text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' });
+
 export const creditCards = pgTable('credit_cards', {
   id: text('id').primaryKey(),
+  userId: userId(),
   name: text('name').notNull(),
   limit: money('limit').notNull(),
   closingDay: integer('closing_day').notNull(),
@@ -26,11 +58,12 @@ export const creditCards = pgTable('credit_cards', {
   // faz o cartão voltar para o `limit` salvo (ver cardLimit).
   limitSavingsGoalId: text('limit_savings_goal_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [index('credit_cards_user_id_idx').on(t.userId)]);
 
 // Apagar o cartão apaga as faturas dele.
 export const creditCardInvoices = pgTable('credit_card_invoices', {
   id: text('id').primaryKey(),
+  userId: userId(),
   creditCardId: text('credit_card_id')
     .notNull()
     .references(() => creditCards.id, { onDelete: 'cascade' }),
@@ -39,10 +72,11 @@ export const creditCardInvoices = pgTable('credit_card_invoices', {
   amount: money('amount').notNull(),
   paymentDate: date('payment_date', { mode: 'string' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [index('credit_card_invoices_user_id_idx').on(t.userId)]);
 
 export const transactions = pgTable('transactions', {
   id: text('id').primaryKey(),
+  userId: userId(),
   description: text('description').notNull(),
   amount: money('amount').notNull(),
   type: text('type').$type<TransactionType>().notNull(),
@@ -53,10 +87,11 @@ export const transactions = pgTable('transactions', {
   isFixed: boolean('is_fixed').notNull().default(false),
   isPaid: boolean('is_paid').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [index('transactions_user_id_idx').on(t.userId)]);
 
 export const savingsGoals = pgTable('savings_goals', {
   id: text('id').primaryKey(),
+  userId: userId(),
   name: text('name').notNull(),
   targetAmount: money('target_amount').notNull(),
   currentAmount: money('current_amount').notNull().default(0),
@@ -68,11 +103,12 @@ export const savingsGoals = pgTable('savings_goals', {
   depositDate: date('deposit_date', { mode: 'string' }),
   monthlyContribution: money('monthly_contribution'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [index('savings_goals_user_id_idx').on(t.userId)]);
 
 // Cada importação de relatório substitui as dívidas da mesma origem: o SCR e o Serasa são fotos do mês, não histórico.
 export const debts = pgTable('debts', {
   id: text('id').primaryKey(),
+  userId: userId(),
   creditor: text('creditor').notNull(),
   description: text('description').notNull(),
   source: text('source').$type<DebtSource>().notNull(),
@@ -83,40 +119,37 @@ export const debts = pgTable('debts', {
   status: text('status').$type<DebtStatus>().notNull().default('active'),
   notes: text('notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [index('debts_user_id_idx').on(t.userId)]);
 
-// Preferências do app (chave → JSON), compartilhadas entre aparelhos.
-export const settings = pgTable('settings', {
-  key: text('key').primaryKey(),
-  value: jsonb('value').notNull(),
-});
+// Preferências do app (chave → JSON) de cada usuário, compartilhadas entre os aparelhos dele.
+export const settings = pgTable(
+  'settings',
+  {
+    userId: userId(),
+    key: text('key').notNull(),
+    value: jsonb('value').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
+);
 
 // Categorias do usuário. As transações guardam o NOME (texto), então apagar uma categoria não
 // apaga lançamentos: eles só voltam a aparecer com o visual de "Outros".
 export const categories = pgTable('categories', {
   id: text('id').primaryKey(),
-  name: text('name').notNull().unique(),
+  userId: userId(),
+  name: text('name').notNull(),
   emoji: text('emoji').notNull(),
   tone: text('tone').$type<Tone>().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
-
-// Conta do usuário único (linha id = 'owner'). Fica fora de `settings` porque o snapshot de
-// settings vai para o navegador, e o hash da senha nunca pode ir. Sem linha ou sem hash, o login
-// usa APP_PASSWORD do env até a primeira troca de senha.
-export const account = pgTable('account', {
-  id: text('id').primaryKey(),
-  email: text('email'),
-  passwordHash: text('password_hash'),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [unique('categories_user_id_name_unique').on(t.userId, t.name)]);
 
 export const shoppingItems = pgTable('shopping_items', {
   id: text('id').primaryKey(),
+  userId: userId(),
   name: text('name').notNull(),
   listType: text('list_type').$type<ListType>().notNull(),
   estimatedPrice: money('estimated_price'),
   priority: text('priority').$type<'low' | 'medium' | 'high'>(),
   isPurchased: boolean('is_purchased').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [index('shopping_items_user_id_idx').on(t.userId)]);

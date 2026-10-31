@@ -6,6 +6,7 @@ import type {
   Debt,
   DebtSource,
   DebtStatus,
+  DebtStatusOption,
   PaymentMethod,
   SavingsGoal,
   Transaction,
@@ -58,20 +59,27 @@ export function cardLimit(
   return goal ? goal.currentAmount : card.limit;
 }
 
+/** Situação das dívidas novas (cadastro manual e importação). Pode ser renomeada, não apagada. */
+export const DEFAULT_DEBT_STATUS: DebtStatus = 'active';
+
+export const DEFAULT_DEBT_STATUSES: DebtStatusOption[] = [
+  { id: 'active', label: 'Em aberto', tone: 'amber' },
+  { id: 'awaiting_offer', label: 'Aguardando oferta', tone: 'cyan' },
+  { id: 'negotiated', label: 'Negociada', tone: 'violet' },
+  { id: 'abandoned', label: 'Abandonada', tone: 'slate' },
+  { id: 'paid', label: 'Quitada', tone: 'mint' },
+];
+
 /** Abandonadas e quitadas ficam fora do dashboard até o usuário mudar a preferência. */
 export const DEFAULT_SETTINGS: AppSettings = {
   dashboardDebtStatuses: ['active', 'awaiting_offer', 'negotiated'],
+  debtStatuses: DEFAULT_DEBT_STATUSES,
 };
 
-export const DEBT_STATUS_LABEL: Record<DebtStatus, string> = {
-  active: 'Em aberto',
-  awaiting_offer: 'Aguardando oferta',
-  negotiated: 'Negociada',
-  abandoned: 'Abandonada',
-  paid: 'Quitada',
-};
-
-export const DEBT_STATUSES = Object.keys(DEBT_STATUS_LABEL) as DebtStatus[];
+/** Situação pelo id; id que não existe mais (apagada em outro aparelho) aparece com o próprio id, em cinza. */
+export function debtStatusOption(settings: Pick<AppSettings, 'debtStatuses'>, id: DebtStatus): DebtStatusOption {
+  return settings.debtStatuses.find((s) => s.id === id) ?? { id, label: id, tone: 'slate' };
+}
 
 /** Dívidas que entram nos totais do dashboard, conforme a preferência do usuário. */
 export function debtsOnDashboard(debts: ReadonlyArray<Debt>, settings: AppSettings): Debt[] {
@@ -164,6 +172,70 @@ export function nextOpenInvoice<T extends Pick<CreditCardInvoice, 'creditCardId'
     .reduce<T | undefined>((first, i) => (!first || i.dueDate < first.dueDate ? i : first), undefined);
 }
 
+/** Compra no cartão não sai da conta na hora: o dinheiro só sai quando a fatura é paga. */
+export const isCardPurchase = (tx: Pick<Transaction, 'paymentMethod'>): boolean =>
+  tx.paymentMethod === 'credit_card';
+
+export type CardUsage = {
+  /** Compras feitas a partir do último fechamento: ainda não entraram em nenhuma fatura. */
+  unbilled: number;
+  /** Faturas lançadas e ainda não pagas. */
+  openInvoices: number;
+  /** O que ocupa o limite: faturas em aberto + compras ainda não faturadas. */
+  used: number;
+  lastClosingDate: string | null;
+};
+
+/**
+ * Uso do limite do cartão. O valor da fatura (digitado ou lido do PDF) manda no período dela:
+ * compras com data antes do último fechamento já estão dentro de alguma fatura e não contam de novo.
+ * Compra no dia do fechamento já cai na fatura seguinte (é o "melhor dia de compra").
+ */
+export function cardUsage(
+  cardId: string,
+  transactions: ReadonlyArray<Pick<Transaction, 'paymentMethod' | 'creditCardId' | 'date' | 'amount' | 'type'>>,
+  invoices: ReadonlyArray<Pick<CreditCardInvoice, 'creditCardId' | 'closingDate' | 'amount' | 'paymentDate'>>,
+): CardUsage {
+  let lastClosingDate: string | null = null;
+  let openInvoices = 0;
+  for (const i of invoices) {
+    if (i.creditCardId !== cardId) continue;
+    if (!lastClosingDate || i.closingDate > lastClosingDate) lastClosingDate = i.closingDate;
+    if (!i.paymentDate) openInvoices += i.amount;
+  }
+  let unbilled = 0;
+  for (const tx of transactions) {
+    if (!isCardPurchase(tx) || tx.creditCardId !== cardId) continue;
+    if (lastClosingDate && tx.date < lastClosingDate) continue;
+    // Receita no cartão é estorno: abate da fatura.
+    unbilled += tx.type === 'income' ? -tx.amount : tx.amount;
+  }
+  unbilled = Math.max(0, Math.round(unbilled * 100) / 100);
+  return { unbilled, openInvoices, used: unbilled + openInvoices, lastClosingDate };
+}
+
+/** Saída da conta por pagamento de fatura (na data do pagamento, ou do vencimento se ainda está prevista). */
+export type InvoicePayment = { date: string; amount: number };
+
+/**
+ * Faturas como saídas da conta: pagas entram como realizado na data do pagamento; em aberto que
+ * ainda vão vencer entram como previsto no vencimento. Vencidas sem pagamento ficam de fora
+ * (aparecem como "Vencida" na tela de cartões).
+ */
+export function invoiceOutflows(
+  invoices: ReadonlyArray<Pick<CreditCardInvoice, 'dueDate' | 'amount' | 'paymentDate'>>,
+  today: string = todayISO(),
+): { realized: InvoicePayment[]; expected: InvoicePayment[] } {
+  const realized: InvoicePayment[] = [];
+  const expected: InvoicePayment[] = [];
+  for (const i of invoices) {
+    if (i.amount <= 0) continue;
+    if (i.paymentDate) (i.paymentDate > today ? expected : realized).push({ date: i.paymentDate, amount: i.amount });
+    else if (i.dueDate >= today) expected.push({ date: i.dueDate, amount: i.amount });
+  }
+  return { realized, expected };
+}
+
 export function monthKey(dateISO: string): string {
   return dateISO.slice(0, 7);
 }
@@ -182,17 +254,23 @@ export type MonthlySummary = {
   balance: number;
 };
 
+/**
+ * Entradas e saídas da conta no mês. Compras no cartão ficam de fora; o que sai é o pagamento
+ * da fatura (`payments`), no mês em que foi pago.
+ */
 export function summarizeMonth(
   transactions: ReadonlyArray<Transaction>,
   key: string = currentMonthKey(),
+  payments: ReadonlyArray<InvoicePayment> = [],
 ): MonthlySummary {
   let income = 0;
   let expense = 0;
   for (const tx of transactions) {
-    if (!isSameMonth(tx.date, key)) continue;
+    if (!isSameMonth(tx.date, key) || isCardPurchase(tx)) continue;
     if (tx.type === 'income') income += tx.amount;
     else expense += tx.amount;
   }
+  for (const p of payments) if (isSameMonth(p.date, key)) expense += p.amount;
   return { income, expense, balance: income - expense };
 }
 
@@ -201,13 +279,14 @@ export type CashflowPoint = { mes: string; entradas: number; saidas: number };
 export function cashflowLastMonths(
   transactions: ReadonlyArray<Transaction>,
   months: number = 6,
+  payments: ReadonlyArray<InvoicePayment> = [],
 ): CashflowPoint[] {
   const now = new Date();
   const points: CashflowPoint[] = [];
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const summary = summarizeMonth(transactions, key);
+    const summary = summarizeMonth(transactions, key, payments);
     points.push({
       mes: MONTH_LABELS[d.getMonth()],
       entradas: summary.income,

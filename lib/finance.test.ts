@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { cardLimit, invoiceStatus, nextOpenInvoice, shortDate, todayISO } from '@/lib/finance';
-import type { CreditCardInvoice } from '@/types/finance';
+import {
+  cardLimit,
+  cardUsage,
+  invoiceOutflows,
+  invoiceStatus,
+  nextOpenInvoice,
+  shortDate,
+  summarizeMonth,
+  todayISO,
+} from '@/lib/finance';
+import type { CreditCardInvoice, Transaction } from '@/types/finance';
 
 describe('todayISO', () => {
   it('usa o fuso de Brasília, não UTC', () => {
@@ -65,5 +74,95 @@ describe('faturas', () => {
 
   it('formata data curta sem cair no dia anterior', () => {
     expect(shortDate('2026-11-01')).toBe('01/11');
+  });
+});
+
+describe('cardUsage', () => {
+  const buy = (date: string, amount: number, o: Partial<Transaction> = {}): Transaction => ({
+    id: date,
+    description: 'compra',
+    amount,
+    type: 'expense',
+    category: 'Outros',
+    paymentMethod: 'credit_card',
+    creditCardId: 'c1',
+    date,
+    isFixed: false,
+    isPaid: true,
+    ...o,
+  });
+  const invoice = (o: Partial<CreditCardInvoice>): CreditCardInvoice => ({
+    id: 'i',
+    creditCardId: 'c1',
+    closingDate: '2026-10-05',
+    dueDate: '2026-10-12',
+    amount: 2000,
+    paymentDate: null,
+    ...o,
+  });
+
+  it('sem fatura: todas as compras no cartão ocupam o limite', () => {
+    expect(cardUsage('c1', [buy('2026-09-01', 100), buy('2026-10-01', 50)], []).used).toBe(150);
+  });
+
+  it('fatura em aberto ocupa o limite mesmo sem compras lançadas', () => {
+    expect(cardUsage('c1', [], [invoice({})])).toMatchObject({ openInvoices: 2000, unbilled: 0, used: 2000 });
+  });
+
+  it('compras antes do fechamento estão na fatura; a partir dele, na próxima', () => {
+    const usage = cardUsage(
+      'c1',
+      [buy('2026-10-04', 300), buy('2026-10-05', 40), buy('2026-10-20', 60)],
+      [invoice({})],
+    );
+    expect(usage).toMatchObject({ unbilled: 100, openInvoices: 2000, used: 2100 });
+  });
+
+  it('fatura paga libera o limite; débito e outro cartão não contam', () => {
+    const usage = cardUsage(
+      'c1',
+      [buy('2026-10-20', 60), buy('2026-10-21', 70, { paymentMethod: 'debit', creditCardId: null }), buy('2026-10-22', 80, { creditCardId: 'c2' })],
+      [invoice({ paymentDate: '2026-10-10' })],
+    );
+    expect(usage.used).toBe(60);
+  });
+
+  it('estorno abate das compras não faturadas', () => {
+    expect(cardUsage('c1', [buy('2026-10-20', 100), buy('2026-10-21', 30, { type: 'income' })], []).unbilled).toBe(70);
+  });
+});
+
+describe('saldo da conta', () => {
+  const base: Transaction = {
+    id: 't',
+    description: 'x',
+    amount: 100,
+    type: 'expense',
+    category: 'Outros',
+    paymentMethod: 'debit',
+    creditCardId: null,
+    date: '2026-10-10',
+    isFixed: false,
+    isPaid: true,
+  };
+
+  it('trocar do débito para o crédito devolve o valor ao saldo do mês', () => {
+    const income = { ...base, id: 'sal', type: 'income' as const, amount: 1000 };
+    expect(summarizeMonth([income, base], '2026-10').balance).toBe(900);
+    expect(summarizeMonth([income, { ...base, paymentMethod: 'credit_card', creditCardId: 'c1' }], '2026-10').balance).toBe(1000);
+  });
+
+  it('pagamento de fatura sai do saldo no mês em que foi pago', () => {
+    const { realized, expected } = invoiceOutflows(
+      [
+        { dueDate: '2026-10-12', amount: 500, paymentDate: '2026-10-11' },
+        { dueDate: '2026-11-12', amount: 700, paymentDate: null },
+        { dueDate: '2026-09-12', amount: 900, paymentDate: null },
+      ],
+      '2026-10-20',
+    );
+    expect(realized).toEqual([{ date: '2026-10-11', amount: 500 }]);
+    expect(expected).toEqual([{ date: '2026-11-12', amount: 700 }]);
+    expect(summarizeMonth([], '2026-10', realized).expense).toBe(500);
   });
 });

@@ -13,11 +13,11 @@ import {
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
-import { SubCard } from '@/components/MonthCard';
+import { CardNote, SubCard } from '@/components/MonthCard';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
 import { TransactionRow } from '@/components/TransactionRow';
 import { EmptyState } from '@/components/ui';
-import { BRL, isSameMonth, todayISO } from '@/lib/finance';
+import { BRL, invoiceOutflows, isSameMonth, todayISO } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import {
   isDebtPayment,
@@ -65,6 +65,7 @@ function byDay(rows: ReadonlyArray<Transaction>, order: 'asc' | 'desc'): [string
 export function MonthDetail({ monthKey }: { monthKey: string }) {
   const hydrated = useHydrated();
   const transactions = useFinanceStore((s) => s.transactions);
+  const invoices = useFinanceStore((s) => s.creditCardInvoices);
   const removeTransaction = useFinanceStore((s) => s.removeTransaction);
   const toggleTransactionPaid = useFinanceStore((s) => s.toggleTransactionPaid);
 
@@ -72,16 +73,17 @@ export function MonthDetail({ monthKey }: { monthKey: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Transaction | undefined>(undefined);
 
-  const { realized, expected } = useMemo(
-    () =>
-      splitByTiming(
-        transactions.filter((t) => isSameMonth(t.date, monthKey)),
-        todayISO(),
-      ),
-    [transactions, monthKey],
-  );
-  const realizedTotals = totalsOf(monthKey, realized);
-  const expectedTotals = totalsOf(monthKey, expected);
+  const { realized, expected, payments } = useMemo(() => {
+    const today = todayISO();
+    const inMonth = <T extends { date: string }>(rows: T[]) => rows.filter((r) => isSameMonth(r.date, monthKey));
+    const outflows = invoiceOutflows(invoices, today);
+    return {
+      ...splitByTiming(inMonth(transactions), today),
+      payments: { realized: inMonth(outflows.realized), expected: inMonth(outflows.expected) },
+    };
+  }, [transactions, invoices, monthKey]);
+  const realizedTotals = totalsOf(monthKey, realized, payments.realized);
+  const expectedTotals = totalsOf(monthKey, expected, payments.expected);
   const match = FILTERS.find((f) => f.id === filter)!.match;
   const realizedDays = byDay(realized.filter(match), 'desc');
   const expectedDays = byDay(expected.filter(match), 'asc');
@@ -126,8 +128,12 @@ export function MonthDetail({ monthKey }: { monthKey: string }) {
         <p className="text-base-content/60 py-10 text-center text-sm">Carregando…</p>
       ) : (
         <>
-          {realized.length > 0 && <TotalsPanel title="Realizado" totals={realizedTotals} />}
-          {expected.length > 0 && <TotalsPanel title="Previsto" totals={expectedTotals} expected />}
+          {(realized.length > 0 || payments.realized.length > 0) && (
+            <TotalsPanel title="Realizado" totals={realizedTotals} />
+          )}
+          {(expected.length > 0 || payments.expected.length > 0) && (
+            <TotalsPanel title="Previsto" totals={expectedTotals} expected />
+          )}
 
           <div className="flex items-center gap-2">
             <div role="tablist" className="no-scrollbar -mx-4 flex flex-1 gap-2 overflow-x-auto px-4 md:mx-0 md:px-0">
@@ -255,6 +261,7 @@ function TotalsPanel({
         <SubCard tone="coral" icon={ArrowDownRight} label="Despesas" value={totals.expense} muted={expected} />
         <SubCard tone="violet" icon={Landmark} label="Dívidas" value={totals.debt} muted={expected} />
       </div>
+      <CardNote totals={totals} expected={expected} />
     </section>
   );
 }

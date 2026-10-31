@@ -5,12 +5,12 @@ import { CategorySettings } from '@/components/CategorySettings';
 import { PageHeader } from '@/components/ui';
 import { getAiProviderStatuses, resolveAiProvider } from '@/lib/ai';
 import { AI_PROVIDER_COOKIE } from '@/lib/ai-provider';
-import { requireSession } from '@/lib/auth';
+import { requireUserId } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ConfiguracoesPage() {
-  await requireSession();
+  await requireUserId();
   const store = await cookies();
   const current = resolveAiProvider(store.get(AI_PROVIDER_COOKIE)?.value);
 

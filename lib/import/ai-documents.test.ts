@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseDebtOutput, parseStatementOutput } from '@/lib/import/ai-documents';
+import { parseDebtOutput, parseInvoiceOutput, parseStatementOutput } from '@/lib/import/ai-documents';
 import { redactPersonalIds } from '@/lib/import/pdf-text';
 
 describe('parseDebtOutput', () => {
@@ -81,4 +81,50 @@ it('remove nome e CPF do texto enviado à IA', () => {
   const redacted = redactPersonalIds(text);
   expect(redacted).not.toMatch(/FULANO|123\.456|12345678909/);
   expect(redacted).toContain('R$ 1.520,38');
+});
+
+describe('parseInvoiceOutput', () => {
+  it('lê fechamento, vencimento e total arredondado', () => {
+    expect(parseInvoiceOutput({ closingDate: '2026-11-03', dueDate: '2026-11-10', amount: 2000.004 })).toEqual({
+      kind: 'invoice',
+      closingDate: '2026-11-03',
+      dueDate: '2026-11-10',
+      amount: 2000,
+      entries: [],
+      warnings: [],
+    });
+  });
+
+  it('lê os lançamentos, descarta linhas inválidas e troca categoria desconhecida por Outros', () => {
+    const preview = parseInvoiceOutput(
+      {
+        closingDate: '2026-11-03',
+        dueDate: '2026-11-10',
+        amount: 100,
+        entries: [
+          { date: '2026-10-20', description: 'IFOOD *REST', amount: 45.904, type: 'expense', category: 'Alimentação' },
+          { date: '2026-10-21', description: 'ESTORNO LOJA', amount: 10, type: 'income', category: 'Inventada' },
+          { date: 'ontem', description: 'sem data', amount: 5, type: 'expense', category: 'Outros' },
+          { date: '2026-10-22', description: 'zerada', amount: 0, type: 'expense', category: 'Outros' },
+        ],
+      },
+      ['Alimentação', 'Outros'],
+    );
+    expect(preview?.entries).toEqual([
+      { date: '2026-10-20', description: 'IFOOD *REST', amount: 45.9, type: 'expense', category: 'Alimentação' },
+      { date: '2026-10-21', description: 'ESTORNO LOJA', amount: 10, type: 'income', category: 'Outros' },
+    ]);
+  });
+
+  it('campo ausente vira null com aviso', () => {
+    const preview = parseInvoiceOutput({ closingDate: null, dueDate: '2026-11-10', amount: 'abc' });
+    expect(preview).toMatchObject({ closingDate: null, dueDate: '2026-11-10', amount: null });
+    expect(preview?.warnings).toHaveLength(1);
+  });
+
+  it('descarta vencimento antes do fechamento', () => {
+    const preview = parseInvoiceOutput({ closingDate: '2026-11-10', dueDate: '2026-11-01', amount: 50 });
+    expect(preview?.dueDate).toBeNull();
+    expect(preview?.warnings[0]).toMatch(/vencimento/);
+  });
 });

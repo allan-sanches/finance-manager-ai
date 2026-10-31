@@ -12,8 +12,10 @@ import {
   APP_TIME_ZONE,
   BRL,
   cardLimit,
+  cardUsage,
   debtsOnDashboard,
   expensesByCategory,
+  invoiceOutflows,
   nextOpenInvoice,
   shortDate,
   summarizeDebts,
@@ -42,10 +44,11 @@ export default function DashboardPage() {
   const debts = useFinanceStore((s) => s.debts);
   const settings = useFinanceStore((s) => s.settings);
 
-  const month = summarizeMonth(transactions);
+  const month = summarizeMonth(transactions, undefined, invoiceOutflows(invoices).realized);
   const categories = expensesByCategory(transactions);
   const totalLimit = creditCards.reduce((sum, c) => sum + cardLimit(c, savingsGoals), 0);
-  const totalInvoice = creditCards.reduce((sum, c) => sum + c.currentInvoiceAmount, 0);
+  const usageOf = (cardId: string) => cardUsage(cardId, transactions, invoices).used;
+  const totalInvoice = creditCards.reduce((sum, c) => sum + usageOf(c.id), 0);
   const saved = savingsGoals
     .filter((g) => g.currency === 'BRL')
     .reduce((sum, g) => sum + g.currentAmount, 0);
@@ -97,20 +100,21 @@ export default function DashboardPage() {
           icon={CreditCard}
           label="Limite livre"
           value={money(Math.max(0, totalLimit - totalInvoice))}
-          hint={creditCards.length === 0 ? 'Nenhum cartão' : `Fatura ${money(totalInvoice)}`}
+          hint={creditCards.length === 0 ? 'Nenhum cartão' : `Usado ${money(totalInvoice)}`}
         >
           <TileDetails
             empty="Nenhum cartão cadastrado."
             rows={creditCards.map((c) => {
               const limit = cardLimit(c, savingsGoals);
+              const used = usageOf(c.id);
               const next = nextOpenInvoice(invoices, c.id);
               const due = next ? shortDate(next.dueDate) : `dia ${c.dueDay}`;
               return {
                 key: c.id,
                 label: c.name,
-                value: money(Math.max(0, limit - c.currentInvoiceAmount)),
-                sub: `Fatura ${money(c.currentInvoiceAmount)} de ${money(limit)} · vence ${due}`,
-                progress: (c.currentInvoiceAmount / Math.max(1, limit)) * 100,
+                value: money(Math.max(0, limit - used)),
+                sub: `Usado ${money(used)} de ${money(limit)} · vence ${due}`,
+                progress: (used / Math.max(1, limit)) * 100,
               };
             })}
           />

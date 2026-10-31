@@ -66,7 +66,10 @@ export function LocalDataImport() {
     setStatus('importing');
     try {
       const { total: _, ...data } = legacy;
-      hydrate(await importLocalData(data));
+      const result = await importLocalData(useFinanceStore.getState().sessionUserId, data);
+      // Outra conta entrou neste navegador enquanto a tela estava aberta: recarrega sem importar.
+      if ('sessionChanged' in result) return window.location.reload();
+      hydrate(result);
       archiveLegacyData();
       setLegacy(null);
       setStatus('idle');

@@ -8,7 +8,16 @@ import { CreditCardInvoicesDialog } from '@/components/CreditCardInvoicesDialog'
 import { MonthCard } from '@/components/MonthCard';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
 import { EmptyState, PageHeader } from '@/components/ui';
-import { BRL, cardLimit, monthKey, nextOpenInvoice, shortDate, todayISO } from '@/lib/finance';
+import {
+  BRL,
+  cardLimit,
+  cardUsage,
+  invoiceOutflows,
+  monthKey,
+  nextOpenInvoice,
+  shortDate,
+  todayISO,
+} from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import { groupByMonth, splitByTiming } from '@/lib/transaction-months';
 import { useHydrated } from '@/lib/useHydratedStore';
@@ -24,6 +33,7 @@ const VIEWS: { id: View; label: string }[] = [
 export default function TransacoesPage() {
   const hydrated = useHydrated();
   const transactions = useFinanceStore((s) => s.transactions);
+  const invoices = useFinanceStore((s) => s.creditCardInvoices);
 
   const [view, setView] = useState<View>('months');
   const [txDialogOpen, setTxDialogOpen] = useState(false);
@@ -32,12 +42,13 @@ export default function TransacoesPage() {
   const { history, forecast, currentKey } = useMemo(() => {
     const today = todayISO();
     const { realized, expected } = splitByTiming(transactions, today);
+    const payments = invoiceOutflows(invoices, today);
     return {
-      history: groupByMonth(realized, 'desc'),
-      forecast: groupByMonth(expected, 'asc'),
+      history: groupByMonth(realized, 'desc', payments.realized),
+      forecast: groupByMonth(expected, 'asc', payments.expected),
       currentKey: monthKey(today),
     };
-  }, [transactions]);
+  }, [transactions, invoices]);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col">
@@ -131,6 +142,7 @@ const CARD_TONES = [
 
 function CreditCardsSection() {
   const creditCards = useFinanceStore((s) => s.creditCards);
+  const transactions = useFinanceStore((s) => s.transactions);
   const savingsGoals = useFinanceStore((s) => s.savingsGoals);
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
   const removeCreditCard = useFinanceStore((s) => s.removeCreditCard);
@@ -162,7 +174,8 @@ function CreditCardsSection() {
             const limitGoal = savingsGoals.find(
               (g) => g.id === c.limitSavingsGoalId && g.currency === 'BRL',
             );
-            const pct = Math.min(100, Math.round((c.currentInvoiceAmount / Math.max(1, limit)) * 100));
+            const usage = cardUsage(c.id, transactions, invoices);
+            const pct = Math.min(100, Math.round((usage.used / Math.max(1, limit)) * 100));
             const next = nextOpenInvoice(invoices, c.id);
             return (
               <article
@@ -211,8 +224,13 @@ function CreditCardsSection() {
                   </div>
                 </div>
                 <div>
-                  <p className="eyebrow">Fatura atual</p>
-                  <p className="metric text-4xl">{BRL.format(c.currentInvoiceAmount)}</p>
+                  <p className="eyebrow">Limite usado</p>
+                  <p className="metric text-4xl">{BRL.format(usage.used)}</p>
+                  <p className="text-xs font-semibold opacity-90">
+                    {usage.openInvoices > 0 && `${BRL.format(usage.openInvoices)} em fatura aberta · `}
+                    {BRL.format(usage.unbilled)} em compras
+                    {usage.lastClosingDate ? ` desde ${shortDate(usage.lastClosingDate)}` : ''}
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <div className="h-2.5 overflow-hidden rounded-full bg-black/20">
@@ -220,7 +238,7 @@ function CreditCardsSection() {
                   </div>
                   <p className="text-xs font-semibold opacity-90">
                     {pct}% do limite de {BRL.format(limit)} · livre{' '}
-                    {BRL.format(Math.max(0, limit - c.currentInvoiceAmount))}
+                    {BRL.format(Math.max(0, limit - usage.used))}
                     {limitGoal && ` · garantido pela caixinha ${limitGoal.name}`}
                   </p>
                 </div>

@@ -3,9 +3,11 @@
 import { Plus, X } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
 
+import { MoneyInput } from '@/components/MoneyInput';
 import { PageHeader } from '@/components/ui';
 
 import { BRL } from '@/lib/finance';
+import { parseMoneyInput } from '@/lib/money-mask';
 import { useFinanceStore } from '@/lib/store';
 import { useHydrated } from '@/lib/useHydratedStore';
 import type { ListType, ShoppingItem } from '@/types/finance';
@@ -77,11 +79,11 @@ function ShoppingList({
   function handleAdd(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!name.trim()) return;
-    const price = estimatedPrice ? Number(estimatedPrice.replace(',', '.')) : null;
+    const price = parseMoneyInput(estimatedPrice);
     addItem({
       name: name.trim(),
       listType,
-      estimatedPrice: price && Number.isFinite(price) ? price : null,
+      estimatedPrice: price || null,
       priority: listType === 'wishlist' ? priority : undefined,
     });
     setName('');
@@ -121,12 +123,11 @@ function ShoppingList({
             </button>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <input
-              className="input input-bordered"
-              inputMode="decimal"
+            <MoneyInput
               placeholder="Preço (opcional)"
+              aria-label="Preço estimado"
               value={estimatedPrice}
-              onChange={(e) => setEstimatedPrice(e.target.value)}
+              onChange={setEstimatedPrice}
             />
             {listType === 'wishlist' && (
               <select

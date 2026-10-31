@@ -4,9 +4,9 @@ import { Space_Grotesk } from 'next/font/google';
 import { AppShell } from '@/components/AppShell';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { themeInitScript } from '@/lib/theme';
-import { hasSession } from '@/lib/auth';
+import { getSessionUserId } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { getSnapshot } from '@/lib/db/repository';
+import { getSnapshot, OWNER_ID } from '@/lib/db/repository';
 
 import './globals.css';
 
@@ -35,7 +35,8 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // O proxy já barra quem não tem sessão; aqui a checagem só evita consultar o banco na tela de login.
-  const snapshot = (await hasSession()) ? await getSnapshot(getDb()) : null;
+  const userId = await getSessionUserId();
+  const snapshot = userId ? await getSnapshot(getDb(), userId) : null;
 
   return (
     // data-theme é aplicado pelo script antes da hidratação (escolha salva); sem ele, segue o sistema.
@@ -44,7 +45,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body>
-        <AppShell snapshot={snapshot}>{children}</AppShell>
+        <AppShell snapshot={snapshot} userId={userId} canImportLegacy={userId === OWNER_ID}>
+          {children}
+        </AppShell>
         <ServiceWorkerRegister />
       </body>
     </html>
