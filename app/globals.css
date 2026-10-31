@@ -166,3 +166,64 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* ---------- Marx: contorno neon e olhos de laser (components/MarxAvatar.tsx) ---------- */
+
+.marx-ring {
+  box-shadow: 0 0 4px rgb(239 68 68 / 0.55), 0 0 10px rgb(239 68 68 / 0.3);
+  transition: box-shadow 300ms ease;
+}
+
+.marx-ring-laser {
+  animation: marx-neon 0.7s ease-in-out infinite alternate;
+}
+
+.marx-eye-glow {
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, #fff7a8 0 12%, #ff2a1a 30%, rgb(255 0 0 / 0.55) 55%, transparent 72%);
+  animation: marx-flare 0.35s ease-in-out infinite alternate;
+}
+
+.marx-laser {
+  transform: translate(-50%, -50%);
+  background: linear-gradient(90deg, transparent, rgb(255 30 20 / 0.9) 35%, #fff 50%, rgb(255 30 20 / 0.9) 65%, transparent);
+  box-shadow: 0 0 6px 1px rgb(255 0 0 / 0.8);
+  animation: marx-beam 0.45s ease-out both;
+}
+
+@keyframes marx-neon {
+  from {
+    box-shadow: 0 0 6px #ef4444, 0 0 14px #ef4444, 0 0 22px rgb(239 68 68 / 0.6);
+  }
+  to {
+    box-shadow: 0 0 10px #f87171, 0 0 24px #ef4444, 0 0 40px rgb(239 68 68 / 0.8);
+  }
+}
+
+@keyframes marx-flare {
+  from {
+    transform: translate(-50%, -50%) scale(0.85);
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+}
+
+@keyframes marx-beam {
+  from {
+    transform: translate(-50%, -50%) scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scaleX(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marx-ring-laser,
+  .marx-eye-glow,
+  .marx-laser {
+    animation: none;
+  }
+}

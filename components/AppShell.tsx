@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import { BottomTabBar } from '@/components/BottomTabBar';
 import { LocalDataImport } from '@/components/LocalDataImport';
+import { MarxChat } from '@/components/MarxChat';
 import { MobileNavbar } from '@/components/MobileNavbar';
 import { usePrivacyHidden } from '@/components/PrivacyToggle';
 import { Sidebar } from '@/components/Sidebar';
@@ -55,19 +56,23 @@ export function AppShell({
   if (pathname === '/login') return <>{children}</>;
 
   // A key remonta a tela ao trocar o olho: os valores são formatados na renderização (BRL/USD).
+  // O Marx fica fora dela para a conversa não sumir; a key dele só muda ao trocar de conta.
   return (
-    <div key={privateMode ? 'privado' : 'visivel'} className="min-h-dvh md:grid md:grid-cols-[17rem_1fr]">
-      <Sidebar />
-      <div className="flex min-h-dvh min-w-0 flex-col">
-        <MobileNavbar />
-        <main className="pb-tabbar flex-1 px-4 pt-2 md:px-8 md:pt-8 md:pb-10">
-          <SyncErrorAlert />
-          {canImportLegacy && <LocalDataImport />}
-          {children}
-        </main>
+    <>
+      <div key={privateMode ? 'privado' : 'visivel'} className="min-h-dvh md:grid md:grid-cols-[17rem_1fr]">
+        <Sidebar />
+        <div className="flex min-h-dvh min-w-0 flex-col">
+          <MobileNavbar />
+          <main className="pb-tabbar flex-1 px-4 pt-2 md:px-8 md:pt-8 md:pb-10">
+            <SyncErrorAlert />
+            {canImportLegacy && <LocalDataImport />}
+            {children}
+          </main>
+        </div>
+        <BottomTabBar />
       </div>
-      <BottomTabBar />
-    </div>
+      <MarxChat key={userId ?? 'anon'} />
+    </>
   );
 }
 

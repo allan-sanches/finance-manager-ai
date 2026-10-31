@@ -109,6 +109,61 @@ export async function generateJsonWithDeepseek(
   }
 }
 
+export type DeepseekChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+
+const CONVERSATION_TIMEOUT_MS = 60_000;
+
+/**
+ * Conversa em JSON mode (o assistente Marx): o histórico vai inteiro e o system prompt já precisa
+ * descrever o formato com a palavra "json". Quem chama valida o objeto devolvido.
+ */
+export async function chatJsonWithDeepseek(
+  messages: ReadonlyArray<DeepseekChatMessage>,
+  { temperature = 0.7, maxTokens = 4096 }: { temperature?: number; maxTokens?: number } = {},
+): Promise<StructuredJsonResult> {
+  if (!apiKey) {
+    return { ok: false, code: 'not_configured', error: NOT_CONFIGURED_ERROR };
+  }
+
+  let raw: string | null | undefined;
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: deepseekModel,
+        messages,
+        response_format: { type: 'json_object' },
+        // Sem raciocínio: no celular a resposta rápida vale mais; a temperatura só vale assim.
+        thinking: { type: 'disabled' },
+        temperature,
+        max_tokens: Math.min(maxTokens, 8192),
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(CONVERSATION_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      console.error('[deepseek] chat/completions failed', response.status, await response.text());
+      return { ok: false, code: 'upstream_error', error: UPSTREAM_ERROR };
+    }
+    const payload = (await response.json()) as ChatCompletionResponse;
+    raw = payload.choices?.[0]?.message?.content;
+  } catch (err) {
+    console.error('[deepseek] chat/completions failed', err);
+    return { ok: false, code: 'upstream_error', error: UPSTREAM_ERROR };
+  }
+
+  try {
+    return { ok: true, value: raw ? JSON.parse(raw) : null };
+  } catch {
+    console.error('[deepseek] response is not valid JSON');
+    return { ok: false, code: 'invalid_output', error: INVALID_OUTPUT_ERROR };
+  }
+}
+
 export async function extractWithDeepseek(
   message: string,
   creditCards: ReadonlyArray<CreditCardRef> = [],
