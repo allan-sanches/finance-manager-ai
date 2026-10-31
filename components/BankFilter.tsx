@@ -10,15 +10,20 @@ import { useFinanceStore } from '@/lib/store';
  * replaceState troca a URL sem navegar nem empilhar histórico.
  */
 export function useBankFilter(initial: string): [string, (value: string) => void] {
-  const [bank, setBank] = useState(initial);
-  const update = (value: string) => {
-    setBank(value);
+  return useUrlFilter('banco', initial);
+}
+
+/** Filtro guardado num parâmetro da URL (?banco=, ?categoria=…), sem navegar nem empilhar histórico. */
+export function useUrlFilter(param: string, initial: string): [string, (value: string) => void] {
+  const [value, setValue] = useState(initial);
+  const update = (next: string) => {
+    setValue(next);
     const url = new URL(window.location.href);
-    if (value) url.searchParams.set('banco', value);
-    else url.searchParams.delete('banco');
+    if (next) url.searchParams.set(param, next);
+    else url.searchParams.delete(param);
     window.history.replaceState(null, '', url);
   };
-  return [bank, update];
+  return [value, update];
 }
 
 /** Chips Todos / cada conta / Sem banco. Some quando não há contas cadastradas. */

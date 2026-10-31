@@ -14,13 +14,14 @@ import {
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
-import { BankFilter, useBankFilter } from '@/components/BankFilter';
-import { matchesBank, withBank } from '@/lib/bank-filter';
+import { BankFilter, useBankFilter, useUrlFilter } from '@/components/BankFilter';
+import { CategoryBreakdown } from '@/components/CategoryBreakdown';
+import { matchesBank, matchesCategory, withParams } from '@/lib/bank-filter';
 import { CardNote, SubCard } from '@/components/MonthCard';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
 import { TransactionRow } from '@/components/TransactionRow';
-import { EmptyState } from '@/components/ui';
-import { BRL, invoiceOutflows, isSameMonth, isTransfer, securedCardIds, todayISO } from '@/lib/finance';
+import { EmptyState, SectionTitle } from '@/components/ui';
+import { BRL, expensesByCategory, invoiceOutflows, isSameMonth, isTransfer, securedCardIds, todayISO } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import {
   isDebtPayment,
@@ -71,7 +72,15 @@ function byDay(rows: ReadonlyArray<Transaction>, order: 'asc' | 'desc'): [string
 }
 
 /** Tela de um mês: totais realizados, previstos e a lista de lançamentos separada pelos dois. */
-export function MonthDetail({ monthKey, initialBank = '' }: { monthKey: string; initialBank?: string }) {
+export function MonthDetail({
+  monthKey,
+  initialBank = '',
+  initialCategory = '',
+}: {
+  monthKey: string;
+  initialBank?: string;
+  initialCategory?: string;
+}) {
   const hydrated = useHydrated();
   const transactions = useVisibleTransactions();
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
@@ -81,23 +90,27 @@ export function MonthDetail({ monthKey, initialBank = '' }: { monthKey: string; 
 
   const [filter, setFilter] = useState<Filter>('all');
   const [bank, setBank] = useBankFilter(initialBank);
+  const [category, setCategory] = useUrlFilter('categoria', initialCategory);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Transaction | undefined>(undefined);
 
   const secured = useMemo(() => securedCardIds(creditCards), [creditCards]);
-  const { realized, expected, payments } = useMemo(() => {
+  const { realized, expected, payments, categories } = useMemo(() => {
     const today = todayISO();
     const inMonth = <T extends { date: string }>(rows: T[]) => rows.filter((r) => isSameMonth(r.date, monthKey));
-    // Faturas não têm banco: com filtro de banco, os totais ficam só com os lançamentos dele.
-    const outflows = bank ? { realized: [], expected: [] } : invoiceOutflows(invoices, today, secured);
+    const ofBank = inMonth(transactions).filter((t) => matchesBank(t, bank));
+    // Faturas não têm banco nem categoria: com algum desses filtros, os totais ficam só com os lançamentos.
+    const outflows = bank || category ? { realized: [], expected: [] } : invoiceOutflows(invoices, today, secured);
     return {
       ...splitByTiming(
-        inMonth(transactions).filter((t) => matchesBank(t, bank)),
+        ofBank.filter((t) => matchesCategory(t, category)),
         today,
       ),
       payments: { realized: inMonth(outflows.realized), expected: inMonth(outflows.expected) },
+      // Chips de categoria: gastos do mês no banco escolhido, sem o filtro de categoria (para poder trocar).
+      categories: expensesByCategory(ofBank, monthKey),
     };
-  }, [transactions, invoices, monthKey, bank, secured]);
+  }, [transactions, invoices, monthKey, bank, category, secured]);
   const realizedTotals = totalsOf(monthKey, realized, payments.realized, secured);
   const expectedTotals = totalsOf(monthKey, expected, payments.expected, secured);
   const match = FILTERS.find((f) => f.id === filter)!.match;
@@ -118,12 +131,12 @@ export function MonthDetail({ monthKey, initialBank = '' }: { monthKey: string; 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-5">
       <header className="flex flex-col gap-3">
-        <Link href={withBank('/transacoes', bank)} className="btn btn-ghost btn-sm self-start px-2">
+        <Link href={withParams('/transacoes', { banco: bank })} className="btn btn-ghost btn-sm self-start px-2">
           <ArrowLeft className="h-4 w-4" aria-hidden /> Todos os meses
         </Link>
         <div className="flex items-center justify-between gap-2">
           <Link
-            href={withBank(`/transacoes/${shiftMonth(monthKey, -1)}`, bank)}
+            href={withParams(`/transacoes/${shiftMonth(monthKey, -1)}`, { banco: bank, categoria: category })}
             className="btn btn-ghost btn-square"
             aria-label="Mês anterior"
           >
@@ -131,7 +144,7 @@ export function MonthDetail({ monthKey, initialBank = '' }: { monthKey: string; 
           </Link>
           <h1 className="text-center text-2xl font-extrabold tracking-tight md:text-3xl">{monthTitle(monthKey)}</h1>
           <Link
-            href={withBank(`/transacoes/${shiftMonth(monthKey, 1)}`, bank)}
+            href={withParams(`/transacoes/${shiftMonth(monthKey, 1)}`, { banco: bank, categoria: category })}
             className="btn btn-ghost btn-square"
             aria-label="Próximo mês"
           >
@@ -145,6 +158,22 @@ export function MonthDetail({ monthKey, initialBank = '' }: { monthKey: string; 
       ) : (
         <>
           <BankFilter value={bank} onChange={setBank} />
+          {categories.length > 0 && (
+            <section className="panel p-4">
+              <SectionTitle
+                action={
+                  category ? (
+                    <button type="button" className="link link-hover text-sm font-semibold" onClick={() => setCategory('')}>
+                      Ver todas
+                    </button>
+                  ) : undefined
+                }
+              >
+                {category ? `Só ${category}` : 'Gastos por categoria'}
+              </SectionTitle>
+              <CategoryBreakdown items={categories} selected={category} onSelect={setCategory} />
+            </section>
+          )}
           {(realized.length > 0 || payments.realized.length > 0) && (
             <TotalsPanel title="Realizado" totals={realizedTotals} />
           )}

@@ -13,6 +13,6 @@ export default async function MonthPage({
 }) {
   const { month } = await params;
   if (!isMonthKey(month)) notFound();
-  const { banco } = await searchParams;
-  return <MonthDetail monthKey={month} initialBank={bankParam(banco)} />;
+  const { banco, categoria } = await searchParams;
+  return <MonthDetail monthKey={month} initialBank={bankParam(banco)} initialCategory={bankParam(categoria)} />;
 }

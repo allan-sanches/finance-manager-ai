@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { DashboardCharts } from '@/components/DashboardCharts';
 import { DebtsOverview } from '@/components/DebtsOverview';
 import { CategoryAvatar } from '@/components/CategoryAvatar';
+import { CategoryBreakdown } from '@/components/CategoryBreakdown';
 import { ExpandableTile, TileDetails } from '@/components/ExpandableTile';
 import { MonthBalanceTile } from '@/components/MonthBalanceTile';
 import { SectionTitle } from '@/components/ui';
@@ -14,6 +15,7 @@ import {
   BRL,
   cardLimit,
   cardUsage,
+  currentMonthKey,
   debtsOnDashboard,
   expensesByCategory,
   invoiceOutflows,
@@ -26,6 +28,7 @@ import {
   summarizeMonth,
   todayISO,
 } from '@/lib/finance';
+import { withParams } from '@/lib/bank-filter';
 import { maturityAlerts, maturityLabel, totalSavedBrl, USD } from '@/lib/savings';
 import { useFinanceStore } from '@/lib/store';
 import { useHydrated } from '@/lib/useHydratedStore';
@@ -250,20 +253,11 @@ export default function DashboardPage() {
               {hiddenCount === 1 ? '1 categoria oculta' : `${hiddenCount} categorias ocultas`}: fora destes totais.
             </p>
           )}
-          <ul className="flex flex-wrap gap-2">
-            {categories.map((c) => (
-              <li
-                key={c.name}
-                className="bg-base-200 flex flex-auto items-center gap-2 rounded-field p-2"
-              >
-                <CategoryAvatar category={c.name} size="sm" />
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-semibold opacity-70">{c.name}</p>
-                  <p className="font-bold tabular-nums">{BRL.format(c.value)}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          {/* Tocar numa categoria abre o mês já filtrado por ela. */}
+          <CategoryBreakdown
+            items={categories}
+            hrefFor={(name) => withParams(`/transacoes/${currentMonthKey()}`, { categoria: name })}
+          />
         </section>
       )}
 
