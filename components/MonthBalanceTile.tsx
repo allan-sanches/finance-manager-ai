@@ -19,11 +19,14 @@ export function MonthBalanceTile({
   balance,
   income,
   expense,
+  fromSavings = 0,
   money,
 }: {
   balance: number;
   income: number;
   expense: number;
+  /** Resgates menos aplicações de caixinhas/investimentos no mês (ver savingsDrawdown). */
+  fromSavings?: number;
   money: (n: number) => string;
 }) {
   const accounts = useFinanceStore((s) => s.bankAccounts);
@@ -52,7 +55,7 @@ export function MonthBalanceTile({
         className="flex w-full cursor-pointer flex-col gap-4 text-left"
       >
         <span className="eyebrow flex w-full items-center gap-1.5">
-          <span className="flex-1">Saldo do mês</span>
+          <span className="flex-1">Resultado do mês</span>
           <span className="normal-case tracking-normal">
             {accounts.length > 0 ? `Em contas ${money(totalInAccounts)}` : 'Ver contas'}
           </span>
@@ -62,6 +65,13 @@ export function MonthBalanceTile({
           />
         </span>
         <span className="metric text-5xl sm:text-6xl">{money(balance)}</span>
+        <span className="-mt-2 text-sm font-semibold opacity-85">
+          {fromSavings > 0.005
+            ? `${money(fromSavings)} tirados de caixinhas e investimentos para cobrir o mês`
+            : fromSavings < -0.005
+              ? `${money(-fromSavings)} guardados em caixinhas e investimentos`
+              : 'O que entrou menos o que saiu no mês'}
+        </span>
         <span className="flex flex-wrap gap-2">
           <span className="sticker bg-white text-neutral-900">
             <ArrowUpRight className="h-3.5 w-3.5" aria-hidden /> Entradas {money(income)}

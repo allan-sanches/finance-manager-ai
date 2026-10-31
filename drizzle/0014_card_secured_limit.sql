@@ -1,0 +1,1 @@
+ALTER TABLE "credit_cards" ADD COLUMN "secured_limit" boolean DEFAULT false NOT NULL;

@@ -7,6 +7,8 @@ import {
   invoiceOutflows,
   invoiceStatus,
   nextOpenInvoice,
+  savingsDrawdown,
+  securedCardIds,
   shortDate,
   summarizeMonth,
   todayISO,
@@ -156,15 +158,35 @@ describe('saldo da conta', () => {
   it('pagamento de fatura sai do saldo no mês em que foi pago', () => {
     const { realized, expected } = invoiceOutflows(
       [
-        { dueDate: '2026-10-12', amount: 500, paymentDate: '2026-10-11' },
-        { dueDate: '2026-11-12', amount: 700, paymentDate: null },
-        { dueDate: '2026-09-12', amount: 900, paymentDate: null },
+        { creditCardId: 'c1', dueDate: '2026-10-12', amount: 500, paymentDate: '2026-10-11' },
+        { creditCardId: 'c1', dueDate: '2026-11-12', amount: 700, paymentDate: null },
+        { creditCardId: 'c1', dueDate: '2026-09-12', amount: 900, paymentDate: null },
       ],
       '2026-10-20',
     );
     expect(realized).toEqual([{ date: '2026-10-11', amount: 500 }]);
     expect(expected).toEqual([{ date: '2026-11-12', amount: 700 }]);
     expect(summarizeMonth([], '2026-10', realized).expense).toBe(500);
+  });
+
+  it('cartão de limite garantido: a compra conta no dia e a fatura dele não pesa de novo', () => {
+    const secured = securedCardIds([
+      { id: 'inter', securedLimit: true },
+      { id: 'mp', securedLimit: false },
+    ]);
+    const onInter = { ...base, id: 'i', amount: 200, paymentMethod: 'credit_card' as const, creditCardId: 'inter' };
+    const onMp = { ...base, id: 'm', amount: 70, paymentMethod: 'credit_card' as const, creditCardId: 'mp' };
+    const { realized } = invoiceOutflows(
+      [
+        { creditCardId: 'inter', dueDate: '2026-10-10', amount: 200, paymentDate: '2026-10-09' },
+        { creditCardId: 'mp', dueDate: '2026-10-04', amount: 70, paymentDate: '2026-10-03' },
+      ],
+      '2026-10-20',
+      secured,
+    );
+    expect(realized).toEqual([{ date: '2026-10-03', amount: 70 }]);
+    // Inter: a compra (200) no dia; MP: a fatura paga (70). Nada contado duas vezes.
+    expect(summarizeMonth([onInter, onMp], '2026-10', realized, secured).expense).toBe(270);
   });
 });
 
@@ -207,5 +229,37 @@ describe('movimentações e saldo da conta', () => {
     ]);
     expect(balance).toBe(260);
     expect(after).toBe(2);
+  });
+});
+
+describe('savingsDrawdown', () => {
+  const t = (o: Partial<Transaction>): Transaction => ({
+    id: 'x',
+    description: 'x',
+    amount: 100,
+    type: 'expense',
+    category: 'Outros',
+    paymentMethod: 'bank_transfer',
+    date: '2026-10-10',
+    isFixed: false,
+    isPaid: true,
+    isTransfer: true,
+    ...o,
+  });
+
+  it('resgates menos aplicações de caixinhas e investimentos, ignorando transferência entre contas', () => {
+    expect(
+      savingsDrawdown(
+        [
+          t({ type: 'income', amount: 1000, category: 'Investimentos' }), // resgate CDB
+          t({ amount: 300, savingsGoalId: 'g1', category: 'Investimentos' }), // aplicação
+          t({ type: 'income', amount: 50, savingsGoalId: 'g2', category: 'Outros' }),
+          t({ type: 'income', amount: 999, category: 'Transferências' }), // entre contas: fora
+          t({ type: 'income', amount: 999, isTransfer: false, category: 'Investimentos' }), // rendimento
+          t({ type: 'income', amount: 999, date: '2026-09-30', category: 'Investimentos' }), // outro mês
+        ],
+        '2026-10',
+      ),
+    ).toBe(750);
   });
 });

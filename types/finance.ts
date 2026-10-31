@@ -34,6 +34,9 @@ export type CreditCard = {
   currentInvoiceAmount: number;
   // Limite garantido por investimento (ex: CDB do Inter): o limite passa a ser o saldo da caixinha.
   limitSavingsGoalId?: string | null;
+  // Limite garantido: a compra conta como gasto no dia em que foi feita e o pagamento da fatura
+  // é movimentação (devolve o limite). Sem isso, o gasto só pesa quando a fatura é paga.
+  securedLimit?: boolean;
 };
 
 /**

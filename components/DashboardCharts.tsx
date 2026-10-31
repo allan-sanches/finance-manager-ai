@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 
 import { SectionTitle } from '@/components/ui';
-import { BRL, cashflowLastMonths, expensesByCategory, invoiceOutflows } from '@/lib/finance';
+import { BRL, cashflowLastMonths, expensesByCategory, invoiceOutflows, securedCardIds } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import { TONE_HEX } from '@/lib/tones';
 import { useCategories } from '@/lib/useCategories';
@@ -41,10 +41,12 @@ export function DashboardCharts() {
   const hydrated = useHydrated();
   const transactions = useFinanceStore((s) => s.transactions);
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
+  const creditCards = useFinanceStore((s) => s.creditCards);
   const { styleOf } = useCategories();
 
+  const secured = securedCardIds(creditCards);
   const cashflow = hydrated
-    ? cashflowLastMonths(transactions, 6, invoiceOutflows(invoices).realized)
+    ? cashflowLastMonths(transactions, 6, invoiceOutflows(invoices, undefined, secured).realized, secured)
     : cashflowLastMonths([], 6);
   const categories = hydrated ? expensesByCategory(transactions) : [];
 

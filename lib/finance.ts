@@ -177,8 +177,41 @@ export function nextOpenInvoice<T extends Pick<CreditCardInvoice, 'creditCardId'
 export const isCardPurchase = (tx: Pick<Transaction, 'paymentMethod'>): boolean =>
   tx.paymentMethod === 'credit_card';
 
+/** Cartões de limite garantido: a compra conta no dia, a fatura não pesa de novo. */
+export type SecuredCards = ReadonlySet<string>;
+const NO_SECURED: SecuredCards = new Set();
+
+export const securedCardIds = (cards: ReadonlyArray<Pick<CreditCard, 'id' | 'securedLimit'>>): SecuredCards =>
+  new Set(cards.filter((c) => c.securedLimit).map((c) => c.id));
+
+/**
+ * Compra no cartão que só pesa no saldo quando a fatura é paga. Em cartão de limite garantido
+ * a compra já conta como gasto no dia (e a fatura vira movimentação), então não entra aqui.
+ */
+export const paidByInvoice = (
+  tx: Pick<Transaction, 'paymentMethod' | 'creditCardId'>,
+  secured: SecuredCards = NO_SECURED,
+): boolean => isCardPurchase(tx) && !(tx.creditCardId && secured.has(tx.creditCardId));
+
 /** Movimentação (entre contas, para/da caixinha): o dinheiro continua seu, então não é entrada nem saída. */
 export const isTransfer = (tx: Pick<Transaction, 'isTransfer'>): boolean => Boolean(tx.isTransfer);
+
+/**
+ * Quanto saiu das caixinhas/investimentos para as contas no mês (resgates menos aplicações).
+ * Positivo = o mês usou dinheiro guardado; negativo = guardou mais do que tirou.
+ */
+export function savingsDrawdown(
+  transactions: ReadonlyArray<Pick<Transaction, 'date' | 'type' | 'amount' | 'isTransfer' | 'savingsGoalId' | 'category'>>,
+  key: string = currentMonthKey(),
+): number {
+  let net = 0;
+  for (const tx of transactions) {
+    if (!tx.isTransfer || !isSameMonth(tx.date, key)) continue;
+    if (!tx.savingsGoalId && tx.category !== 'Investimentos') continue;
+    net += tx.type === 'income' ? tx.amount : -tx.amount;
+  }
+  return Math.round(net * 100) / 100;
+}
 
 /**
  * Saldo de hoje da conta: o último saldo informado mais o que entrou e saiu dela depois daquela data
@@ -245,16 +278,18 @@ export type InvoicePayment = { date: string; amount: number };
 /**
  * Faturas como saídas da conta: pagas entram como realizado na data do pagamento; em aberto que
  * ainda vão vencer entram como previsto no vencimento. Vencidas sem pagamento ficam de fora
- * (aparecem como "Vencida" na tela de cartões).
+ * (aparecem como "Vencida" na tela de cartões). Faturas de cartão de limite garantido ficam de fora:
+ * as compras já contaram no dia.
  */
 export function invoiceOutflows(
-  invoices: ReadonlyArray<Pick<CreditCardInvoice, 'dueDate' | 'amount' | 'paymentDate'>>,
+  invoices: ReadonlyArray<Pick<CreditCardInvoice, 'creditCardId' | 'dueDate' | 'amount' | 'paymentDate'>>,
   today: string = todayISO(),
+  secured: SecuredCards = NO_SECURED,
 ): { realized: InvoicePayment[]; expected: InvoicePayment[] } {
   const realized: InvoicePayment[] = [];
   const expected: InvoicePayment[] = [];
   for (const i of invoices) {
-    if (i.amount <= 0) continue;
+    if (i.amount <= 0 || secured.has(i.creditCardId)) continue;
     if (i.paymentDate) (i.paymentDate > today ? expected : realized).push({ date: i.paymentDate, amount: i.amount });
     else if (i.dueDate >= today) expected.push({ date: i.dueDate, amount: i.amount });
   }
@@ -281,17 +316,19 @@ export type MonthlySummary = {
 
 /**
  * Entradas e saídas da conta no mês. Compras no cartão ficam de fora; o que sai é o pagamento
- * da fatura (`payments`), no mês em que foi pago.
+ * da fatura (`payments`), no mês em que foi pago. Em cartão de limite garantido (`secured`) é o
+ * contrário: a compra conta no dia.
  */
 export function summarizeMonth(
   transactions: ReadonlyArray<Transaction>,
   key: string = currentMonthKey(),
   payments: ReadonlyArray<InvoicePayment> = [],
+  secured: SecuredCards = NO_SECURED,
 ): MonthlySummary {
   let income = 0;
   let expense = 0;
   for (const tx of transactions) {
-    if (!isSameMonth(tx.date, key) || isCardPurchase(tx) || isTransfer(tx)) continue;
+    if (!isSameMonth(tx.date, key) || paidByInvoice(tx, secured) || isTransfer(tx)) continue;
     if (tx.type === 'income') income += tx.amount;
     else expense += tx.amount;
   }
@@ -305,13 +342,14 @@ export function cashflowLastMonths(
   transactions: ReadonlyArray<Transaction>,
   months: number = 6,
   payments: ReadonlyArray<InvoicePayment> = [],
+  secured: SecuredCards = NO_SECURED,
 ): CashflowPoint[] {
   const now = new Date();
   const points: CashflowPoint[] = [];
   for (let i = months - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const summary = summarizeMonth(transactions, key, payments);
+    const summary = summarizeMonth(transactions, key, payments, secured);
     points.push({
       mes: MONTH_LABELS[d.getMonth()],
       entradas: summary.income,

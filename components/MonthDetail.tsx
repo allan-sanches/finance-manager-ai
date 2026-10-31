@@ -19,7 +19,7 @@ import { CardNote, SubCard } from '@/components/MonthCard';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
 import { TransactionRow } from '@/components/TransactionRow';
 import { EmptyState } from '@/components/ui';
-import { BRL, invoiceOutflows, isSameMonth, isTransfer, todayISO } from '@/lib/finance';
+import { BRL, invoiceOutflows, isSameMonth, isTransfer, securedCardIds, todayISO } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import {
   isDebtPayment,
@@ -73,6 +73,7 @@ export function MonthDetail({ monthKey, initialBank = '' }: { monthKey: string; 
   const hydrated = useHydrated();
   const transactions = useFinanceStore((s) => s.transactions);
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
+  const creditCards = useFinanceStore((s) => s.creditCards);
   const removeTransaction = useFinanceStore((s) => s.removeTransaction);
   const toggleTransactionPaid = useFinanceStore((s) => s.toggleTransactionPaid);
 
@@ -81,11 +82,12 @@ export function MonthDetail({ monthKey, initialBank = '' }: { monthKey: string; 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Transaction | undefined>(undefined);
 
+  const secured = useMemo(() => securedCardIds(creditCards), [creditCards]);
   const { realized, expected, payments } = useMemo(() => {
     const today = todayISO();
     const inMonth = <T extends { date: string }>(rows: T[]) => rows.filter((r) => isSameMonth(r.date, monthKey));
     // Faturas não têm banco: com filtro de banco, os totais ficam só com os lançamentos dele.
-    const outflows = bank ? { realized: [], expected: [] } : invoiceOutflows(invoices, today);
+    const outflows = bank ? { realized: [], expected: [] } : invoiceOutflows(invoices, today, secured);
     return {
       ...splitByTiming(
         inMonth(transactions).filter((t) => matchesBank(t, bank)),
@@ -93,9 +95,9 @@ export function MonthDetail({ monthKey, initialBank = '' }: { monthKey: string; 
       ),
       payments: { realized: inMonth(outflows.realized), expected: inMonth(outflows.expected) },
     };
-  }, [transactions, invoices, monthKey, bank]);
-  const realizedTotals = totalsOf(monthKey, realized, payments.realized);
-  const expectedTotals = totalsOf(monthKey, expected, payments.expected);
+  }, [transactions, invoices, monthKey, bank, secured]);
+  const realizedTotals = totalsOf(monthKey, realized, payments.realized, secured);
+  const expectedTotals = totalsOf(monthKey, expected, payments.expected, secured);
   const match = FILTERS.find((f) => f.id === filter)!.match;
   const realizedDays = byDay(realized.filter(match), 'desc');
   const expectedDays = byDay(expected.filter(match), 'asc');

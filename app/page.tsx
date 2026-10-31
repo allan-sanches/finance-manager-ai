@@ -20,6 +20,8 @@ import {
   nextOpenInvoice,
   shortDate,
   summarizeDebts,
+  savingsDrawdown,
+  securedCardIds,
   summarizeMonth,
   todayISO,
 } from '@/lib/finance';
@@ -47,7 +49,8 @@ export default function DashboardPage() {
   const debts = useFinanceStore((s) => s.debts);
   const settings = useFinanceStore((s) => s.settings);
 
-  const month = summarizeMonth(transactions, undefined, invoiceOutflows(invoices).realized);
+  const secured = securedCardIds(creditCards);
+  const month = summarizeMonth(transactions, undefined, invoiceOutflows(invoices, undefined, secured).realized, secured);
   const categories = expensesByCategory(transactions);
   const totalLimit = creditCards.reduce((sum, c) => sum + cardLimit(c, savingsGoals), 0);
   const usageOf = (cardId: string) => cardUsage(cardId, transactions, invoices).used;
@@ -102,6 +105,7 @@ export default function DashboardPage() {
         balance={month.balance}
         income={month.income}
         expense={month.expense}
+        fromSavings={savingsDrawdown(transactions)}
         money={money}
       />
 

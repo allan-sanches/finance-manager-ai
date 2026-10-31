@@ -58,6 +58,8 @@ export const creditCards = pgTable('credit_cards', {
   // Sem FK: a importação do localStorage insere cartões antes das caixinhas. Caixinha inexistente
   // faz o cartão voltar para o `limit` salvo (ver cardLimit).
   limitSavingsGoalId: text('limit_savings_goal_id'),
+  // Limite garantido (ex: CDB do Inter): a compra conta como gasto no dia; pagar a fatura só devolve o limite.
+  securedLimit: boolean('secured_limit').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('credit_cards_user_id_idx').on(t.userId)]);
 

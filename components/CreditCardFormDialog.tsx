@@ -26,6 +26,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
   const [name, setName] = useState('');
   const [limit, setLimit] = useState('');
   const [limitGoalId, setLimitGoalId] = useState('');
+  const [securedLimit, setSecuredLimit] = useState(false);
   const [closingDay, setClosingDay] = useState('1');
   const [dueDay, setDueDay] = useState('10');
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +42,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
     setName(initial?.name ?? '');
     setLimit(toMoneyInput(initial?.limit));
     setLimitGoalId(initial?.limitSavingsGoalId ?? '');
+    setSecuredLimit(Boolean(initial?.securedLimit));
     setClosingDay(initial ? String(initial.closingDay) : '1');
     setDueDay(initial ? String(initial.dueDay) : '10');
     setError(null);
@@ -67,6 +69,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
         name: name.trim(),
         limit: limitNum,
         limitSavingsGoalId: goal?.id ?? null,
+        securedLimit,
         closingDay: closing,
         dueDay: due,
       });
@@ -75,6 +78,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
         name: name.trim(),
         limit: limitNum,
         limitSavingsGoalId: goal?.id ?? null,
+        securedLimit,
         closingDay: closing,
         dueDay: due,
         currentInvoiceAmount: 0,
@@ -131,6 +135,22 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
               <MoneyInput value={limit} onChange={setLimit} required />
             </label>
           )}
+
+          <label className="label cursor-pointer items-start justify-start gap-3">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-primary mt-0.5"
+              checked={securedLimit}
+              onChange={(e) => setSecuredLimit(e.target.checked)}
+            />
+            <span className="label-text">
+              Limite garantido (ex: CDB)
+              <span className="text-base-content/60 block text-xs">
+                Cada compra conta como gasto no dia em que foi feita. Pagar a fatura vira movimentação: só
+                devolve o limite.
+              </span>
+            </span>
+          </label>
 
           <div className="grid grid-cols-2 gap-3">
             <label className="form-control">

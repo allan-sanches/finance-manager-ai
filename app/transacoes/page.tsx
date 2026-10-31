@@ -7,7 +7,7 @@ import { BankFilter, bankParam, matchesBank, useBankFilter } from '@/components/
 import { MonthCard } from '@/components/MonthCard';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
 import { EmptyState, PageHeader } from '@/components/ui';
-import { invoiceOutflows, monthKey, todayISO } from '@/lib/finance';
+import { invoiceOutflows, monthKey, securedCardIds, todayISO } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import { groupByMonth, splitByTiming } from '@/lib/transaction-months';
 import { useHydrated } from '@/lib/useHydratedStore';
@@ -20,6 +20,7 @@ export default function TransacoesPage({
   const hydrated = useHydrated();
   const transactions = useFinanceStore((s) => s.transactions);
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
+  const creditCards = useFinanceStore((s) => s.creditCards);
 
   const [txDialogOpen, setTxDialogOpen] = useState(false);
   const [bankFilter, setBankFilter] = useBankFilter(bankParam(use(searchParams).banco));
@@ -30,13 +31,14 @@ export default function TransacoesPage({
     const filtered = transactions.filter((t) => matchesBank(t, bankFilter));
     const { realized, expected } = splitByTiming(filtered, today);
     // Faturas não têm banco: com filtro ligado, ficam de fora para os totais serem só do banco.
-    const payments = bankFilter ? { realized: [], expected: [] } : invoiceOutflows(invoices, today);
+    const secured = securedCardIds(creditCards);
+    const payments = bankFilter ? { realized: [], expected: [] } : invoiceOutflows(invoices, today, secured);
     return {
-      history: groupByMonth(realized, 'desc', payments.realized),
-      forecast: groupByMonth(expected, 'asc', payments.expected),
+      history: groupByMonth(realized, 'desc', payments.realized, secured),
+      forecast: groupByMonth(expected, 'asc', payments.expected, secured),
       currentKey: monthKey(today),
     };
-  }, [transactions, invoices, bankFilter]);
+  }, [transactions, invoices, creditCards, bankFilter]);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col">

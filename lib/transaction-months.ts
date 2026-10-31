@@ -1,4 +1,4 @@
-import { isCardPurchase, isTransfer, monthKey, type InvoicePayment } from '@/lib/finance';
+import { isTransfer, monthKey, paidByInvoice, type InvoicePayment, type SecuredCards } from '@/lib/finance';
 import type { Transaction } from '@/types/finance';
 
 /** Lançamento de dívida: despesa na categoria "Dívidas" (parcela de empréstimo, acordo etc.). */
@@ -35,11 +35,15 @@ export type MonthTotals = {
   openCount: number; // Ainda não pagos/recebidos
 };
 
-/** `payments`: faturas pagas/a pagar do mês (ver invoiceOutflows). */
+/**
+ * `payments`: faturas pagas/a pagar do mês (ver invoiceOutflows). `secured`: cartões de limite
+ * garantido, cujas compras contam como receita/despesa no dia em vez de esperar a fatura.
+ */
 export function totalsOf(
   key: string,
   transactions: ReadonlyArray<Transaction>,
   payments: ReadonlyArray<InvoicePayment> = [],
+  secured?: SecuredCards,
 ): MonthTotals {
   const totals: MonthTotals = {
     key,
@@ -55,7 +59,7 @@ export function totalsOf(
   };
   for (const tx of transactions) {
     if (isTransfer(tx)) totals.moved += tx.amount;
-    else if (isCardPurchase(tx)) totals.card += tx.type === 'income' ? -tx.amount : tx.amount;
+    else if (paidByInvoice(tx, secured)) totals.card += tx.type === 'income' ? -tx.amount : tx.amount;
     else if (tx.type === 'income') totals.income += tx.amount;
     else if (isDebtPayment(tx)) totals.debt += tx.amount;
     else totals.expense += tx.amount;
@@ -72,6 +76,7 @@ export function groupByMonth(
   transactions: ReadonlyArray<Transaction>,
   order: 'asc' | 'desc' = 'desc',
   payments: ReadonlyArray<InvoicePayment> = [],
+  secured?: SecuredCards,
 ): MonthTotals[] {
   const groups = new Map<string, { rows: Transaction[]; payments: InvoicePayment[] }>();
   const group = (key: string) => {
@@ -81,7 +86,7 @@ export function groupByMonth(
   };
   for (const tx of transactions) group(monthKey(tx.date)).rows.push(tx);
   for (const p of payments) group(monthKey(p.date)).payments.push(p);
-  const months = [...groups.entries()].map(([key, g]) => totalsOf(key, g.rows, g.payments));
+  const months = [...groups.entries()].map(([key, g]) => totalsOf(key, g.rows, g.payments, secured));
   return months.sort((a, b) => (order === 'desc' ? b.key.localeCompare(a.key) : a.key.localeCompare(b.key)));
 }
 
