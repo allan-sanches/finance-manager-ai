@@ -248,19 +248,28 @@ export type CardUsage = {
  * Uso do limite do cartão. O valor da fatura (digitado ou lido do PDF) manda no período dela:
  * compras com data antes do último fechamento já estão dentro de alguma fatura e não contam de novo.
  * Compra no dia do fechamento já cai na fatura seguinte (é o "melhor dia de compra").
+ * Faturas futuras já lançadas (parcelas que vão cair em jan, fev…) ocupam o limite, mas não
+ * "engolem" as compras novas: o corte é o fechamento da fatura atual (a primeira que ainda vai fechar).
  */
 export function cardUsage(
   cardId: string,
   transactions: ReadonlyArray<Pick<Transaction, 'paymentMethod' | 'creditCardId' | 'date' | 'amount' | 'type'>>,
   invoices: ReadonlyArray<Pick<CreditCardInvoice, 'creditCardId' | 'closingDate' | 'amount' | 'paymentDate'>>,
+  today: string = todayISO(),
 ): CardUsage {
-  let lastClosingDate: string | null = null;
+  let lastPastClosing: string | null = null;
+  let nextClosing: string | null = null;
   let openInvoices = 0;
   for (const i of invoices) {
     if (i.creditCardId !== cardId) continue;
-    if (!lastClosingDate || i.closingDate > lastClosingDate) lastClosingDate = i.closingDate;
+    if (i.closingDate < today) {
+      if (!lastPastClosing || i.closingDate > lastPastClosing) lastPastClosing = i.closingDate;
+    } else if (!nextClosing || i.closingDate < nextClosing) {
+      nextClosing = i.closingDate;
+    }
     if (!i.paymentDate) openInvoices += i.amount;
   }
+  const lastClosingDate = nextClosing ?? lastPastClosing;
   let unbilled = 0;
   for (const tx of transactions) {
     if (!isCardPurchase(tx) || tx.creditCardId !== cardId) continue;

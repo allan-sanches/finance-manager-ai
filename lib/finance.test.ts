@@ -133,6 +133,21 @@ describe('cardUsage', () => {
   it('estorno abate das compras não faturadas', () => {
     expect(cardUsage('c1', [buy('2026-10-20', 100), buy('2026-10-21', 30, { type: 'income' })], []).unbilled).toBe(70);
   });
+
+  it('faturas futuras de parcelas ocupam o limite, mas o corte das compras novas é a fatura atual', () => {
+    const usage = cardUsage(
+      'c1',
+      [buy('2026-10-20', 999), buy('2026-11-30', 50)],
+      [
+        invoice({ id: 'dez', closingDate: '2026-11-28', amount: 396.78 }),
+        invoice({ id: 'jan', closingDate: '2026-12-29', amount: 1224.62 }),
+        invoice({ id: 'mar', closingDate: '2027-02-26', amount: 250.4 }),
+      ],
+      '2026-10-31',
+    );
+    // A compra de 20/10 está na fatura de dezembro; a de 30/11 já é da seguinte e conta à parte.
+    expect(usage).toMatchObject({ unbilled: 50, openInvoices: 1871.8, lastClosingDate: '2026-11-28' });
+  });
 });
 
 describe('saldo da conta', () => {
