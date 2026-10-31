@@ -44,7 +44,13 @@ async function getJson(url: string, revalidate: number): Promise<unknown> {
   return response.json();
 }
 
-async function currencies(): Promise<Quote[]> {
+// A AwesomeAPI devolve 429 para IPs compartilhados (ex.: Railway) e resposta de erro não fica no
+// cache do fetch: depois de uma falha, ela fica de lado por um tempo e o Banco Central cobre dólar e euro.
+const AWESOME_BACKOFF_MS = 10 * 60_000;
+let awesomeBlockedUntil = 0;
+
+async function awesomeCurrencies(): Promise<Quote[] | null> {
+  if (Date.now() < awesomeBlockedUntil) return null;
   try {
     const parsed = awesomeSchema.safeParse(await getJson(AWESOME_URL, FX_CACHE_SECONDS));
     if (!parsed.success) throw new Error('resposta fora do formato esperado');
@@ -55,9 +61,23 @@ async function currencies(): Promise<Quote[]> {
       updatedAt: q.create_date,
     }));
   } catch (err) {
-    console.error('[marx] cotações de moedas indisponíveis', err);
-    return [];
+    awesomeBlockedUntil = Date.now() + AWESOME_BACKOFF_MS;
+    console.error('[marx] AwesomeAPI indisponível; usando o Banco Central', err);
+    return null;
   }
+}
+
+/** PTAX de venda do Banco Central (SGS 1 = dólar, 21619 = euro): sem variação do dia nem bitcoin. */
+async function centralBankCurrencies(): Promise<Quote[]> {
+  const [usd, eur] = await Promise.all([sgs(1), sgs(21619)]);
+  const quotes: Quote[] = [];
+  if (usd) quotes.push({ name: 'Dólar Americano/Real Brasileiro (PTAX)', brl: usd.rate, changePercent: null, updatedAt: usd.date });
+  if (eur) quotes.push({ name: 'Euro/Real Brasileiro (PTAX)', brl: eur.rate, changePercent: null, updatedAt: eur.date });
+  return quotes;
+}
+
+async function currencies(): Promise<Quote[]> {
+  return (await awesomeCurrencies()) ?? centralBankCurrencies();
 }
 
 async function sgs(series: number): Promise<{ rate: number; date: string } | null> {

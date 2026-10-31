@@ -1,12 +1,21 @@
 'use client';
 
 import { Check, RotateCcw, SendHorizontal, Trash2, X } from 'lucide-react';
-import { Fragment, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+  type KeyboardEvent,
+} from 'react';
 
 import { CategoryAvatar } from '@/components/CategoryAvatar';
-import { MarxAvatar } from '@/components/MarxAvatar';
+import { fireMarxLaser, MarxAvatar } from '@/components/MarxAvatar';
 import { usePrivacyHidden } from '@/components/PrivacyToggle';
 import { BRL, PAYMENT_METHOD_LABEL, shortDate } from '@/lib/finance';
+import { DEFAULT_MARX_MODEL, isMarxModel, MARX_MODELS, marxModelLabel, type MarxModelId } from '@/lib/marx/models';
 import { MARX_MAX_MESSAGE_LENGTH, type MarxReply } from '@/lib/marx/schemas';
 import { useFinanceStore } from '@/lib/store';
 import type { TransactionDraft } from '@/types/finance';
@@ -20,14 +29,49 @@ type ChatItem = {
   proposals?: TransactionDraft[];
   proposalStatus?: ProposalStatus;
   addedCount?: number;
+  /** "1,4s · ChatGPT 4.1 mini": para comparar a velocidade dos modelos. */
+  meta?: string;
 };
 
-type ApiResponse = { ok: true; data: MarxReply } | { ok: false; error: string };
+type ApiResponse = { ok: true; data: MarxReply; model: string } | { ok: false; error: string };
+
+// Modelo escolhido no chat, guardado no aparelho. No servidor e na hidratação vale o padrão.
+const MODEL_STORAGE_KEY = 'marx-model';
+const modelListeners = new Set<() => void>();
+
+function readSavedModel(): MarxModelId {
+  try {
+    const saved = localStorage.getItem(MODEL_STORAGE_KEY);
+    return isMarxModel(saved) ? saved : DEFAULT_MARX_MODEL;
+  } catch {
+    return DEFAULT_MARX_MODEL;
+  }
+}
+
+function saveModel(model: MarxModelId) {
+  try {
+    localStorage.setItem(MODEL_STORAGE_KEY, model);
+  } catch {
+    // localStorage indisponível: a escolha não persiste.
+  }
+  modelListeners.forEach((notify) => notify());
+}
+
+function useMarxModel(): MarxModelId {
+  return useSyncExternalStore(
+    (notify) => {
+      modelListeners.add(notify);
+      return () => modelListeners.delete(notify);
+    },
+    readSavedModel,
+    () => DEFAULT_MARX_MODEL,
+  );
+}
 
 const SUGGESTIONS = [
-  'Como estão meus gastos este mês?',
+  'Analise meus gastos deste mês',
   'Quanto falta para minhas caixinhas?',
-  'Qual desejo cabe no meu bolso agora?',
+  'Qual desejo cabe no meu orçamento?',
   'Como estão o dólar e o CDI hoje?',
   'Gastei 32 no mercado no débito e 18 de uber no pix',
 ];
@@ -43,6 +87,7 @@ export function MarxChat() {
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const model = useMarxModel();
 
   useEffect(() => {
     const dlg = dialogRef.current;
@@ -64,11 +109,12 @@ export function MarxChat() {
     setDraft('');
     setError(null);
     setLoading(true);
+    const startedAt = performance.now();
     try {
       const response = await fetch('/api/marx', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ messages: next.map(({ role, content: c }) => ({ role, content: c })) }),
+        body: JSON.stringify({ model, messages: next.map(({ role, content: c }) => ({ role, content: c })) }),
       });
       const payload = (await response.json().catch(() => ({
         ok: false,
@@ -79,15 +125,18 @@ export function MarxChat() {
         return;
       }
       const { reply, transactions } = payload.data;
+      const seconds = ((performance.now() - startedAt) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
       setItems((current) => [
         ...current,
         {
           id: newId(),
           role: 'assistant',
           content: reply,
+          meta: `${seconds}s · ${marxModelLabel(payload.model)}`,
           ...(transactions.length ? { proposals: transactions, proposalStatus: 'pending' as const } : {}),
         },
       ]);
+      if (transactions.some((tx) => tx.type === 'expense')) fireMarxLaser();
     } catch {
       setError('Sem conexão com o servidor. Confere a internet e tenta de novo.');
     } finally {
@@ -146,7 +195,22 @@ export function MarxChat() {
               <h2 id="marx-title" className="font-extrabold">
                 Marx
               </h2>
-              <p className="text-base-content/60 truncate text-xs">Seu camarada das finanças</p>
+              <p className="text-base-content/60 truncate text-xs">Crítico da economia política — e do seu orçamento</p>
+              <label className="mt-1 flex items-center gap-1 text-xs">
+                <span className="sr-only">Modelo de IA do Marx</span>
+                <select
+                  className="select select-xs w-auto max-w-full"
+                  value={model}
+                  disabled={loading}
+                  onChange={(e) => isMarxModel(e.target.value) && saveModel(e.target.value)}
+                >
+                  {MARX_MODELS.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label} — {m.hint}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
             {items.length > 0 && (
               <button
@@ -176,6 +240,7 @@ export function MarxChat() {
                 {items.map((item) => (
                   <li key={item.id} className="flex flex-col gap-2">
                     <Bubble role={item.role} content={item.content} />
+                    {item.meta && <p className="text-base-content/40 -mt-1 pl-2 text-[11px]">{item.meta}</p>}
                     {item.proposals && (
                       <ProposalReview
                         proposals={item.proposals}
@@ -250,8 +315,8 @@ function Welcome({ onPick, disabled }: { onPick: (text: string) => void; disable
       <Bubble
         role="assistant"
         content={
-          'Fala, camarada! 👋 Eu sou o Marx. Conheço seus gastos, caixinhas, desejos e dívidas, e fico de olho no dólar e nos juros.\n\n' +
-          'Pode me perguntar qualquer coisa ou mandar vários gastos de uma vez, que eu separo tudo pra você conferir e lançar.'
+          'Saudações. Sou Karl Marx. Tenho diante de mim seus gastos, suas reservas, seus desejos e suas dívidas — e também o câmbio e os juros que o capital cobra de você.\n\n' +
+          'Pergunte o que quiser, ou relate vários gastos de uma vez: eu os registro para que você confira antes de lançar.'
         }
       />
       <div className="flex flex-wrap gap-2">

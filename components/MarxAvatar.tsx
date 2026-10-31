@@ -16,7 +16,7 @@ const EYES = [
   { x: (500 - CROP.x) / CROP.size, y: (287 - CROP.y) / CROP.size },
   { x: (670 - CROP.x) / CROP.size, y: (287 - CROP.y) / CROP.size },
 ];
-const LASER_MS = 2800;
+const LASER_MS = 4000;
 /** Lançamento criado agora neste aparelho (os que chegam do servidor têm createdAt antigo). */
 const FRESH_MS = 10_000;
 
@@ -26,11 +26,24 @@ const photoStyle: CSSProperties = {
   backgroundPosition: `${(CROP.x / (IMAGE.width - CROP.size)) * 100}% ${(CROP.y / (IMAGE.height - CROP.size)) * 100}%`,
 };
 
-/** Liga o laser por alguns segundos quando entra uma despesa nova no store. */
+// Disparo manual do laser (ex.: o Marx acabou de entender um gasto na conversa, antes de confirmar).
+const laserListeners = new Set<() => void>();
+
+export function fireMarxLaser() {
+  laserListeners.forEach((fire) => fire());
+}
+
+/** Liga o laser por alguns segundos quando entra uma despesa nova no store ou alguém chama fireMarxLaser. */
 function useLaserOnNewExpense(): boolean {
   const [laser, setLaser] = useState(false);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const fire = () => {
+      setLaser(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setLaser(false), LASER_MS);
+    };
+    laserListeners.add(fire);
     const unsubscribe = useFinanceStore.subscribe((state, prev) => {
       if (state.transactions === prev.transactions || !prev.hydrated) return;
       const known = new Set(prev.transactions.map((t) => t.id));
@@ -42,12 +55,10 @@ function useLaserOnNewExpense(): boolean {
           t.createdAt !== undefined &&
           now - new Date(t.createdAt).getTime() < FRESH_MS,
       );
-      if (!fresh) return;
-      setLaser(true);
-      clearTimeout(timer);
-      timer = setTimeout(() => setLaser(false), LASER_MS);
+      if (fresh) fire();
     });
     return () => {
+      laserListeners.delete(fire);
       unsubscribe();
       clearTimeout(timer);
     };
@@ -104,7 +115,7 @@ export function MarxAvatar({ size = 44, className = '' }: { size?: number; class
         EYES.map((eye, i) => (
           <span
             key={i}
-            className="marx-laser pointer-events-none absolute z-10 h-[3px] w-[260%] rounded-full"
+            className="marx-laser pointer-events-none absolute z-10 h-1 w-[340%] rounded-full"
             style={{ left: `${eye.x * 100}%`, top: `${eye.y * 100}%` }}
           />
         ))}

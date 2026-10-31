@@ -170,36 +170,38 @@ describe('chatJsonWithGateway', () => {
     vi.unstubAllEnvs();
   });
 
-  it('manda o histórico com o modelo do Marx, schema e raciocínio desligado', async () => {
-    fetchMock.mockResolvedValue(completion(JSON.stringify({ reply: 'Oi, camarada!', transactions: [] })));
+  it('manda o histórico com o modelo escolhido, schema e raciocínio desligado', async () => {
+    fetchMock.mockResolvedValue(completion(JSON.stringify({ reply: 'Saudações.', transactions: [] })));
     const { chatJsonWithGateway } = await import('@/lib/ai-gateway');
     const messages = [
       { role: 'system' as const, content: 'responda em json' },
       { role: 'user' as const, content: 'como estão meus gastos?' },
     ];
     const schema = { type: 'object', properties: { reply: { type: 'string' } }, required: ['reply'] };
-    const result = await chatJsonWithGateway(messages, schema);
+    const result = await chatJsonWithGateway('openai/gpt-4.1-mini', messages, schema);
 
-    expect(result).toEqual({ ok: true, value: { reply: 'Oi, camarada!', transactions: [] } });
+    expect(result).toEqual({ ok: true, value: { reply: 'Saudações.', transactions: [] } });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body.model).toBe('deepseek/deepseek-v3.1');
+    expect(body.model).toBe('openai/gpt-4.1-mini');
     expect(body.messages).toEqual(messages);
     expect(body.response_format).toEqual({ type: 'json_schema', json_schema: { name: 'response', schema } });
     expect(body.reasoning).toEqual({ enabled: false });
+    expect(body.temperature).toBe(0.7);
   });
 
-  it('usa MARX_MODEL quando definido', async () => {
-    vi.stubEnv('MARX_MODEL', 'deepseek/deepseek-v4-pro');
+  it('GPT-5 vai com esforço mínimo e sem temperature', async () => {
     fetchMock.mockResolvedValue(completion('{"reply":"ok","transactions":[]}'));
     const { chatJsonWithGateway } = await import('@/lib/ai-gateway');
-    await chatJsonWithGateway([{ role: 'user', content: 'oi' }], { type: 'object' });
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body).model).toBe('deepseek/deepseek-v4-pro');
+    await chatJsonWithGateway('openai/gpt-5-mini', [{ role: 'user', content: 'oi' }], { type: 'object' });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.reasoning).toEqual({ effort: 'minimal' });
+    expect(body).not.toHaveProperty('temperature');
   });
 
   it('sem chave não chama a API', async () => {
     vi.stubEnv('AI_GATEWAY_API_KEY', '');
     const { chatJsonWithGateway } = await import('@/lib/ai-gateway');
-    const result = await chatJsonWithGateway([{ role: 'user', content: 'oi' }], { type: 'object' });
+    const result = await chatJsonWithGateway('openai/gpt-4.1-mini', [{ role: 'user', content: 'oi' }], { type: 'object' });
     expect(result).toMatchObject({ ok: false, code: 'not_configured' });
     expect(fetchMock).not.toHaveBeenCalled();
   });

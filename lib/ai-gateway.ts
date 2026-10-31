@@ -158,20 +158,17 @@ export function generateJsonWithGateway(
 export type GatewayChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
 /**
- * Modelo do assistente Marx: DeepSeek servido pelo Gateway, separado do modelo da extração.
- * O V3.1 é o DeepSeek liberado no plano gratuito do Gateway; com créditos pagos, os V4 respondem melhor.
- */
-export const marxModel = process.env.MARX_MODEL || 'deepseek/deepseek-v3.1';
-
-/**
- * Conversa com histórico e saída em JSON Schema (o assistente Marx). Sem raciocínio: no celular a
- * resposta rápida vale mais. Quem chama valida o objeto devolvido.
+ * Conversa com histórico e saída em JSON Schema (o assistente Marx). Raciocínio desligado: no
+ * celular a resposta rápida vale mais. Os GPT-5 não desligam o raciocínio nem aceitam temperature:
+ * vão com o esforço mínimo. Quem chama valida o objeto devolvido.
  */
 export async function chatJsonWithGateway(
+  model: string,
   messages: ReadonlyArray<GatewayChatMessage>,
   schema: JsonSchema,
   { temperature = 0.7, maxTokens = 4096 }: { temperature?: number; maxTokens?: number } = {},
 ): Promise<StructuredJsonResult> {
+  const alwaysReasons = model.startsWith('openai/gpt-5');
   if (!apiKey) {
     return { ok: false, code: 'not_configured', error: NOT_CONFIGURED_ERROR };
   }
@@ -185,11 +182,10 @@ export async function chatJsonWithGateway(
         authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: marxModel,
+        model,
         messages,
         response_format: { type: 'json_schema', json_schema: { name: 'response', schema } },
-        reasoning: { enabled: false },
-        temperature,
+        ...(alwaysReasons ? { reasoning: { effort: 'minimal' } } : { reasoning: { enabled: false }, temperature }),
         max_tokens: maxTokens,
         stream: false,
         ...(zeroDataRetention ? { providerOptions: { gateway: { zeroDataRetention: true } } } : {}),

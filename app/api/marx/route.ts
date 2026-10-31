@@ -8,6 +8,7 @@ import { getSnapshot } from '@/lib/db/repository';
 import { mergeCategoryNames, todayISO } from '@/lib/finance';
 import { buildFinanceContext } from '@/lib/marx/context';
 import { buildMarxSystemPrompt, MARX_RESPONSE_SCHEMA, toChatMessages } from '@/lib/marx/prompt';
+import { resolveMarxModel } from '@/lib/marx/models';
 import { getMarketQuotes } from '@/lib/marx/quotes';
 import { marxRequestSchema, parseMarxReply } from '@/lib/marx/schemas';
 import { clientKeyFromRequest, createRateLimiter } from '@/lib/rate-limit';
@@ -27,8 +28,8 @@ const STATUS_BY_ERROR: Record<ExtractionErrorCode, number> = {
 };
 
 const NOT_CONFIGURED =
-  'O Marx está de folga: falta configurar a AI_GATEWAY_API_KEY no servidor.';
-const CONFUSED = 'O Marx se enrolou com essa. Tenta perguntar de outro jeito?';
+  'O Marx está indisponível: falta configurar a AI_GATEWAY_API_KEY no servidor.';
+const CONFUSED = 'Não consegui formular uma resposta. Reformule a pergunta, por favor.';
 
 export async function POST(request: Request) {
   const userId = await getSessionUserId();
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
   const rate = checkRateLimit(`marx:${userId}:${clientKeyFromRequest(request)}`);
   if (!rate.allowed) {
     return NextResponse.json(
-      { ok: false, error: 'Calma, camarada! Muitas mensagens seguidas. Espera um pouquinho.' },
+      { ok: false, error: 'Muitas mensagens seguidas. Aguarde um instante antes de continuar.' },
       { status: 429, headers: { 'Retry-After': String(rate.retryAfterSeconds) } },
     );
   }
@@ -67,7 +68,9 @@ export async function POST(request: Request) {
     financeContext: buildFinanceContext(snapshot, quotes, today),
   });
 
+  const model = resolveMarxModel(parsed.data.model);
   const result = await chatJsonWithGateway(
+    model,
     toChatMessages(system, parsed.data.messages),
     MARX_RESPONSE_SCHEMA,
   );
@@ -86,7 +89,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: CONFUSED }, { status: 422 });
   }
 
-  return NextResponse.json({ ok: true, data: reply });
+  return NextResponse.json({ ok: true, data: reply, model });
 }
 
 export async function GET() {

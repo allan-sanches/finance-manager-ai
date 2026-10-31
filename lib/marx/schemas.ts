@@ -18,6 +18,8 @@ export const marxMessageSchema = z.object({
 export type MarxMessage = z.infer<typeof marxMessageSchema>;
 
 export const marxRequestSchema = z.object({
+  /** Modelo escolhido no chat; fora da lista vira o padrão do servidor (ver resolveMarxModel). */
+  model: z.string().max(100).optional(),
   messages: z
     .array(marxMessageSchema)
     .min(1, 'Conversa vazia.')
