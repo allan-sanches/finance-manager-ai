@@ -144,17 +144,13 @@ export default function DashboardPage() {
           icon={PiggyBank}
           label="Guardado"
           value={money(savedTotal)}
-          hint={
-            [
-              `${savingsGoals.length + securedSavings.cards.length} caixinha(s)`,
-              saved.usd > 0 &&
-                (saved.usdInBrl !== null
-                  ? `inclui ${USD.format(saved.usd)} (≈ ${money(saved.usdInBrl)})`
-                  : `+ ${USD.format(saved.usd)} em dólar`),
-            ]
-              .filter(Boolean)
-              .join(' · ')
-          }
+          // Curto para caber numa linha, como os cards vizinhos (o valor em reais fica na lista ao abrir).
+          hint={[
+            `${savingsGoals.length + securedSavings.cards.length} caixinhas`,
+            saved.usd > 0 && `inclui ${USD.format(saved.usd)}`,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         >
           <TileDetails
             empty="Nenhuma caixinha ainda."
