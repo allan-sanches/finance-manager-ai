@@ -8,6 +8,24 @@ export const SAVINGS_BANKS = [
   { name: 'Mercado Pago', cdiPercent: 120 },
 ] as const;
 
+/**
+ * Total guardado em reais: caixinhas em real mais as em dólar convertidas pela cotação (R$ por US$ 1).
+ * Sem cotação, `total` fica só com o que está em real e `usdInBrl` é null.
+ */
+export function totalSavedBrl(
+  goals: ReadonlyArray<Pick<SavingsGoal, 'currency' | 'currentAmount'>>,
+  usdRate: number | null,
+): { brl: number; usd: number; usdInBrl: number | null; total: number } {
+  let brl = 0;
+  let usd = 0;
+  for (const g of goals) {
+    if (g.currency === 'USD') usd += g.currentAmount;
+    else brl += g.currentAmount;
+  }
+  const usdInBrl = usdRate ? Math.round(usd * usdRate * 100) / 100 : null;
+  return { brl, usd, usdInBrl, total: brl + (usdInBrl ?? 0) };
+}
+
 /** Taxa mensal (fração) de quem rende `cdiPercent`% do CDI, com o CDI anual em % a.a. */
 export function monthlyRateFromCdi(cdiPercent: number, cdiAnnualPercent: number): number {
   const monthlyCdi = Math.pow(1 + cdiAnnualPercent / 100, 1 / 12) - 1;

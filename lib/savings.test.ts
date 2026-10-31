@@ -13,6 +13,7 @@ import {
   monthsBetween,
   projectGoal,
   redemptionDate,
+  totalSavedBrl,
 } from '@/lib/savings';
 import type { SavingsGoal } from '@/types/finance';
 
@@ -222,5 +223,20 @@ describe('maturityAlerts', () => {
     expect(maturityLabel(0, '2026-10-31')).toBe('Vence hoje');
     expect(maturityLabel(1, '2026-11-01')).toBe('Vence amanhã');
     expect(maturityLabel(26, '2026-11-26')).toBe('Vence em 26 dias');
+  });
+});
+
+describe('totalSavedBrl', () => {
+  const goals = [
+    { currency: 'BRL' as const, currentAmount: 3220 },
+    { currency: 'USD' as const, currentAmount: 198.06 },
+  ];
+
+  it('soma o dólar convertido pela cotação', () => {
+    expect(totalSavedBrl(goals, 5.4212)).toEqual({ brl: 3220, usd: 198.06, usdInBrl: 1073.72, total: 4293.72 });
+  });
+
+  it('sem cotação, o total fica só com o real', () => {
+    expect(totalSavedBrl(goals, null)).toEqual({ brl: 3220, usd: 198.06, usdInBrl: null, total: 3220 });
   });
 });

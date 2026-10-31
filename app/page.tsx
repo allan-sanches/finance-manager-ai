@@ -23,9 +23,10 @@ import {
   summarizeMonth,
   todayISO,
 } from '@/lib/finance';
-import { maturityAlerts, maturityLabel, USD } from '@/lib/savings';
+import { maturityAlerts, maturityLabel, totalSavedBrl, USD } from '@/lib/savings';
 import { useFinanceStore } from '@/lib/store';
 import { useHydrated } from '@/lib/useHydratedStore';
+import { useUsdRate } from '@/lib/useUsdRate';
 
 const MONTH_NAME = new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: APP_TIME_ZONE });
 const HOUR = new Intl.DateTimeFormat('pt-BR', { hour: 'numeric', hourCycle: 'h23', timeZone: APP_TIME_ZONE });
@@ -51,12 +52,8 @@ export default function DashboardPage() {
   const totalLimit = creditCards.reduce((sum, c) => sum + cardLimit(c, savingsGoals), 0);
   const usageOf = (cardId: string) => cardUsage(cardId, transactions, invoices).used;
   const totalInvoice = creditCards.reduce((sum, c) => sum + usageOf(c.id), 0);
-  const saved = savingsGoals
-    .filter((g) => g.currency === 'BRL')
-    .reduce((sum, g) => sum + g.currentAmount, 0);
-  const savedUsd = savingsGoals
-    .filter((g) => g.currency === 'USD')
-    .reduce((sum, g) => sum + g.currentAmount, 0);
+  const usdRate = useUsdRate();
+  const saved = totalSavedBrl(savingsGoals, usdRate?.rate ?? null);
   const maturing = maturityAlerts(savingsGoals, todayISO());
   const dashboardDebts = debtsOnDashboard(debts, settings);
   const debtSummary = summarizeDebts(dashboardDebts);
@@ -137,8 +134,14 @@ export default function DashboardPage() {
           tone="violet"
           icon={PiggyBank}
           label="Guardado"
-          value={money(saved)}
-          hint={savedUsd > 0 ? `+ ${USD.format(savedUsd)} em dólar` : `${savingsGoals.length} caixinha(s)`}
+          value={money(saved.total)}
+          hint={
+            saved.usd === 0
+              ? `${savingsGoals.length} caixinha(s)`
+              : saved.usdInBrl !== null
+                ? `Inclui ${USD.format(saved.usd)} (≈ ${money(saved.usdInBrl)})`
+                : `+ ${USD.format(saved.usd)} em dólar`
+          }
         >
           <TileDetails
             empty="Nenhuma caixinha ainda."
@@ -150,7 +153,13 @@ export default function DashboardPage() {
                 key: g.id,
                 label: g.name,
                 value: hydrated ? fmt.format(g.currentAmount) : '—',
-                sub: [g.institution, `${pct}% de ${hydrated ? fmt.format(g.targetAmount) : '—'}`]
+                sub: [
+                  g.institution,
+                  g.currency === 'USD' && usdRate && hydrated
+                    ? `≈ ${BRL.format(g.currentAmount * usdRate.rate)}`
+                    : null,
+                  `${pct}% de ${hydrated ? fmt.format(g.targetAmount) : '—'}`,
+                ]
                   .filter(Boolean)
                   .join(' · '),
                 progress: pct,

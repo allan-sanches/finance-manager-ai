@@ -28,8 +28,10 @@ import {
   maturityLabel,
   projectGoal,
   redemptionDate,
+  totalSavedBrl,
   USD,
 } from '@/lib/savings';
+import { useUsdRate } from '@/lib/useUsdRate';
 import { useFinanceStore } from '@/lib/store';
 import { TONE_CLASS, type Tone } from '@/lib/tones';
 import { useCdi, type Cdi } from '@/lib/useCdi';
@@ -74,12 +76,8 @@ export default function CaixinhasPage() {
     );
   }, [goals]);
 
-  const totalBrl = goals
-    .filter((g) => g.currency === 'BRL')
-    .reduce((s, g) => s + g.currentAmount, 0);
-  const totalUsd = goals
-    .filter((g) => g.currency === 'USD')
-    .reduce((s, g) => s + g.currentAmount, 0);
+  const usdRate = useUsdRate();
+  const saved = totalSavedBrl(goals, usdRate?.rate ?? null);
   const monthlyYield = cdi
     ? goals
         .filter((g) => g.currency === 'BRL')
@@ -144,17 +142,29 @@ export default function CaixinhasPage() {
           )}
           <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
             <div className="tile flex flex-col gap-1 bg-violet-500 p-4 text-white">
-              <span className="eyebrow">Guardado em R$</span>
-              <span className="metric text-2xl">{BRL.format(totalBrl)}</span>
+              <span className="eyebrow">Guardado no total</span>
+              <span className="metric text-2xl">{BRL.format(saved.total)}</span>
+              {saved.usd > 0 && (
+                <span className="text-xs font-semibold opacity-85">
+                  {saved.usdInBrl !== null
+                    ? `${BRL.format(saved.brl)} em real + ${BRL.format(saved.usdInBrl)} do dólar`
+                    : 'Sem a parte em dólar: cotação indisponível'}
+                </span>
+              )}
             </div>
             <div className="tile flex flex-col gap-1 bg-emerald-400 p-4 text-neutral-900">
               <span className="eyebrow">Rende por mês*</span>
               <span className="metric text-2xl">{cdi ? BRL.format(monthlyYield) : '—'}</span>
             </div>
-            {totalUsd > 0 && (
+            {saved.usd > 0 && (
               <div className="tile flex flex-col gap-1 bg-sky-300 p-4 text-neutral-900">
                 <span className="eyebrow">Em dólar</span>
-                <span className="metric text-2xl">{USD.format(totalUsd)}</span>
+                <span className="metric text-2xl">{USD.format(saved.usd)}</span>
+                {usdRate && (
+                  <span className="text-xs font-semibold opacity-80">
+                    ≈ {BRL.format(saved.usdInBrl ?? 0)} · US$ 1 = {BRL.format(usdRate.rate)} ({usdRate.date})
+                  </span>
+                )}
               </div>
             )}
           </section>
