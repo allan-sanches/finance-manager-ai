@@ -7,6 +7,7 @@ import type { SessionChanged } from '@/app/actions/finance';
 import { DEFAULT_DEBT_STATUS, DEFAULT_SETTINGS, todayISO } from '@/lib/finance';
 import type {
   AppSettings,
+  BankAccount,
   Category,
   CreditCard,
   CreditCardInvoice,
@@ -65,6 +66,11 @@ type FinanceState = FinanceSnapshot & {
   ) => void;
   removeCreditCardInvoice: (id: string) => void;
 
+  // Contas
+  addBankAccount: (draft: Omit<BankAccount, 'id'>) => BankAccount;
+  updateBankAccount: (id: string, patch: Partial<Omit<BankAccount, 'id'>>) => void;
+  removeBankAccount: (id: string) => void;
+
   // Savings goals
   addSavingsGoal: (draft: Omit<SavingsGoal, 'id' | 'currentAmount'>) => SavingsGoal;
   /** Em caixinha com prazo de resgate, o depósito também marca a data (hoje) para o resgate provável. */
@@ -91,6 +97,7 @@ const initialState: FinanceSnapshot = {
   transactions: [],
   creditCards: [],
   creditCardInvoices: [],
+  bankAccounts: [],
   savingsGoals: [],
   shoppingItems: [],
   debts: [],
@@ -340,6 +347,25 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       sync((actor) => actions.removeCreditCardInvoice(actor, id));
     },
 
+    addBankAccount: (draft) => {
+      const account: BankAccount = { id: newId(), ...draft, name: draft.name.trim() };
+      set((s) => ({ bankAccounts: [...s.bankAccounts, account] }));
+      sync((actor) => actions.addBankAccount(actor, account));
+      return account;
+    },
+
+    updateBankAccount: (id, patch) => {
+      set((s) => ({
+        bankAccounts: s.bankAccounts.map((a) => (a.id === id ? { ...a, ...patch, id } : a)),
+      }));
+      sync((actor) => actions.updateBankAccount(actor, id, patch));
+    },
+
+    removeBankAccount: (id) => {
+      set((s) => ({ bankAccounts: s.bankAccounts.filter((a) => a.id !== id) }));
+      sync((actor) => actions.removeBankAccount(actor, id));
+    },
+
     addSavingsGoal: (draft) => {
       const goal: SavingsGoal = {
         id: newId(),
@@ -348,10 +374,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         deadline: draft.deadline ?? null,
         institution: draft.institution ?? null,
         cdiPercent: draft.cdiPercent ?? null,
+        annualRate: draft.annualRate ?? null,
         currency: draft.currency,
         lockDays: draft.lockDays ?? null,
         depositDate: draft.depositDate ?? null,
         monthlyContribution: draft.monthlyContribution ?? null,
+        timeDeposits: draft.timeDeposits ?? [],
         currentAmount: 0,
       };
       set((s) => ({ savingsGoals: [...s.savingsGoals, goal] }));

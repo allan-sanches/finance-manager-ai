@@ -123,10 +123,12 @@ describe('caixinhas e listas', () => {
       deadline: '2027-01-01',
       institution: 'Inter',
       cdiPercent: 82,
+      annualRate: null,
       currency: 'BRL' as const,
       lockDays: null,
       depositDate: null,
       monthlyContribution: 150,
+      timeDeposits: [{ id: 'td1', amount: 100, maturityDate: '2026-11-26' }],
     };
     await repo.addSavingsGoal(db, OWNER, viagem);
     await repo.depositToGoal(db, OWNER, 'g1', 200.5);
@@ -296,6 +298,35 @@ describe('categorias', () => {
     snap = await repo.getSnapshot(db, OWNER);
     expect(snap.categories).toEqual([]);
     expect(snap.transactions[0].category).toBe('Pet');
+  });
+});
+
+describe('contas', () => {
+  it('cria na ordem de cadastro, atualiza saldo (inclusive negativo) e apaga', async () => {
+    await repo.addBankAccount(db, OWNER, { id: 'a1', name: 'Inter', balance: 1520.37, balanceDate: '2026-10-30' });
+    await repo.addBankAccount(db, OWNER, { id: 'a2', name: 'Mercado Pago', balance: 80, balanceDate: '2026-10-30' });
+    await repo.updateBankAccount(db, OWNER, 'a1', { balance: -45.5, balanceDate: '2026-10-31' });
+
+    let snap = await repo.getSnapshot(db, OWNER);
+    expect(snap.bankAccounts).toEqual([
+      { id: 'a1', name: 'Inter', balance: -45.5, balanceDate: '2026-10-31' },
+      { id: 'a2', name: 'Mercado Pago', balance: 80, balanceDate: '2026-10-30' },
+    ]);
+
+    await repo.removeBankAccount(db, OWNER, 'a2');
+    snap = await repo.getSnapshot(db, OWNER);
+    expect(snap.bankAccounts.map((a) => a.id)).toEqual(['a1']);
+  });
+
+  it('não mexe na conta de outra pessoa', async () => {
+    await repo.createUser(db, { id: 'u2', email: 'outra@exemplo.com', passwordHash: 'scrypt$x' });
+    await repo.addBankAccount(db, OWNER, { id: 'a1', name: 'Inter', balance: 100, balanceDate: '2026-10-30' });
+
+    await repo.updateBankAccount(db, 'u2', 'a1', { balance: 0 });
+    await repo.removeBankAccount(db, 'u2', 'a1');
+
+    expect((await repo.getSnapshot(db, 'u2')).bankAccounts).toEqual([]);
+    expect((await repo.getSnapshot(db, OWNER)).bankAccounts[0].balance).toBe(100);
   });
 });
 

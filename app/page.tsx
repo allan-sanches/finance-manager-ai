@@ -1,12 +1,13 @@
 'use client';
 
-import { ArrowDownRight, ArrowUpRight, CreditCard, Landmark, PiggyBank } from 'lucide-react';
+import { BellRing, CreditCard, Landmark, PiggyBank } from 'lucide-react';
 import Link from 'next/link';
 
 import { DashboardCharts } from '@/components/DashboardCharts';
 import { DebtsOverview } from '@/components/DebtsOverview';
 import { CategoryAvatar } from '@/components/CategoryAvatar';
 import { ExpandableTile, TileDetails } from '@/components/ExpandableTile';
+import { MonthBalanceTile } from '@/components/MonthBalanceTile';
 import { SectionTitle } from '@/components/ui';
 import {
   APP_TIME_ZONE,
@@ -20,8 +21,9 @@ import {
   shortDate,
   summarizeDebts,
   summarizeMonth,
+  todayISO,
 } from '@/lib/finance';
-import { USD } from '@/lib/savings';
+import { maturityAlerts, maturityLabel, USD } from '@/lib/savings';
 import { useFinanceStore } from '@/lib/store';
 import { useHydrated } from '@/lib/useHydratedStore';
 
@@ -55,6 +57,7 @@ export default function DashboardPage() {
   const savedUsd = savingsGoals
     .filter((g) => g.currency === 'USD')
     .reduce((sum, g) => sum + g.currentAmount, 0);
+  const maturing = maturityAlerts(savingsGoals, todayISO());
   const dashboardDebts = debtsOnDashboard(debts, settings);
   const debtSummary = summarizeDebts(dashboardDebts);
   const counts = {
@@ -76,23 +79,34 @@ export default function DashboardPage() {
         </h1>
       </header>
 
-      {/* Saldo do mês: o bloco principal muda de cor com o sinal. */}
-      <section
-        className={`tile flex flex-col gap-4 p-5 sm:p-6 ${
-          month.balance >= 0 ? 'bg-lime-300 text-neutral-900' : 'bg-red-500 text-white'
-        }`}
-      >
-        <div className="eyebrow">Saldo do mês</div>
-        <div className="metric text-5xl sm:text-6xl">{money(month.balance)}</div>
-        <div className="flex flex-wrap gap-2">
-          <span className="sticker bg-white">
-            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden /> Entradas {money(month.income)}
+      {hydrated && maturing.length > 0 && (
+        <Link
+          href="/caixinhas"
+          role="alert"
+          className="rounded-box flex min-h-11 items-center gap-3 bg-amber-300 p-4 text-neutral-900"
+        >
+          <BellRing className="h-5 w-5 shrink-0" aria-hidden />
+          <span className="text-sm">
+            <strong>
+              {maturing.length === 1
+                ? '1 aplicação vencendo'
+                : `${maturing.length} aplicações vencendo`}
+            </strong>
+            {' · '}
+            {(maturing[0].goal.currency === 'USD' ? USD : BRL).format(maturing[0].deposit.amount)} em{' '}
+            {maturing[0].goal.name}:{' '}
+            {maturityLabel(maturing[0].daysLeft, maturing[0].deposit.maturityDate).toLowerCase()}
           </span>
-          <span className="sticker bg-white">
-            <ArrowDownRight className="h-3.5 w-3.5" aria-hidden /> Saídas {money(month.expense)}
-          </span>
-        </div>
-      </section>
+        </Link>
+      )}
+
+      {/* Saldo do mês: o bloco principal muda de cor com o sinal e abre o saldo de cada conta. */}
+      <MonthBalanceTile
+        balance={month.balance}
+        income={month.income}
+        expense={month.expense}
+        money={money}
+      />
 
       <section className="grid grid-flow-row-dense grid-cols-2 items-start gap-3 lg:grid-cols-4">
         <ExpandableTile

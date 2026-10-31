@@ -1,6 +1,16 @@
 'use client';
 
-import { CalendarClock, Pencil, PiggyBank, Plus, Target, Trash2, TrendingUp } from 'lucide-react';
+import {
+  BellRing,
+  CalendarClock,
+  Lock,
+  Pencil,
+  PiggyBank,
+  Plus,
+  Target,
+  Trash2,
+  TrendingUp,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { MoneyInput } from '@/components/MoneyInput';
@@ -12,6 +22,9 @@ import {
   daysBetween,
   estimatedMonthlyYield,
   goalRateAt,
+  MATURITY_WARNING_DAYS,
+  maturityAlerts,
+  maturityLabel,
   projectGoal,
   redemptionDate,
   USD,
@@ -52,8 +65,11 @@ export default function CaixinhasPage() {
     .filter((g) => g.currency === 'USD')
     .reduce((s, g) => s + g.currentAmount, 0);
   const monthlyYield = cdi
-    ? goals.reduce((s, g) => s + (estimatedMonthlyYield(g, cdi.annualRate) ?? 0), 0)
+    ? goals
+        .filter((g) => g.currency === 'BRL')
+        .reduce((s, g) => s + (estimatedMonthlyYield(g, cdi.annualRate) ?? 0), 0)
     : 0;
+  const alerts = maturityAlerts(goals, todayISO());
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col">
@@ -82,6 +98,34 @@ export default function CaixinhasPage() {
         </EmptyState>
       ) : (
         <div className="flex flex-col gap-6">
+          {alerts.length > 0 && (
+            <section
+              role="alert"
+              className="rounded-box flex flex-col gap-2 bg-amber-300 p-4 text-neutral-900"
+            >
+              <h2 className="flex items-center gap-2 font-extrabold">
+                <BellRing className="h-5 w-5" aria-hidden />
+                {alerts.length === 1 ? 'Aplicação vencendo' : 'Aplicações vencendo'}
+              </h2>
+              <ul className="flex flex-col gap-1 text-sm">
+                {alerts.map(({ goal, deposit, daysLeft }) => (
+                  <li key={deposit.id} className="flex flex-wrap justify-between gap-x-3">
+                    <span>
+                      <strong>{(goal.currency === 'USD' ? USD : BRL).format(deposit.amount)}</strong>{' '}
+                      em {goal.name}
+                    </span>
+                    <span className="font-semibold">
+                      {maturityLabel(daysLeft, deposit.maturityDate)}
+                      {daysLeft >= 0 && ` (${formatDay(deposit.maturityDate)})`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs">
+                Depois de resgatar ou reaplicar, atualize a aplicação em Editar na caixinha.
+              </p>
+            </section>
+          )}
           <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
             <div className="tile flex flex-col gap-1 bg-violet-500 p-4 text-white">
               <span className="eyebrow">Guardado em R$</span>
@@ -103,7 +147,8 @@ export default function CaixinhasPage() {
             {cdi
               ? `${cdi.annualRate.toLocaleString('pt-BR')}% a.a. (Banco Central, ${cdi.date})`
               : '…'}
-            , para as caixinhas com % do CDI preenchido.{' '}
+            , para as caixinhas em real com % do CDI preenchido (as em dólar usam a taxa fixa ao
+            ano e ficam fora da tabela de IR).{' '}
             {cdi && cdi.selicOutlook.length > 0
               ? `Projeções seguem a Selic esperada pelo mercado (Focus de ${cdi.outlookDate?.split('-').reverse().join('/')}: ${cdi.selicOutlook
                   .slice(0, 3)
@@ -179,6 +224,11 @@ function GoalCard({
   const yieldPerMonth = cdi ? estimatedMonthlyYield(goal, cdi.annualRate) : null;
   const redemption = redemptionDate(goal);
   const daysLeft = redemption ? daysBetween(todayISO(), redemption) : null;
+  const deposits = (goal.timeDeposits ?? []).map((deposit) => ({
+    deposit,
+    daysLeft: daysBetween(todayISO(), deposit.maturityDate),
+  }));
+  const free = goal.currentAmount - deposits.reduce((s, d) => s + d.deposit.amount, 0);
   const projection = useMemo(() => {
     if (done) return null;
     const today = todayISO();
@@ -227,13 +277,20 @@ function GoalCard({
       </div>
 
       <div className="flex flex-col gap-2 p-4">
-        {(goal.cdiPercent || redemption || goal.currency === 'USD') && (
+        {Boolean(goal.cdiPercent || goal.annualRate || redemption || goal.lockDays) && (
           <div className="flex flex-wrap gap-2 text-sm">
             {goal.currency === 'BRL' && goal.cdiPercent != null && (
               <span className="badge badge-lg bg-base-200 gap-1 border-0 font-semibold">
                 <TrendingUp className="h-4 w-4" aria-hidden />
                 {goal.cdiPercent.toLocaleString('pt-BR')}% do CDI
                 {yieldPerMonth != null && ` · ~${BRL.format(yieldPerMonth)}/mês`}
+              </span>
+            )}
+            {goal.currency === 'USD' && goal.annualRate != null && (
+              <span className="badge badge-lg bg-base-200 gap-1 border-0 font-semibold">
+                <TrendingUp className="h-4 w-4" aria-hidden />
+                {goal.annualRate.toLocaleString('pt-BR')}% a.a.
+                {yieldPerMonth != null && ` · ~${USD.format(yieldPerMonth)}/mês`}
               </span>
             )}
             {redemption && daysLeft !== null && (
@@ -251,6 +308,39 @@ function GoalCard({
             {goal.lockDays && !goal.depositDate && (
               <span className="badge badge-lg bg-base-200 border-0">
                 Prazo de {goal.lockDays} dias · informe a data do depósito
+              </span>
+            )}
+          </div>
+        )}
+        {deposits.length > 0 && (
+          <div className="rounded-box bg-base-200 flex flex-col gap-1.5 p-3 text-sm">
+            <span className="flex items-center gap-1 font-semibold">
+              <Lock className="h-4 w-4" aria-hidden />
+              Aplicado com vencimento
+            </span>
+            <ul className="flex flex-col gap-1">
+              {deposits.map(({ deposit, daysLeft }) => (
+                <li key={deposit.id} className="flex items-center justify-between gap-2">
+                  <span className="metric">{money.format(deposit.amount)}</span>
+                  <span
+                    className={`badge border-0 font-semibold ${
+                      daysLeft <= 0
+                        ? 'bg-emerald-300 text-neutral-900'
+                        : daysLeft <= MATURITY_WARNING_DAYS
+                          ? 'bg-amber-300 text-neutral-900'
+                          : 'bg-base-100'
+                    }`}
+                  >
+                    {daysLeft <= 0
+                      ? maturityLabel(daysLeft, deposit.maturityDate)
+                      : `${formatDay(deposit.maturityDate)} · ${maturityLabel(daysLeft, deposit.maturityDate).toLowerCase()}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {free > 0.005 && (
+              <span className="text-base-content/70 text-xs">
+                {money.format(free)} livre, sem vencimento
               </span>
             )}
           </div>

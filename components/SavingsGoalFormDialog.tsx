@@ -1,16 +1,19 @@
 'use client';
 
+import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { MoneyInput } from '@/components/MoneyInput';
 import { BRL, todayISO } from '@/lib/finance';
 import { parseAmount } from '@/lib/import/statement';
-import { toMoneyInput } from '@/lib/money-mask';
+import { parseMoneyInput, toMoneyInput } from '@/lib/money-mask';
 import { goalRateAt, monthlyRateFromCdi, projectGoal, SAVINGS_BANKS, USD } from '@/lib/savings';
 import { useFinanceStore } from '@/lib/store';
 import { useOpenedWith } from '@/lib/useMounted';
 import { useCdi } from '@/lib/useCdi';
-import type { Currency, SavingsGoal } from '@/types/finance';
+import type { Currency, SavingsGoal, TimeDeposit } from '@/types/finance';
+
+type DepositDraft = { id: string; amount: string; maturityDate: string };
 
 type Props = {
   open: boolean;
@@ -31,6 +34,8 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
   const [institution, setInstitution] = useState('');
   const [currency, setCurrency] = useState<Currency>('BRL');
   const [cdiPercent, setCdiPercent] = useState('');
+  const [annualRate, setAnnualRate] = useState('');
+  const [deposits, setDeposits] = useState<DepositDraft[]>([]);
   const [lockDays, setLockDays] = useState('');
   const [depositDate, setDepositDate] = useState('');
   const [contribution, setContribution] = useState('');
@@ -52,6 +57,16 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
     setInstitution(initial?.institution ?? '');
     setCurrency(initial?.currency ?? 'BRL');
     setCdiPercent(initial?.cdiPercent != null ? String(initial.cdiPercent) : '');
+    setAnnualRate(
+      initial?.annualRate != null ? initial.annualRate.toLocaleString('pt-BR') : '',
+    );
+    setDeposits(
+      (initial?.timeDeposits ?? []).map((d) => ({
+        id: d.id,
+        amount: toMoneyInput(d.amount),
+        maturityDate: d.maturityDate,
+      })),
+    );
     setLockDays(initial?.lockDays != null ? String(initial.lockDays) : '');
     setDepositDate(initial?.depositDate ?? '');
     setContribution(toMoneyInput(initial?.monthlyContribution));
@@ -66,6 +81,16 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
       return setError('Valor da meta deve ser maior que zero.');
     const cdi = cdiPercent.trim() ? parseAmount(cdiPercent) : null;
     if (cdi !== null && (cdi < 0 || cdi > 1000)) return setError('% do CDI inválido.');
+    const rate = annualRate.trim() ? parseAmount(annualRate) : null;
+    if (rate !== null && (rate < 0 || rate > 100)) return setError('Rendimento ao ano inválido.');
+    const timeDeposits: TimeDeposit[] = [];
+    for (const d of deposits) {
+      if (!d.amount.trim() && !d.maturityDate) continue; // linha em branco
+      const amount = parseMoneyInput(d.amount);
+      if (amount === null || amount <= 0) return setError('Informe o valor de cada aplicação.');
+      if (!d.maturityDate) return setError('Informe o vencimento de cada aplicação.');
+      timeDeposits.push({ id: d.id, amount, maturityDate: d.maturityDate });
+    }
     const lock = lockDays.trim() ? Number(lockDays) : null;
     if (lock !== null && (!Number.isInteger(lock) || lock < 1))
       return setError('Prazo de resgate inválido.');
@@ -78,8 +103,10 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
       deadline: deadline || null,
       institution: institution.trim() || null,
       currency,
-      // Dólar não rende CDI: o campo some e é limpo.
+      // Real rende % do CDI; dólar, uma taxa fixa ao ano. O campo da outra moeda some e é limpo.
       cdiPercent: currency === 'BRL' ? cdi : null,
+      annualRate: currency === 'USD' ? rate : null,
+      timeDeposits: timeDeposits.sort((a, b) => a.maturityDate.localeCompare(b.maturityDate)),
       lockDays: lock,
       depositDate: lock ? depositDate || null : null,
       monthlyContribution: monthly || null,
@@ -103,6 +130,7 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
       currentAmount: initial?.currentAmount ?? 0,
       currency,
       cdiPercent: cdiNum,
+      annualRate: currency === 'USD' && annualRate.trim() ? parseAmount(annualRate) : null,
       deadline: deadline || null,
       monthlyContribution: contribution.trim() ? parseAmount(contribution) : null,
     };
@@ -207,7 +235,68 @@ export function SavingsGoalFormDialog({ open, onClose, initial }: Props) {
                 />
               </label>
             )}
+            {currency === 'USD' && (
+              <label className="form-control">
+                <span className="label-text">Rende (% ao ano)</span>
+                <input
+                  className="input input-bordered w-full"
+                  inputMode="decimal"
+                  value={annualRate}
+                  onChange={(e) => setAnnualRate(e.target.value)}
+                  placeholder="Ex: 3,7"
+                />
+              </label>
+            )}
           </div>
+
+          <fieldset className="grid gap-2">
+            <legend className="label-text mb-1">Aplicações com vencimento</legend>
+            <p className="text-base-content/60 -mt-1 text-xs">
+              Partes do saldo travadas até uma data (ex.: porquinhos em time deposit). O app avisa
+              quando cada uma estiver para vencer.
+            </p>
+            {deposits.map((d, i) => (
+              <div key={d.id} className="grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+                <MoneyInput
+                  currency={currency}
+                  aria-label={`Valor da aplicação ${i + 1}`}
+                  placeholder="Valor"
+                  value={d.amount}
+                  onChange={(amount) =>
+                    setDeposits((all) => all.map((x) => (x.id === d.id ? { ...x, amount } : x)))
+                  }
+                />
+                <input
+                  type="date"
+                  className="input input-bordered w-full"
+                  aria-label={`Vencimento da aplicação ${i + 1}`}
+                  value={d.maturityDate}
+                  onChange={(e) =>
+                    setDeposits((all) =>
+                      all.map((x) => (x.id === d.id ? { ...x, maturityDate: e.target.value } : x)),
+                    )
+                  }
+                />
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-square text-error"
+                  aria-label={`Remover aplicação ${i + 1}`}
+                  onClick={() => setDeposits((all) => all.filter((x) => x.id !== d.id))}
+                >
+                  <Trash2 className="h-5 w-5" aria-hidden />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn-ghost bg-base-200 justify-self-start"
+              onClick={() =>
+                setDeposits((all) => [...all, { id: crypto.randomUUID(), amount: '', maturityDate: '' }])
+              }
+            >
+              <Plus className="h-4 w-4" aria-hidden /> Adicionar aplicação
+            </button>
+          </fieldset>
 
           <fieldset className="grid gap-2">
             <legend className="label-text mb-1">Prazo de resgate</legend>

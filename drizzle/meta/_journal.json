@@ -71,6 +71,20 @@
       "when": 1793447467129,
       "tag": "0009_drop_account",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793454380788,
+      "tag": "0010_savings_goal_rate_time_deposits",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793455593879,
+      "tag": "0011_bank_accounts",
+      "breakpoints": true
     }
   ]
 }

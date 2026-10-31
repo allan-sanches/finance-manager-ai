@@ -6,6 +6,8 @@ import * as repo from '@/lib/db/repository';
 import { CATEGORIES } from '@/lib/finance';
 import {
   amountSchema,
+  bankAccountPatchSchema,
+  bankAccountSchema,
   categorySchema,
   creditCardInvoicePatchSchema,
   creditCardInvoiceSchema,
@@ -152,6 +154,22 @@ export async function updateCreditCardInvoice(actor: unknown, id: unknown, patch
 export async function removeCreditCardInvoice(actor: unknown, id: unknown) {
   const invoiceId = idSchema.parse(id);
   return run(actor, (db, userId) => repo.removeCreditCardInvoice(db, userId, invoiceId));
+}
+
+export async function addBankAccount(actor: unknown, input: unknown) {
+  const data = bankAccountSchema.parse(input);
+  return run(actor, (db, userId) => repo.addBankAccount(db, userId, data));
+}
+
+export async function updateBankAccount(actor: unknown, id: unknown, patch: unknown) {
+  const accountId = idSchema.parse(id);
+  const data = bankAccountPatchSchema.parse(patch);
+  return run(actor, (db, userId) => repo.updateBankAccount(db, userId, accountId, data));
+}
+
+export async function removeBankAccount(actor: unknown, id: unknown) {
+  const accountId = idSchema.parse(id);
+  return run(actor, (db, userId) => repo.removeBankAccount(db, userId, accountId));
 }
 
 export async function addSavingsGoal(actor: unknown, input: unknown) {

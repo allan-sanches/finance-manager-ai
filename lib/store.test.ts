@@ -8,6 +8,7 @@ const snapshot = (): FinanceSnapshot => ({
   transactions: [],
   creditCards: [],
   creditCardInvoices: [],
+  bankAccounts: [],
   savingsGoals: [],
   shoppingItems: [],
   debts: [],

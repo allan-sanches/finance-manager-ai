@@ -19,6 +19,7 @@ import type {
   DebtStatus,
   ListType,
   PaymentMethod,
+  TimeDeposit,
   TransactionType,
 } from '@/types/finance';
 
@@ -74,6 +75,16 @@ export const creditCardInvoices = pgTable('credit_card_invoices', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('credit_card_invoices_user_id_idx').on(t.userId)]);
 
+// Saldo informado à mão pelo usuário (não é calculado a partir das transações).
+export const bankAccounts = pgTable('bank_accounts', {
+  id: text('id').primaryKey(),
+  userId: userId(),
+  name: text('name').notNull(),
+  balance: money('balance').notNull().default(0),
+  balanceDate: date('balance_date', { mode: 'string' }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('bank_accounts_user_id_idx').on(t.userId)]);
+
 export const transactions = pgTable('transactions', {
   id: text('id').primaryKey(),
   userId: userId(),
@@ -98,6 +109,10 @@ export const savingsGoals = pgTable('savings_goals', {
   deadline: date('deadline', { mode: 'string' }),
   institution: text('institution'),
   cdiPercent: numeric('cdi_percent', { precision: 6, scale: 2, mode: 'number' }),
+  annualRate: numeric('annual_rate', { precision: 6, scale: 2, mode: 'number' }),
+  // Aplicações com vencimento dentro da caixinha (ex.: porquinhos de time deposit). Fazem parte
+  // do currentAmount; servem só para avisar quando cada uma vence.
+  timeDeposits: jsonb('time_deposits').$type<TimeDeposit[]>().notNull().default([]),
   currency: text('currency').$type<Currency>().notNull().default('BRL'),
   lockDays: integer('lock_days'),
   depositDate: date('deposit_date', { mode: 'string' }),

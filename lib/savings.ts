@@ -1,4 +1,4 @@
-import type { SavingsGoal } from '@/types/finance';
+import type { SavingsGoal, TimeDeposit } from '@/types/finance';
 
 export const USD = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'USD' });
 
@@ -14,12 +14,22 @@ export function monthlyRateFromCdi(cdiPercent: number, cdiAnnualPercent: number)
   return monthlyCdi * (cdiPercent / 100);
 }
 
+/** Taxa mensal (fração) equivalente a uma taxa fixa de `annualPercent`% a.a. */
+export function monthlyRateFromAnnual(annualPercent: number): number {
+  return Math.pow(1 + annualPercent / 100, 1 / 12) - 1;
+}
+
 /**
- * Rendimento bruto estimado em 1 mês: CDI anual convertido para mensal, vezes o % do CDI.
+ * Rendimento bruto estimado em 1 mês, na moeda da caixinha: em real, CDI anual convertido para
+ * mensal vezes o % do CDI; em dólar, a taxa fixa ao ano convertida para mensal.
  * Estimativa (sem IR/IOF, CDI constante) — serve para comparar caixinhas, não para extrato.
  */
 export function estimatedMonthlyYield(goal: SavingsGoal, cdiAnnualPercent: number): number | null {
-  if (goal.currency !== 'BRL' || !goal.cdiPercent || goal.currentAmount <= 0) return null;
+  if (goal.currentAmount <= 0) return null;
+  if (goal.currency === 'USD') {
+    return goal.annualRate ? goal.currentAmount * monthlyRateFromAnnual(goal.annualRate) : null;
+  }
+  if (!goal.cdiPercent) return null;
   return goal.currentAmount * monthlyRateFromCdi(goal.cdiPercent, cdiAnnualPercent);
 }
 
@@ -58,16 +68,20 @@ export function expectedCdi(
 export type MonthlyRateAt = (month: number) => number;
 
 /**
- * Taxa mês a mês da caixinha: 0 para dólar ou sem % do CDI (só os aportes contam);
- * null se ela rende CDI mas o CDI ainda não chegou do Banco Central.
+ * Taxa mês a mês da caixinha: a taxa fixa ao ano no dólar; 0 sem rendimento informado (só os
+ * aportes contam); null se ela rende CDI mas o CDI ainda não chegou do Banco Central.
  */
 export function goalRateAt(
-  goal: Pick<SavingsGoal, 'currency' | 'cdiPercent'>,
+  goal: Pick<SavingsGoal, 'currency' | 'cdiPercent' | 'annualRate'>,
   cdi: { annualRate: number; selicOutlook: SelicOutlook } | null,
   today: string,
 ): MonthlyRateAt | null {
+  if (goal.currency === 'USD') {
+    const rate = goal.annualRate ? monthlyRateFromAnnual(goal.annualRate) : 0;
+    return () => rate;
+  }
   const cdiPercent = goal.cdiPercent;
-  if (goal.currency !== 'BRL' || !cdiPercent) return () => 0;
+  if (!cdiPercent) return () => 0;
   if (!cdi) return null;
   const cache = new Map<number, number>();
   return (month) => {
@@ -112,6 +126,7 @@ type Lot = { principal: number; value: number; month: number };
 /**
  * Simula mês a mês: cada aplicação (o saldo de hoje e cada aporte, no fim do mês) rende a taxa
  * do mês e paga IR pela própria idade. O saldo de hoje conta como aplicado hoje — conservador.
+ * Sem `taxed` (caixinha em dólar, fora da tabela regressiva), o líquido é o bruto.
  */
 class Simulation {
   private lots: Lot[];
@@ -121,6 +136,7 @@ class Simulation {
     initial: number,
     private readonly contribution: number,
     private readonly rateAt: MonthlyRateAt,
+    private readonly taxed: boolean,
   ) {
     this.lots = initial > 0 ? [{ principal: initial, value: initial, month: 0 }] : [];
   }
@@ -139,14 +155,14 @@ class Simulation {
     let tax = 0;
     for (const lot of this.lots) {
       gross += lot.value;
-      tax += Math.max(0, lot.value - lot.principal) * incomeTaxRate(this.month - lot.month);
+      if (this.taxed) tax += Math.max(0, lot.value - lot.principal) * incomeTaxRate(this.month - lot.month);
     }
     return { gross, tax, net: gross - tax };
   }
 }
 
-function netAt(pv: number, pmt: number, rateAt: MonthlyRateAt, months: number) {
-  const sim = new Simulation(pv, pmt, rateAt);
+function netAt(pv: number, pmt: number, rateAt: MonthlyRateAt, months: number, taxed: boolean) {
+  const sim = new Simulation(pv, pmt, rateAt, taxed);
   while (sim.month < months) sim.step();
   return sim.totals();
 }
@@ -159,30 +175,31 @@ export function projectGoal(goal: SavingsGoal, rateAt: MonthlyRateAt, today: str
   const pv = goal.currentAmount;
   const pmt = goal.monthlyContribution ?? 0;
   const target = goal.targetAmount;
+  const taxed = goal.currency === 'BRL';
 
   let atDeadline: GoalProjection['atDeadline'] = null;
   const months = goal.deadline ? monthsBetween(today, goal.deadline) : 0;
   if (months > 0) {
-    const { net, tax } = netAt(pv, pmt, rateAt, months);
+    const { net, tax } = netAt(pv, pmt, rateAt, months, taxed);
     let requiredContribution = 0;
-    if (netAt(pv, 0, rateAt, months).net < target) {
+    if (netAt(pv, 0, rateAt, months, taxed).net < target) {
       // O líquido cresce com o aporte: busca binária até o centavo.
       let lo = 0;
       let hi = target;
       while (hi - lo > 0.005) {
         const mid = (lo + hi) / 2;
-        if (netAt(pv, mid, rateAt, months).net >= target) hi = mid;
+        if (netAt(pv, mid, rateAt, months, taxed).net >= target) hi = mid;
         else lo = mid;
       }
       requiredContribution = Math.round(hi * 100) / 100;
-      if (netAt(pv, requiredContribution, rateAt, months).net < target) requiredContribution += 0.01;
+      if (netAt(pv, requiredContribution, rateAt, months, taxed).net < target) requiredContribution += 0.01;
     }
     atDeadline = { months, amount: net, yieldAmount: net - pv - pmt * months, taxAmount: tax, requiredContribution };
   }
 
   let reachDate: string | null = null;
   if (pv < target && (pmt > 0 || (pv > 0 && rateAt(1) > 0))) {
-    const sim = new Simulation(pv, pmt, rateAt);
+    const sim = new Simulation(pv, pmt, rateAt, taxed);
     while (sim.month < MAX_MONTHS) {
       sim.step();
       if (sim.totals().net >= target) {
@@ -217,6 +234,40 @@ export function redemptionDate(goal: SavingsGoal): string | null {
   const date = new Date(`${goal.depositDate}T00:00:00Z`);
   date.setUTCDate(date.getUTCDate() + goal.lockDays);
   return date.toISOString().slice(0, 10);
+}
+
+/** Avisar do vencimento de uma aplicação a partir de quantos dias antes. */
+export const MATURITY_WARNING_DAYS = 7;
+
+export type MaturityAlert = {
+  goal: SavingsGoal;
+  deposit: TimeDeposit;
+  daysLeft: number; // 0 = vence hoje; negativo = já venceu
+};
+
+/**
+ * Aplicações que vencem nos próximos MATURITY_WARNING_DAYS dias ou já venceram (e ainda estão
+ * cadastradas, ou seja, não foram resgatadas nem reaplicadas), da mais urgente para a menos.
+ */
+export function maturityAlerts(goals: SavingsGoal[], today: string): MaturityAlert[] {
+  return goals
+    .flatMap((goal) =>
+      (goal.timeDeposits ?? []).map((deposit) => ({
+        goal,
+        deposit,
+        daysLeft: daysBetween(today, deposit.maturityDate),
+      })),
+    )
+    .filter((a) => a.daysLeft <= MATURITY_WARNING_DAYS)
+    .sort((a, b) => a.daysLeft - b.daysLeft);
+}
+
+/** Texto curto do vencimento: "Venceu em 31/10/2026", "Vence hoje", "Vence amanhã", "Vence em 26 dias". */
+export function maturityLabel(daysLeft: number, maturityDate: string): string {
+  if (daysLeft < 0) return `Venceu em ${maturityDate.split('-').reverse().join('/')}`;
+  if (daysLeft === 0) return 'Vence hoje';
+  if (daysLeft === 1) return 'Vence amanhã';
+  return `Vence em ${daysLeft} dias`;
 }
 
 /** Dias corridos de `fromISO` até `toISO` (negativo se já passou). */

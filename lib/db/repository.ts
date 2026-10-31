@@ -7,6 +7,7 @@ import type { SnapshotInput } from '@/lib/finance-schemas';
 import { normalizeCategoryName } from '@/lib/tones';
 import type {
   AppSettings,
+  BankAccount,
   Category,
   CreditCard,
   CreditCardInvoice,
@@ -22,7 +23,18 @@ import type {
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 type Executor = Pick<Db, 'select' | 'insert' | 'update' | 'delete'>;
 
-const { categories, creditCardInvoices, creditCards, debts, savingsGoals, settings, shoppingItems, transactions, users } = schema;
+const {
+  bankAccounts,
+  categories,
+  creditCardInvoices,
+  creditCards,
+  debts,
+  savingsGoals,
+  settings,
+  shoppingItems,
+  transactions,
+  users,
+} = schema;
 
 // Toda função de dados recebe o userId da sessão e só enxerga as linhas dele. Os IDs são únicos no
 // banco inteiro, então filtrar só pelo id deixaria uma pessoa mexer no dado da outra.
@@ -33,6 +45,8 @@ const ownCard = (userId: string, id: string) =>
   and(eq(creditCards.userId, userId), eq(creditCards.id, id));
 const ownInvoice = (userId: string, id: string) =>
   and(eq(creditCardInvoices.userId, userId), eq(creditCardInvoices.id, id));
+const ownAccount = (userId: string, id: string) =>
+  and(eq(bankAccounts.userId, userId), eq(bankAccounts.id, id));
 const ownGoal = (userId: string, id: string) =>
   and(eq(savingsGoals.userId, userId), eq(savingsGoals.id, id));
 const ownItem = (userId: string, id: string) =>
@@ -48,7 +62,7 @@ async function readSettings(db: Pick<Db, 'select'>, userId: string): Promise<App
 }
 
 export async function getSnapshot(db: Db, userId: string): Promise<FinanceSnapshot> {
-  const [txRows, cardRows, invoiceRows, goalRows, itemRows, debtRows, categoryRows, appSettings] = await Promise.all([
+  const [txRows, cardRows, invoiceRows, accountRows, goalRows, itemRows, debtRows, categoryRows, appSettings] = await Promise.all([
     db
       .select()
       .from(transactions)
@@ -64,6 +78,11 @@ export async function getSnapshot(db: Db, userId: string): Promise<FinanceSnapsh
       .from(creditCardInvoices)
       .where(eq(creditCardInvoices.userId, userId))
       .orderBy(desc(creditCardInvoices.closingDate), desc(creditCardInvoices.id)),
+    db
+      .select()
+      .from(bankAccounts)
+      .where(eq(bankAccounts.userId, userId))
+      .orderBy(asc(bankAccounts.createdAt), asc(bankAccounts.id)),
     db
       .select()
       .from(savingsGoals)
@@ -93,6 +112,7 @@ export async function getSnapshot(db: Db, userId: string): Promise<FinanceSnapsh
     ),
     creditCards: cardRows.map(({ createdAt: _, userId: __, ...c }): CreditCard => c),
     creditCardInvoices: invoiceRows.map(({ createdAt: _, userId: __, ...i }): CreditCardInvoice => i),
+    bankAccounts: accountRows.map(({ createdAt: _, userId: __, ...a }): BankAccount => a),
     savingsGoals: goalRows.map(({ createdAt: _, userId: __, ...g }): SavingsGoal => g),
     shoppingItems: itemRows.map(
       ({ createdAt: _, userId: __, priority, ...i }): ShoppingItem => ({
@@ -298,6 +318,26 @@ export async function removeCreditCardInvoice(db: Db, userId: string, id: string
     const [prev] = await tx.delete(creditCardInvoices).where(ownInvoice(userId, id)).returning();
     if (prev) await adjustInvoice(tx, userId, prev.creditCardId, paidContribution(prev));
   });
+}
+
+// ---------- Contas ----------
+
+export async function addBankAccount(db: Db, userId: string, input: BankAccount): Promise<void> {
+  await db.insert(bankAccounts).values({ ...input, userId });
+}
+
+export async function updateBankAccount(
+  db: Db,
+  userId: string,
+  id: string,
+  patch: Partial<Omit<BankAccount, 'id'>>,
+): Promise<void> {
+  if (Object.keys(patch).length === 0) return;
+  await db.update(bankAccounts).set(patch).where(ownAccount(userId, id));
+}
+
+export async function removeBankAccount(db: Db, userId: string, id: string): Promise<void> {
+  await db.delete(bankAccounts).where(ownAccount(userId, id));
 }
 
 // ---------- Caixinhas ----------

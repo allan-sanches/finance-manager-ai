@@ -7,6 +7,9 @@ import {
   expectedCdi,
   goalRateAt,
   incomeTaxRate,
+  maturityAlerts,
+  maturityLabel,
+  monthlyRateFromAnnual,
   monthsBetween,
   projectGoal,
   redemptionDate,
@@ -174,4 +177,50 @@ it('monthsBetween conta meses completos', () => {
 it('addMonths ajusta o fim do mês', () => {
   expect(addMonths('2026-01-31', 1)).toBe('2026-02-28');
   expect(addMonths('2026-10-29', 3)).toBe('2027-01-29');
+});
+
+describe('caixinha em dólar com taxa fixa', () => {
+  const usd = (overrides: Partial<SavingsGoal> = {}) =>
+    goal({ currency: 'USD', cdiPercent: null, annualRate: 3.7, currentAmount: 1000, targetAmount: 2000, ...overrides });
+
+  it('converte a taxa anual em mensal, ignorando o CDI', () => {
+    // 3,7% a.a. → ~0,3032% a.m.
+    expect(monthlyRateFromAnnual(3.7)).toBeCloseTo(0.003032, 6);
+    expect(estimatedMonthlyYield(usd(), 12)).toBeCloseTo(3.03, 2);
+    expect(goalRateAt(usd(), null, '2026-10-31')!(1)).toBeCloseTo(0.003032, 6);
+  });
+
+  it('projeção não desconta IR', () => {
+    const p = projectGoal(usd({ deadline: '2027-10-31' }), goalRateAt(usd(), null, '2026-10-31')!, '2026-10-31');
+    expect(p.atDeadline!.taxAmount).toBe(0);
+    expect(p.atDeadline!.amount).toBeCloseTo(1037, 0);
+  });
+});
+
+describe('maturityAlerts', () => {
+  const g = goal({
+    currency: 'USD',
+    timeDeposits: [
+      { id: 'a', amount: 75.05, maturityDate: '2026-11-26' },
+      { id: 'b', amount: 56.78, maturityDate: '2026-10-31' },
+      { id: 'c', amount: 38.43, maturityDate: '2026-11-05' },
+      { id: 'd', amount: 10, maturityDate: '2026-10-20' },
+    ],
+  });
+
+  it('avisa o que vence em até 7 dias ou já venceu, do mais urgente ao menos', () => {
+    const alerts = maturityAlerts([g, goal()], '2026-10-31');
+    expect(alerts.map((a) => [a.deposit.id, a.daysLeft])).toEqual([
+      ['d', -11],
+      ['b', 0],
+      ['c', 5],
+    ]);
+  });
+
+  it('maturityLabel', () => {
+    expect(maturityLabel(-1, '2026-10-30')).toBe('Venceu em 30/10/2026');
+    expect(maturityLabel(0, '2026-10-31')).toBe('Vence hoje');
+    expect(maturityLabel(1, '2026-11-01')).toBe('Vence amanhã');
+    expect(maturityLabel(26, '2026-11-26')).toBe('Vence em 26 dias');
+  });
 });

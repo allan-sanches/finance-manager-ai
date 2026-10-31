@@ -46,6 +46,17 @@ export type CreditCardInvoice = {
   paymentDate?: string | null; // ISO YYYY-MM-DD; vazia = em aberto
 };
 
+/**
+ * Conta corrente/carteira (Inter, Mercado Pago…). O saldo é o que o usuário informa olhando o app
+ * do banco; balanceDate diz quando foi a última atualização.
+ */
+export type BankAccount = {
+  id: string;
+  name: string;
+  balance: number;
+  balanceDate: string; // ISO YYYY-MM-DD
+};
+
 export type Currency = 'BRL' | 'USD';
 
 export type SavingsGoal = {
@@ -56,10 +67,18 @@ export type SavingsGoal = {
   deadline?: string | null;
   institution?: string | null; // Ex: Inter, Mercado Pago
   cdiPercent?: number | null; // Rendimento em % do CDI, ex: 82, 120
+  annualRate?: number | null; // Rendimento fixo em % a.a. das caixinhas em dólar, ex: 3.7
   currency: Currency;
   lockDays?: number | null; // Prazo de resgate (ex: 7, 30, 90 dias no porquinho em dólar)
   depositDate?: string | null; // Último depósito, para calcular o resgate provável
   monthlyContribution?: number | null; // Aporte planejado por mês, para projetar quando a meta é batida
+  timeDeposits?: TimeDeposit[]; // Parte do saldo aplicada com vencimento (ex.: porquinhos em time deposit)
+};
+
+export type TimeDeposit = {
+  id: string;
+  amount: number; // na moeda da caixinha
+  maturityDate: string; // ISO YYYY-MM-DD
 };
 
 export type ListType = 'household' | 'wishlist';
@@ -127,6 +146,7 @@ export type FinanceSnapshot = {
   transactions: Transaction[];
   creditCards: CreditCard[];
   creditCardInvoices: CreditCardInvoice[];
+  bankAccounts: BankAccount[];
   savingsGoals: SavingsGoal[];
   shoppingItems: ShoppingItem[];
   debts: Debt[];

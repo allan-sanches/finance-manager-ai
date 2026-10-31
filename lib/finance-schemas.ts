@@ -68,6 +68,20 @@ export const creditCardInvoicePatchSchema = z
   })
   .partial();
 
+// Saldo pode ficar negativo (cheque especial).
+export const bankAccountSchema = z.object({
+  id,
+  name: z.string().trim().min(1).max(60),
+  balance: z.number().finite().min(-1_000_000_000_000).max(1_000_000_000_000),
+  balanceDate: isoDate,
+});
+
+export const bankAccountPatchSchema = bankAccountSchema.omit({ id: true }).partial();
+
+const timeDeposits = z
+  .array(z.object({ id, amount: positiveMoney, maturityDate: isoDate }))
+  .max(50);
+
 export const savingsGoalSchema = z.object({
   id,
   name: z.string().trim().min(1).max(80),
@@ -76,10 +90,12 @@ export const savingsGoalSchema = z.object({
   deadline: nullable(isoDate),
   institution: nullable(z.string().trim().min(1).max(60)),
   cdiPercent: nullable(z.number().finite().min(0).max(1000)),
+  annualRate: nullable(z.number().finite().min(0).max(100)),
   currency: z.enum(['BRL', 'USD']).default('BRL'),
   lockDays: nullable(z.number().int().min(1).max(3650)),
   depositDate: nullable(isoDate),
   monthlyContribution: nullable(money),
+  timeDeposits: timeDeposits.default([]),
 });
 
 // Patches são escritos à mão, sem .default()/transform: em um .partial() eles preencheriam campos
@@ -91,10 +107,12 @@ export const savingsGoalPatchSchema = z
     deadline: isoDate.nullable(),
     institution: z.string().trim().min(1).max(60).nullable(),
     cdiPercent: z.number().finite().min(0).max(1000).nullable(),
+    annualRate: z.number().finite().min(0).max(100).nullable(),
     currency: z.enum(['BRL', 'USD']),
     lockDays: z.number().int().min(1).max(3650).nullable(),
     depositDate: isoDate.nullable(),
     monthlyContribution: money.nullable(),
+    timeDeposits,
   })
   .partial();
 
