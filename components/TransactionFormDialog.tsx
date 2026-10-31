@@ -135,12 +135,13 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
       onClose={onClose}
       onCancel={onClose}
     >
-      <div className="modal-box max-w-xl">
+      <div className="modal-box max-w-2xl">
         <h3 className="text-lg font-bold">
           {initial ? 'Editar lançamento' : 'Novo lançamento'}
         </h3>
 
-        <form onSubmit={handleSubmit} className="mt-4 grid gap-3">
+        {/* min-w-0 nos campos: sem isso o input de data e selects com opção longa empurram a coluna e geram scroll lateral. */}
+        <form onSubmit={handleSubmit} className="mt-4 grid gap-3 [&_label]:min-w-0">
           <label className="form-control">
             <span className="label-text">Descrição</span>
             <input
