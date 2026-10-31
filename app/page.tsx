@@ -28,6 +28,7 @@ import {
 import { maturityAlerts, maturityLabel, totalSavedBrl, USD } from '@/lib/savings';
 import { useFinanceStore } from '@/lib/store';
 import { useHydrated } from '@/lib/useHydratedStore';
+import { useVisibleTransactions } from '@/lib/useVisibleTransactions';
 import { useUsdRate } from '@/lib/useUsdRate';
 
 const MONTH_NAME = new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: APP_TIME_ZONE });
@@ -42,7 +43,9 @@ function greeting(): string {
 
 export default function DashboardPage() {
   const hydrated = useHydrated();
-  const transactions = useFinanceStore((s) => s.transactions);
+  // Limite do cartão é real: usa tudo. O resto (totais, gráfico, recentes) esconde as categorias ocultas.
+  const allTransactions = useFinanceStore((s) => s.transactions);
+  const transactions = useVisibleTransactions();
   const creditCards = useFinanceStore((s) => s.creditCards);
   const savingsGoals = useFinanceStore((s) => s.savingsGoals);
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
@@ -53,7 +56,7 @@ export default function DashboardPage() {
   const month = summarizeMonth(transactions, undefined, invoiceOutflows(invoices, undefined, secured).realized, secured);
   const categories = expensesByCategory(transactions);
   const totalLimit = creditCards.reduce((sum, c) => sum + cardLimit(c, savingsGoals), 0);
-  const usageOf = (cardId: string) => cardUsage(cardId, transactions, invoices).used;
+  const usageOf = (cardId: string) => cardUsage(cardId, allTransactions, invoices).used;
   const totalInvoice = creditCards.reduce((sum, c) => sum + usageOf(c.id), 0);
   const usdRate = useUsdRate();
   const saved = totalSavedBrl(savingsGoals, usdRate?.rate ?? null);
@@ -217,11 +220,11 @@ export default function DashboardPage() {
       {hydrated && categories.length > 0 && (
         <section className="panel p-4">
           <SectionTitle>Para onde foi o dinheiro</SectionTitle>
-          <ul className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+          <ul className="flex flex-wrap gap-2">
             {categories.map((c) => (
               <li
                 key={c.name}
-                className="bg-base-200 flex min-w-36 shrink-0 items-center gap-2 rounded-field p-2"
+                className="bg-base-200 flex flex-auto items-center gap-2 rounded-field p-2"
               >
                 <CategoryAvatar category={c.name} size="sm" />
                 <div className="min-w-0">
