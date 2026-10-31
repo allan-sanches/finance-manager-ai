@@ -1,9 +1,9 @@
-import { isCardPurchase, monthKey, type InvoicePayment } from '@/lib/finance';
+import { isCardPurchase, isTransfer, monthKey, type InvoicePayment } from '@/lib/finance';
 import type { Transaction } from '@/types/finance';
 
 /** Lançamento de dívida: despesa na categoria "Dívidas" (parcela de empréstimo, acordo etc.). */
 export function isDebtPayment(tx: Transaction): boolean {
-  if (tx.type !== 'expense') return false;
+  if (tx.type !== 'expense' || isTransfer(tx)) return false;
   const category = tx.category.toLowerCase();
   return category.includes('dívida') || category.includes('divida');
 }
@@ -29,6 +29,7 @@ export type MonthTotals = {
   debt: number;
   card: number; // Compras no cartão: só saem do saldo quando a fatura é paga
   invoices: number; // Faturas pagas (ou a pagar, no previsto)
+  moved: number; // Movimentações entre contas/caixinhas: registradas, fora do saldo
   balance: number;
   count: number;
   openCount: number; // Ainda não pagos/recebidos
@@ -47,12 +48,14 @@ export function totalsOf(
     debt: 0,
     card: 0,
     invoices: 0,
+    moved: 0,
     balance: 0,
     count: 0,
     openCount: 0,
   };
   for (const tx of transactions) {
-    if (isCardPurchase(tx)) totals.card += tx.type === 'income' ? -tx.amount : tx.amount;
+    if (isTransfer(tx)) totals.moved += tx.amount;
+    else if (isCardPurchase(tx)) totals.card += tx.type === 'income' ? -tx.amount : tx.amount;
     else if (tx.type === 'income') totals.income += tx.amount;
     else if (isDebtPayment(tx)) totals.debt += tx.amount;
     else totals.expense += tx.amount;

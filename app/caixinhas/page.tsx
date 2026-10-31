@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ArrowLeftRight,
   BellRing,
   CalendarClock,
   Lock,
@@ -41,6 +42,21 @@ export default function CaixinhasPage() {
   const depositToGoal = useFinanceStore((s) => s.depositToGoal);
   const withdrawFromGoal = useFinanceStore((s) => s.withdrawFromGoal);
   const removeSavingsGoal = useFinanceStore((s) => s.removeSavingsGoal);
+  const transactions = useFinanceStore((s) => s.transactions);
+
+  // Movimentações do mês ligadas a cada caixinha: despesa = guardou, receita = tirou (sempre em R$).
+  const movesByGoal = useMemo(() => {
+    const month = todayISO().slice(0, 7);
+    const map = new Map<string, { in: number; out: number }>();
+    for (const t of transactions) {
+      if (!t.isTransfer || !t.savingsGoalId || !t.date.startsWith(month)) continue;
+      const m = map.get(t.savingsGoalId) ?? { in: 0, out: 0 };
+      if (t.type === 'expense') m.in += t.amount;
+      else m.out += t.amount;
+      map.set(t.savingsGoalId, m);
+    }
+    return map;
+  }, [transactions]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SavingsGoal | undefined>(undefined);
@@ -167,6 +183,7 @@ export default function CaixinhasPage() {
                     key={g.id}
                     goal={g}
                     cdi={cdi}
+                    moves={movesByGoal.get(g.id)}
                     tone={GOAL_TONES[goals.indexOf(g) % GOAL_TONES.length]}
                     onDeposit={(amount) => depositToGoal(g.id, amount)}
                     onWithdraw={(amount) => withdrawFromGoal(g.id, amount)}
@@ -199,6 +216,7 @@ const GOAL_TONES: Tone[] = ['violet', 'cyan', 'lime', 'pink', 'amber', 'sky'];
 function GoalCard({
   goal,
   cdi,
+  moves,
   tone,
   onDeposit,
   onWithdraw,
@@ -207,6 +225,7 @@ function GoalCard({
 }: {
   goal: SavingsGoal;
   cdi: Cdi | null;
+  moves?: { in: number; out: number };
   tone: Tone;
   onDeposit: (amount: number) => void;
   onWithdraw: (amount: number) => void;
@@ -311,6 +330,14 @@ function GoalCard({
               </span>
             )}
           </div>
+        )}
+        {moves && (
+          <p className="text-base-content/70 flex flex-wrap items-center gap-x-2 text-xs font-semibold">
+            <ArrowLeftRight className="h-3.5 w-3.5" aria-hidden />
+            Movimentado neste mês:
+            {moves.in > 0 && <span>+{BRL.format(moves.in)} guardado</span>}
+            {moves.out > 0 && <span>−{BRL.format(moves.out)} retirado</span>}
+          </p>
         )}
         {deposits.length > 0 && (
           <div className="rounded-box bg-base-200 flex flex-col gap-1.5 p-3 text-sm">

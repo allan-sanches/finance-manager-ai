@@ -37,7 +37,11 @@ export function TransactionRow({
   const bank = useFinanceStore((s) =>
     tx.bankAccountId ? s.bankAccounts.find((a) => a.id === tx.bankAccountId) : undefined,
   );
+  const goal = useFinanceStore((s) =>
+    tx.savingsGoalId ? s.savingsGoals.find((g) => g.id === tx.savingsGoalId) : undefined,
+  );
   const income = tx.type === 'income';
+  const moved = Boolean(tx.isTransfer);
 
   return (
     <li className="flex items-center gap-3 p-3">
@@ -53,7 +57,16 @@ export function TransactionRow({
             )}
           </p>
           <p className="text-base-content/60 truncate text-xs">
-            {tx.category} · {card ? card.name : PAYMENT_METHOD_LABEL[tx.paymentMethod]}
+            {moved ? (
+              <>
+                Movimentação
+                {goal && ` · ${income ? 'saiu de' : 'para'} ${goal.name}`}
+              </>
+            ) : (
+              <>
+                {tx.category} · {card ? card.name : PAYMENT_METHOD_LABEL[tx.paymentMethod]}
+              </>
+            )}
             {tx.isFixed && ' · fixa'}
           </p>
         </div>
@@ -61,9 +74,12 @@ export function TransactionRow({
 
       <div className="flex shrink-0 flex-col items-end gap-1">
         <span
-          className={`font-bold tabular-nums ${income ? 'text-success' : ''} ${expected ? 'opacity-70' : ''}`}
+          className={`font-bold tabular-nums ${moved ? 'text-base-content/60' : income ? 'text-success' : ''} ${
+            expected ? 'opacity-70' : ''
+          }`}
+          title={moved ? 'Movimentação: não entra em receitas nem despesas' : undefined}
         >
-          {income ? '+' : '−'} {BRL.format(tx.amount)}
+          {moved ? '↔' : income ? '+' : '−'} {BRL.format(tx.amount)}
         </span>
         {expected ? (
           <span className="badge badge-sm badge-info badge-outline badge-dash font-semibold">Previsto</span>

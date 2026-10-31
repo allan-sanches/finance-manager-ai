@@ -1,6 +1,7 @@
 import { normalizeCategoryName } from '@/lib/tones';
 import type {
   AppSettings,
+  BankAccount,
   CreditCard,
   CreditCardInvoice,
   Debt,
@@ -176,6 +177,30 @@ export function nextOpenInvoice<T extends Pick<CreditCardInvoice, 'creditCardId'
 export const isCardPurchase = (tx: Pick<Transaction, 'paymentMethod'>): boolean =>
   tx.paymentMethod === 'credit_card';
 
+/** Movimentação (entre contas, para/da caixinha): o dinheiro continua seu, então não é entrada nem saída. */
+export const isTransfer = (tx: Pick<Transaction, 'isTransfer'>): boolean => Boolean(tx.isTransfer);
+
+/**
+ * Saldo de hoje da conta: o último saldo informado mais o que entrou e saiu dela depois daquela data
+ * (lançamentos com a tag do banco, já pagos). Compra no cartão não mexe na conta; movimentação sim.
+ */
+export function accountBalance(
+  account: Pick<BankAccount, 'id' | 'balance' | 'balanceDate'>,
+  transactions: ReadonlyArray<
+    Pick<Transaction, 'bankAccountId' | 'date' | 'isPaid' | 'paymentMethod' | 'type' | 'amount'>
+  >,
+): { balance: number; after: number } {
+  let balance = account.balance;
+  let after = 0;
+  for (const tx of transactions) {
+    if (tx.bankAccountId !== account.id || tx.date <= account.balanceDate || !tx.isPaid) continue;
+    if (isCardPurchase(tx)) continue;
+    balance += tx.type === 'income' ? tx.amount : -tx.amount;
+    after += 1;
+  }
+  return { balance: Math.round(balance * 100) / 100, after };
+}
+
 export type CardUsage = {
   /** Compras feitas a partir do último fechamento: ainda não entraram em nenhuma fatura. */
   unbilled: number;
@@ -266,7 +291,7 @@ export function summarizeMonth(
   let income = 0;
   let expense = 0;
   for (const tx of transactions) {
-    if (!isSameMonth(tx.date, key) || isCardPurchase(tx)) continue;
+    if (!isSameMonth(tx.date, key) || isCardPurchase(tx) || isTransfer(tx)) continue;
     if (tx.type === 'income') income += tx.amount;
     else expense += tx.amount;
   }
@@ -304,7 +329,7 @@ export function expensesByCategory(
 ): CategorySlice[] {
   const map = new Map<string, number>();
   for (const tx of transactions) {
-    if (tx.type !== 'expense') continue;
+    if (tx.type !== 'expense' || isTransfer(tx)) continue;
     if (!isSameMonth(tx.date, key)) continue;
     map.set(tx.category, (map.get(tx.category) ?? 0) + tx.amount);
   }

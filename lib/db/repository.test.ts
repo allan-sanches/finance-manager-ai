@@ -347,6 +347,27 @@ describe('contas', () => {
     byId = Object.fromEntries((await repo.getSnapshot(db, OWNER)).transactions.map((t) => [t.id, t]));
     expect(byId.t1.bankAccountId).toBeNull();
   });
+
+  it('movimentação ligada à caixinha: grava, edita sem perder a marca e solta ao apagar a caixinha', async () => {
+    await repo.addSavingsGoal(db, OWNER, {
+      id: 'g1',
+      name: 'Reserva',
+      targetAmount: 1000,
+      currentAmount: 0,
+      currency: 'BRL',
+    });
+    await repo.addTransaction(db, OWNER, tx({ id: 't1', isTransfer: true, savingsGoalId: 'g1' }));
+    await repo.addTransaction(db, OWNER, tx({ id: 't2', savingsGoalId: 'nao-existe' }));
+    await repo.updateTransaction(db, OWNER, 't1', { description: 'Guardado no cofrinho' });
+
+    let byId = Object.fromEntries((await repo.getSnapshot(db, OWNER)).transactions.map((t) => [t.id, t]));
+    expect(byId.t1).toMatchObject({ isTransfer: true, savingsGoalId: 'g1', description: 'Guardado no cofrinho' });
+    expect(byId.t2).toMatchObject({ isTransfer: false, savingsGoalId: null });
+
+    await repo.removeSavingsGoal(db, OWNER, 'g1');
+    byId = Object.fromEntries((await repo.getSnapshot(db, OWNER)).transactions.map((t) => [t.id, t]));
+    expect(byId.t1).toMatchObject({ isTransfer: true, savingsGoalId: null });
+  });
 });
 
 describe('usuários', () => {

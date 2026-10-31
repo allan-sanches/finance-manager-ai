@@ -96,6 +96,10 @@ export const transactions = pgTable('transactions', {
   creditCardId: text('credit_card_id').references(() => creditCards.id, { onDelete: 'set null' }),
   // Tag do banco (Inter, Mercado Pago…) para separar as transações por conta.
   bankAccountId: text('bank_account_id').references(() => bankAccounts.id, { onDelete: 'set null' }),
+  // Movimentação: dinheiro que só muda de lugar (entre contas, para/da caixinha). Fica fora de
+  // entradas e saídas. savingsGoalId diz para qual caixinha foi (ou de qual saiu).
+  isTransfer: boolean('is_transfer').notNull().default(false),
+  savingsGoalId: text('savings_goal_id').references(() => savingsGoals.id, { onDelete: 'set null' }),
   date: date('date', { mode: 'string' }).notNull(),
   isFixed: boolean('is_fixed').notNull().default(false),
   isPaid: boolean('is_paid').notNull().default(false),

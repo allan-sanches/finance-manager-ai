@@ -4,7 +4,7 @@ import { ArrowDownRight, ArrowUpRight, ChevronDown, Plus } from 'lucide-react';
 import { useId, useState } from 'react';
 
 import { BankAccountFormDialog } from '@/components/BankAccountFormDialog';
-import { shortDate } from '@/lib/finance';
+import { accountBalance, shortDate } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import { normalizeCategoryName } from '@/lib/tones';
 import type { BankAccount } from '@/types/finance';
@@ -27,11 +27,14 @@ export function MonthBalanceTile({
   money: (n: number) => string;
 }) {
   const accounts = useFinanceStore((s) => s.bankAccounts);
+  const transactions = useFinanceStore((s) => s.transactions);
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
   const detailsId = useId();
 
-  const totalInAccounts = accounts.reduce((sum, a) => sum + a.balance, 0);
+  // Saldo informado + o que entrou/saiu da conta depois dessa data (lançamentos com a tag do banco).
+  const current = new Map(accounts.map((a) => [a.id, accountBalance(a, transactions)]));
+  const totalInAccounts = accounts.reduce((sum, a) => sum + (current.get(a.id)?.balance ?? a.balance), 0);
   const existing = new Set(accounts.map((a) => normalizeCategoryName(a.name)));
   const suggestions = SUGGESTED_ACCOUNTS.filter((n) => !existing.has(normalizeCategoryName(n)));
 
@@ -96,10 +99,12 @@ export function MonthBalanceTile({
                         <span className="block truncate text-sm font-bold">{a.name}</span>
                         <span className="block text-xs font-medium opacity-75">
                           Atualizado {shortDate(a.balanceDate)}
+                          {(current.get(a.id)?.after ?? 0) > 0 &&
+                            ` + ${current.get(a.id)!.after} lançamento${current.get(a.id)!.after === 1 ? '' : 's'} depois`}
                         </span>
                       </span>
                       <span className="shrink-0 text-lg font-extrabold tabular-nums">
-                        {money(a.balance)}
+                        {money(current.get(a.id)?.balance ?? a.balance)}
                       </span>
                     </button>
                   </li>

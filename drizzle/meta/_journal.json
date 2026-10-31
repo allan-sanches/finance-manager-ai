@@ -92,6 +92,13 @@
       "when": 1793457592414,
       "tag": "0012_transaction_bank_account",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793458972813,
+      "tag": "0013_transaction_transfer_goal",
+      "breakpoints": true
     }
   ]
 }

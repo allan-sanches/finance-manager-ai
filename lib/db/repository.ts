@@ -112,6 +112,7 @@ export async function getSnapshot(db: Db, userId: string): Promise<FinanceSnapsh
         ...t,
         creditCardId: t.creditCardId ?? null,
         bankAccountId: t.bankAccountId ?? null,
+        savingsGoalId: t.savingsGoalId ?? null,
       }),
     ),
     creditCards: cardRows.map(({ createdAt: _, userId: __, ...c }): CreditCard => c),
@@ -168,6 +169,23 @@ async function existingAccountId(db: Executor, userId: string, accountId: string
   return row?.id ?? null;
 }
 
+async function existingGoalId(db: Executor, userId: string, goalId: string | null | undefined) {
+  if (!goalId) return null;
+  const [row] = await db
+    .select({ id: savingsGoals.id })
+    .from(savingsGoals)
+    .where(ownGoal(userId, goalId));
+  return row?.id ?? null;
+}
+
+async function userGoalIds(db: Executor, userId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ id: savingsGoals.id })
+    .from(savingsGoals)
+    .where(eq(savingsGoals.userId, userId));
+  return new Set(rows.map((r) => r.id));
+}
+
 async function userAccountIds(db: Executor, userId: string): Promise<Set<string>> {
   const rows = await db
     .select({ id: bankAccounts.id })
@@ -188,7 +206,8 @@ export async function addTransaction(db: Db, userId: string, input: Transaction)
   await db.transaction(async (tx) => {
     const creditCardId = await existingCardId(tx, userId, input.creditCardId);
     const bankAccountId = await existingAccountId(tx, userId, input.bankAccountId);
-    const row = { ...input, userId, creditCardId, bankAccountId };
+    const savingsGoalId = await existingGoalId(tx, userId, input.savingsGoalId);
+    const row = { ...input, userId, creditCardId, bankAccountId, savingsGoalId, isTransfer: input.isTransfer ?? false };
     await tx.insert(transactions).values(row);
     await adjustInvoice(tx, userId, creditCardId, invoiceContribution(row));
   });
@@ -206,6 +225,7 @@ export async function updateTransaction(
     const next = { ...prev, ...patch, id: prev.id };
     next.creditCardId = await existingCardId(tx, userId, next.creditCardId);
     next.bankAccountId = await existingAccountId(tx, userId, next.bankAccountId);
+    next.savingsGoalId = await existingGoalId(tx, userId, next.savingsGoalId);
 
     await tx
       .update(transactions)
@@ -217,6 +237,8 @@ export async function updateTransaction(
         paymentMethod: next.paymentMethod,
         creditCardId: next.creditCardId,
         bankAccountId: next.bankAccountId,
+        isTransfer: next.isTransfer ?? false,
+        savingsGoalId: next.savingsGoalId,
         date: next.date,
         isFixed: next.isFixed,
         isPaid: next.isPaid,
@@ -242,11 +264,14 @@ export async function addTransactions(db: Db, userId: string, inputs: Transactio
   await db.transaction(async (tx) => {
     const cardIds = await userCardIds(tx, userId);
     const accountIds = await userAccountIds(tx, userId);
+    const goalIds = await userGoalIds(tx, userId);
     const rows = inputs.map((t, i) => ({
       ...t,
       userId,
       creditCardId: t.creditCardId && cardIds.has(t.creditCardId) ? t.creditCardId : null,
       bankAccountId: t.bankAccountId && accountIds.has(t.bankAccountId) ? t.bankAccountId : null,
+      savingsGoalId: t.savingsGoalId && goalIds.has(t.savingsGoalId) ? t.savingsGoalId : null,
+      isTransfer: t.isTransfer ?? false,
       createdAt: new Date(base - i),
     }));
     for (const part of chunk(rows)) {

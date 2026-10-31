@@ -3,6 +3,7 @@
 import {
   ArrowDownRight,
   ArrowLeft,
+  ArrowLeftRight,
   ArrowUpRight,
   CalendarClock,
   ChevronLeft,
@@ -17,7 +18,7 @@ import { CardNote, SubCard } from '@/components/MonthCard';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
 import { TransactionRow } from '@/components/TransactionRow';
 import { EmptyState } from '@/components/ui';
-import { BRL, invoiceOutflows, isSameMonth, todayISO } from '@/lib/finance';
+import { BRL, invoiceOutflows, isSameMonth, isTransfer, todayISO } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import {
   isDebtPayment,
@@ -30,13 +31,18 @@ import {
 import { useHydrated } from '@/lib/useHydratedStore';
 import type { Transaction } from '@/types/finance';
 
-type Filter = 'all' | 'income' | 'expense' | 'debt' | 'fixed' | 'credit' | 'open';
+type Filter = 'all' | 'income' | 'expense' | 'debt' | 'transfer' | 'fixed' | 'credit' | 'open';
 
 const FILTERS: { id: Filter; label: string; match: (tx: Transaction) => boolean }[] = [
   { id: 'all', label: 'Todas', match: () => true },
-  { id: 'income', label: 'Receitas', match: (tx) => tx.type === 'income' },
-  { id: 'expense', label: 'Despesas', match: (tx) => tx.type === 'expense' && !isDebtPayment(tx) },
+  { id: 'income', label: 'Receitas', match: (tx) => tx.type === 'income' && !isTransfer(tx) },
+  {
+    id: 'expense',
+    label: 'Despesas',
+    match: (tx) => tx.type === 'expense' && !isTransfer(tx) && !isDebtPayment(tx),
+  },
   { id: 'debt', label: 'Dívidas', match: isDebtPayment },
+  { id: 'transfer', label: 'Movimentações', match: isTransfer },
   { id: 'fixed', label: 'Fixas', match: (tx) => tx.isFixed },
   { id: 'credit', label: 'No cartão', match: (tx) => tx.paymentMethod === 'credit_card' },
   { id: 'open', label: 'Em aberto', match: (tx) => !tx.isPaid },
@@ -262,6 +268,12 @@ function TotalsPanel({
         <SubCard tone="violet" icon={Landmark} label="Dívidas" value={totals.debt} muted={expected} />
       </div>
       <CardNote totals={totals} expected={expected} />
+      {totals.moved > 0 && (
+        <p className="text-base-content/60 flex items-center gap-1.5 text-xs">
+          <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          {BRL.format(totals.moved)} em movimentações entre contas e caixinhas, fora do saldo.
+        </p>
+      )}
     </section>
   );
 }

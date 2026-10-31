@@ -18,6 +18,8 @@ export type Transaction = {
   paymentMethod: PaymentMethod;
   creditCardId?: string | null;
   bankAccountId?: string | null; // Tag do banco (Inter, Mercado Pago, Santander…)
+  isTransfer?: boolean; // Movimentação (entre contas/caixinhas): fora de entradas e saídas
+  savingsGoalId?: string | null; // Caixinha da movimentação: despesa = guardou, receita = tirou
   date: string;
   isFixed: boolean;
   isPaid: boolean;

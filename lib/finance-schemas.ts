@@ -20,6 +20,9 @@ export const transactionSchema = z.object({
   paymentMethod: z.enum(['cash', 'debit', 'credit_card', 'pix', 'bank_transfer']),
   creditCardId: id.nullish().transform((v) => v ?? null),
   bankAccountId: id.nullish().transform((v) => v ?? null),
+  // Sem .default(): no patch (.partial()) ele preencheria false em toda edição.
+  isTransfer: z.boolean().optional(),
+  savingsGoalId: id.nullish().transform((v) => v ?? null),
   date: isoDate,
   isFixed: z.boolean(),
   isPaid: z.boolean(),

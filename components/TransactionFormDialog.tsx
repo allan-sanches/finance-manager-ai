@@ -34,6 +34,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
   const dialogRef = useRef<HTMLDialogElement>(null);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const bankAccounts = useFinanceStore((s) => s.bankAccounts);
+  const savingsGoals = useFinanceStore((s) => s.savingsGoals);
   const addTransaction = useFinanceStore((s) => s.addTransaction);
   const updateTransaction = useFinanceStore((s) => s.updateTransaction);
   const removeTransaction = useFinanceStore((s) => s.removeTransaction);
@@ -46,6 +47,8 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [creditCardId, setCreditCardId] = useState<string>('');
   const [bankAccountId, setBankAccountId] = useState<string>('');
+  const [isTransfer, setIsTransfer] = useState(false);
+  const [savingsGoalId, setSavingsGoalId] = useState<string>('');
   const [date, setDate] = useState(todayISO());
   const [isFixed, setIsFixed] = useState(false);
   const [isPaid, setIsPaid] = useState(true);
@@ -70,6 +73,8 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
       setPaymentMethod(src.paymentMethod);
       setCreditCardId(src.creditCardId ?? '');
       setBankAccountId(src.bankAccountId ?? '');
+      setIsTransfer(Boolean(src.isTransfer));
+      setSavingsGoalId(src.savingsGoalId ?? '');
       setDate(src.date);
       setIsFixed(src.isFixed);
       setIsPaid('isPaid' in src ? Boolean(src.isPaid) : true);
@@ -81,6 +86,8 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
       setPaymentMethod('pix');
       setCreditCardId('');
       setBankAccountId('');
+      setIsTransfer(false);
+      setSavingsGoalId('');
       setDate(todayISO());
       setIsFixed(false);
       setIsPaid(true);
@@ -106,6 +113,8 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
       paymentMethod,
       creditCardId: paymentMethod === 'credit_card' ? creditCardId : null,
       bankAccountId: bankAccountId || null,
+      isTransfer,
+      savingsGoalId: isTransfer ? savingsGoalId || null : null,
       date,
       isFixed,
       isPaid,
@@ -257,6 +266,43 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
               )}
             </label>
           )}
+
+          <div className="rounded-box bg-base-200 grid gap-2 p-3">
+            <label className="label cursor-pointer justify-start gap-3 py-0">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-primary"
+                checked={isTransfer}
+                onChange={(e) => setIsTransfer(e.target.checked)}
+              />
+              <span className="label-text">
+                Movimentação
+                <span className="text-base-content/60 block text-xs">
+                  Dinheiro que só mudou de lugar (entre contas, aplicação, caixinha). Não conta como
+                  {type === 'income' ? ' receita' : ' despesa'}.
+                </span>
+              </span>
+            </label>
+            {isTransfer && savingsGoals.length > 0 && (
+              <label className="form-control">
+                <span className="label-text">
+                  {type === 'income' ? 'Saiu da caixinha' : 'Foi para a caixinha'}
+                </span>
+                <select
+                  className="select select-bordered"
+                  value={savingsGoalId}
+                  onChange={(e) => setSavingsGoalId(e.target.value)}
+                >
+                  <option value="">Nenhuma (entre contas)</option>
+                  {savingsGoals.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-3 pt-1">
             <label className="label cursor-pointer justify-start gap-3">

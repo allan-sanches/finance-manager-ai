@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  accountBalance,
   cardLimit,
   cardUsage,
   invoiceOutflows,
@@ -164,5 +165,47 @@ describe('saldo da conta', () => {
     expect(realized).toEqual([{ date: '2026-10-11', amount: 500 }]);
     expect(expected).toEqual([{ date: '2026-11-12', amount: 700 }]);
     expect(summarizeMonth([], '2026-10', realized).expense).toBe(500);
+  });
+});
+
+describe('movimentações e saldo da conta', () => {
+  const t = (o: Partial<Transaction>): Transaction => ({
+    id: 'x',
+    description: 'x',
+    amount: 100,
+    type: 'expense',
+    category: 'Outros',
+    paymentMethod: 'pix',
+    date: '2026-10-10',
+    isFixed: false,
+    isPaid: true,
+    ...o,
+  });
+
+  it('movimentação fica fora de entradas e saídas do mês', () => {
+    const month = summarizeMonth(
+      [
+        t({ type: 'income', amount: 6000, category: 'Salário' }),
+        t({ amount: 3000, isTransfer: true, category: 'Investimentos' }),
+        t({ type: 'income', amount: 1000, isTransfer: true, category: 'Transferências' }),
+        t({ amount: 50 }),
+      ],
+      '2026-10',
+    );
+    expect(month).toEqual({ income: 6000, expense: 50, balance: 5950 });
+  });
+
+  it('saldo da conta soma só o que tem a tag dela, pago, depois da data informada, sem compra no cartão', () => {
+    const inter = { id: 'inter', balance: 100, balanceDate: '2026-10-30' };
+    const { balance, after } = accountBalance(inter, [
+      t({ bankAccountId: 'inter', date: '2026-10-30', amount: 999 }), // no dia do saldo: já está nele
+      t({ bankAccountId: 'inter', date: '2026-10-31', amount: 40 }),
+      t({ bankAccountId: 'inter', date: '2026-10-31', type: 'income', amount: 200, isTransfer: true }),
+      t({ bankAccountId: 'inter', date: '2026-10-31', amount: 70, paymentMethod: 'credit_card' }),
+      t({ bankAccountId: 'inter', date: '2026-11-01', amount: 30, isPaid: false }),
+      t({ bankAccountId: 'mp', date: '2026-10-31', amount: 500 }),
+    ]);
+    expect(balance).toBe(260);
+    expect(after).toBe(2);
   });
 });

@@ -114,6 +114,8 @@ const transactionFromDraft = (draft: TransactionDraft): Transaction => ({
   paymentMethod: draft.paymentMethod,
   creditCardId: draft.creditCardId ?? null,
   bankAccountId: draft.bankAccountId ?? null,
+  isTransfer: draft.isTransfer ?? false,
+  savingsGoalId: draft.savingsGoalId ?? null,
   date: draft.date,
   isFixed: draft.isFixed,
   isPaid: draft.isPaid ?? false,
@@ -428,7 +430,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
 
     removeSavingsGoal: (id) => {
-      set((s) => ({ savingsGoals: s.savingsGoals.filter((g) => g.id !== id) }));
+      // A movimentação continua registrada; só perde o vínculo (on delete set null no banco).
+      set((s) => ({
+        savingsGoals: s.savingsGoals.filter((g) => g.id !== id),
+        transactions: s.transactions.map((t) => (t.savingsGoalId === id ? { ...t, savingsGoalId: null } : t)),
+      }));
       sync((actor) => actions.removeSavingsGoal(actor, id));
     },
 
