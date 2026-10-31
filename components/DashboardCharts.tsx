@@ -15,6 +15,7 @@ import {
 
 import { SectionTitle } from '@/components/ui';
 import { BRL, cashflowLastMonths, expensesByCategory, invoiceOutflows, securedCardIds } from '@/lib/finance';
+import { moneyFormat } from '@/lib/privacy';
 import { useFinanceStore } from '@/lib/store';
 import { TONE_HEX } from '@/lib/tones';
 import { useCategories } from '@/lib/useCategories';
@@ -29,13 +30,10 @@ const tooltipStyle = {
 };
 
 // Eixo Y curto para caber no celular: "R$ 1,5 mil", "R$ 12 mil".
-const BRL_COMPACT = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-  notation: 'compact',
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 1,
-});
+const BRL_COMPACT = moneyFormat(
+  { style: 'currency', currency: 'BRL', notation: 'compact', minimumFractionDigits: 0, maximumFractionDigits: 1 },
+  'R$',
+);
 
 export function DashboardCharts() {
   const hydrated = useHydrated();

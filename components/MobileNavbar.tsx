@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 import { BrandMark } from '@/components/BrandMark';
 import { pageTitle } from '@/components/nav';
+import { PrivacyToggle } from '@/components/PrivacyToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 /** Cabeçalho do celular: só marca, título da página e tema. A navegação fica na tab bar. */
@@ -16,6 +17,7 @@ export function MobileNavbar() {
         <BrandMark size={34} />
       </Link>
       <h1 className="flex-1 truncate text-lg font-extrabold tracking-tight">{pageTitle(pathname)}</h1>
+      <PrivacyToggle />
       <ThemeToggle />
     </header>
   );

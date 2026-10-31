@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { BrandMark } from '@/components/BrandMark';
 import { LogoutButton } from '@/components/LogoutButton';
 import { isActive, NAV } from '@/components/nav';
+import { PrivacyToggle } from '@/components/PrivacyToggle';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 export function Sidebar() {
@@ -45,6 +46,7 @@ export function Sidebar() {
       </nav>
 
       <div className="panel flex flex-col gap-1 p-2">
+        <PrivacyToggle withLabel className="w-full" />
         <ThemeToggle withLabel className="w-full" />
         <LogoutButton />
       </div>

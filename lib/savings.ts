@@ -1,6 +1,7 @@
+import { moneyFormat } from '@/lib/privacy';
 import type { SavingsGoal, TimeDeposit } from '@/types/finance';
 
-export const USD = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'USD' });
+export const USD = moneyFormat({ style: 'currency', currency: 'USD' }, 'US$');
 
 /** Caixinhas mais usadas: escolher uma preenche a instituição e o % do CDI no formulário. */
 export const SAVINGS_BANKS = [

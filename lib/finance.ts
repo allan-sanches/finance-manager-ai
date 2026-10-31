@@ -1,3 +1,4 @@
+import { moneyFormat } from '@/lib/privacy';
 import { normalizeCategoryName } from '@/lib/tones';
 import type {
   AppSettings,
@@ -14,10 +15,8 @@ import type {
   TransactionType,
 } from '@/types/finance';
 
-export const BRL = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-});
+// Respeita o modo privado (olho): com ele ligado, vira "R$ ••••".
+export const BRL = moneyFormat({ style: 'currency', currency: 'BRL' }, 'R$');
 
 export const CATEGORIES: ReadonlyArray<string> = [
   'Alimentação',

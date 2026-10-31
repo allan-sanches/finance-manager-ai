@@ -1,12 +1,14 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 
 import { BottomTabBar } from '@/components/BottomTabBar';
 import { LocalDataImport } from '@/components/LocalDataImport';
 import { MobileNavbar } from '@/components/MobileNavbar';
+import { usePrivacyHidden } from '@/components/PrivacyToggle';
 import { Sidebar } from '@/components/Sidebar';
+import { readSavedPrivacy, setPrivate } from '@/lib/privacy';
 import { useFinanceStore } from '@/lib/store';
 import type { FinanceSnapshot } from '@/types/finance';
 
@@ -26,6 +28,12 @@ export function AppShell({
   const hydrate = useFinanceStore((s) => s.hydrate);
   const reset = useFinanceStore((s) => s.reset);
 
+  // Olho: lido antes do primeiro paint, e antes da hidratação do store (os valores só aparecem depois dela).
+  const privateMode = usePrivacyHidden();
+  useLayoutEffect(() => {
+    if (readSavedPrivacy()) setPrivate(true);
+  }, []);
+
   // Sem sessão (logout), a memória da aba é apagada: os dados de uma conta não ficam para a próxima.
   useEffect(() => {
     if (snapshot && userId) hydrate(snapshot, userId);
@@ -34,8 +42,9 @@ export function AppShell({
 
   if (pathname === '/login') return <>{children}</>;
 
+  // A key remonta a tela ao trocar o olho: os valores são formatados na renderização (BRL/USD).
   return (
-    <div className="min-h-dvh md:grid md:grid-cols-[17rem_1fr]">
+    <div key={privateMode ? 'privado' : 'visivel'} className="min-h-dvh md:grid md:grid-cols-[17rem_1fr]">
       <Sidebar />
       <div className="flex min-h-dvh min-w-0 flex-col">
         <MobileNavbar />
