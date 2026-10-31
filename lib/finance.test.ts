@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   accountBalance,
+  addDays,
   cardLimit,
   cardUsage,
   invoiceOutflows,
@@ -349,4 +350,9 @@ describe('cardUsage: compra registrada depois do valor da fatura atual', () => {
     );
     expect(usage).toMatchObject({ unbilled: 455, openInvoices: 396.78, used: 851.78 });
   });
+});
+
+it('addDays atravessa mês e ano', () => {
+  expect(addDays('2026-10-31', 1)).toBe('2026-11-01');
+  expect(addDays('2026-01-01', -1)).toBe('2025-12-31');
 });

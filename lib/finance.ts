@@ -352,6 +352,13 @@ export function isSameMonth(dateISO: string, key: string): boolean {
   return monthKey(dateISO) === key;
 }
 
+/** Soma dias a uma data ISO (YYYY-MM-DD), em UTC para não pular dia no horário de verão. */
+export function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export type MonthlySummary = {
   income: number;
   expense: number;

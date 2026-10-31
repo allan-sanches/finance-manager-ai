@@ -5,7 +5,7 @@ import { useId, useState } from 'react';
 
 import { BankAccountFormDialog } from '@/components/BankAccountFormDialog';
 import { PrivacyToggle } from '@/components/PrivacyToggle';
-import { accountBalance, shortDate } from '@/lib/finance';
+import { accountBalance } from '@/lib/finance';
 import { useFinanceStore } from '@/lib/store';
 import { normalizeCategoryName } from '@/lib/tones';
 import type { BankAccount } from '@/types/finance';
@@ -36,7 +36,7 @@ export function MonthBalanceTile({
   const [dialog, setDialog] = useState<Dialog>(null);
   const detailsId = useId();
 
-  // Saldo informado + o que entrou/saiu da conta depois dessa data (lançamentos com a tag do banco).
+  // Saldo calculado: saldo inicial da conta + o que entrou/saiu dela (lançamentos com a tag do banco).
   const current = new Map(accounts.map((a) => [a.id, accountBalance(a, transactions)]));
   const totalInAccounts = accounts.reduce((sum, a) => sum + (current.get(a.id)?.balance ?? a.balance), 0);
   const existing = new Set(accounts.map((a) => normalizeCategoryName(a.name)));
@@ -106,15 +106,14 @@ export function MonthBalanceTile({
                     <button
                       type="button"
                       onClick={() => setDialog({ initial: a })}
-                      aria-label={`Atualizar saldo de ${a.name}`}
+                      aria-label={`Ver a conta ${a.name}`}
                       className="flex min-h-14 w-full items-center justify-between gap-3 rounded-field bg-black/10 px-3 py-2 text-left hover:bg-black/15"
                     >
                       <span className="min-w-0">
                         <span className="block truncate text-sm font-bold">{a.name}</span>
                         <span className="block text-xs font-medium opacity-75">
-                          Atualizado {shortDate(a.balanceDate)}
-                          {(current.get(a.id)?.after ?? 0) > 0 &&
-                            ` + ${current.get(a.id)!.after} lançamento${current.get(a.id)!.after === 1 ? '' : 's'} depois`}
+                          Calculado por {current.get(a.id)?.after ?? 0} lançamento
+                          {(current.get(a.id)?.after ?? 0) === 1 ? '' : 's'}
                         </span>
                       </span>
                       <span className="shrink-0 text-lg font-extrabold tabular-nums">

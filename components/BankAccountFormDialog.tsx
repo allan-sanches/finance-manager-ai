@@ -4,7 +4,7 @@ import { Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { MoneyInput } from '@/components/MoneyInput';
-import { todayISO } from '@/lib/finance';
+import { accountBalance, addDays, BRL, todayISO } from '@/lib/finance';
 import { parseMoneyInput, toMoneyInput } from '@/lib/money-mask';
 import { useFinanceStore } from '@/lib/store';
 import { useOpenedWith } from '@/lib/useMounted';
@@ -23,6 +23,10 @@ export function BankAccountFormDialog({ open, onClose, initial, presetName }: Pr
   const addBankAccount = useFinanceStore((s) => s.addBankAccount);
   const updateBankAccount = useFinanceStore((s) => s.updateBankAccount);
   const removeBankAccount = useFinanceStore((s) => s.removeBankAccount);
+
+  // Saldo de conta existente é calculado pelos lançamentos (accountBalance): aqui só o nome.
+  const transactions = useFinanceStore((s) => s.transactions);
+  const computed = initial ? accountBalance(initial, transactions).balance : null;
 
   const [name, setName] = useState('');
   const [balance, setBalance] = useState('');
@@ -50,14 +54,10 @@ export function BankAccountFormDialog({ open, onClose, initial, presetName }: Pr
     const value = negative ? -abs : abs;
 
     if (initial) {
-      updateBankAccount(initial.id, {
-        name: name.trim(),
-        balance: value,
-        // Só um saldo novo muda a data de atualização; renomear não.
-        ...(value !== initial.balance ? { balanceDate: todayISO() } : {}),
-      });
+      updateBankAccount(initial.id, { name: name.trim() });
     } else {
-      addBankAccount({ name: name.trim(), balance: value, balanceDate: todayISO() });
+      // Ponto de partida: o saldo antes dos lançamentos de hoje (eles somam a partir daqui).
+      addBankAccount({ name: name.trim(), balance: value, balanceDate: addDays(todayISO(), -1) });
     }
     onClose();
   }
@@ -86,20 +86,35 @@ export function BankAccountFormDialog({ open, onClose, initial, presetName }: Pr
             />
           </label>
 
-          <label className="form-control">
-            <span className="label-text">Saldo atual</span>
-            <MoneyInput value={balance} onChange={setBalance} autoFocus={Boolean(initial || presetName)} />
-          </label>
+          {initial ? (
+            <div className="rounded-box bg-base-200 p-3 text-sm">
+              <p className="flex items-baseline justify-between gap-3">
+                <span className="font-semibold">Saldo calculado</span>
+                <span className="text-lg font-extrabold tabular-nums">{BRL.format(computed ?? 0)}</span>
+              </p>
+              <p className="text-base-content/60 mt-1 text-xs">
+                Vem dos lançamentos com a tag {initial.name}. Se não bater com o app do banco, falta lançar
+                alguma entrada ou saída dessa conta.
+              </p>
+            </div>
+          ) : (
+            <>
+              <label className="form-control">
+                <span className="label-text">Saldo inicial (antes dos lançamentos de hoje)</span>
+                <MoneyInput value={balance} onChange={setBalance} autoFocus={Boolean(presetName)} />
+              </label>
 
-          <label className="flex min-h-11 cursor-pointer items-center gap-3">
-            <input
-              type="checkbox"
-              className="checkbox"
-              checked={negative}
-              onChange={(e) => setNegative(e.target.checked)}
-            />
-            <span className="label-text">Saldo negativo (cheque especial)</span>
-          </label>
+              <label className="flex min-h-11 cursor-pointer items-center gap-3">
+                <input
+                  type="checkbox"
+                  className="checkbox"
+                  checked={negative}
+                  onChange={(e) => setNegative(e.target.checked)}
+                />
+                <span className="label-text">Saldo negativo (cheque especial)</span>
+              </label>
+            </>
+          )}
 
           {error && (
             <div role="alert" className="alert alert-error">
