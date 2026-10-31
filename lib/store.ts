@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 
 import * as actions from '@/app/actions/finance';
-import type { SessionChanged } from '@/app/actions/finance';
+import type { RefreshResult, SessionChanged } from '@/app/actions/finance';
 import { DEFAULT_DEBT_STATUS, DEFAULT_SETTINGS, todayISO } from '@/lib/finance';
 import type {
   AppSettings,
@@ -86,6 +86,8 @@ type FinanceState = FinanceSnapshot & {
   toggleShoppingItem: (id: string) => void;
   updateShoppingItem: (id: string, patch: Partial<Omit<ShoppingItem, 'id'>>) => void;
   removeShoppingItem: (id: string) => void;
+  /** Lê os preços na loja (sem id: os desejos sem leitura há 6h) e recarrega os dados. */
+  refreshWishPrices: (id?: string) => Promise<RefreshResult | null>;
 };
 
 type SetState = (fn: (s: FinanceState) => Partial<FinanceState>) => void;
@@ -449,6 +451,9 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         estimatedPrice: draft.estimatedPrice ?? null,
         priority: draft.priority,
         isPurchased: false,
+        imageUrl: draft.imageUrl ?? null,
+        productUrl: draft.productUrl ?? null,
+        priceHistory: draft.priceHistory ?? [],
       };
       set((s) => ({ shoppingItems: [item, ...s.shoppingItems] }));
       sync((actor) => actions.addShoppingItem(actor, item));
@@ -474,6 +479,25 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     removeShoppingItem: (id) => {
       set((s) => ({ shoppingItems: s.shoppingItems.filter((i) => i.id !== id) }));
       sync((actor) => actions.removeShoppingItem(actor, id));
+    },
+
+    refreshWishPrices: async (id) => {
+      const actor = get().sessionUserId;
+      if (!actor) return null;
+      // Fora da fila: ler as lojas leva segundos e não pode segurar as alterações do usuário.
+      // O resultado entra pela fila (loadSnapshot), depois do que já estiver pendente.
+      try {
+        const result = await actions.refreshWishPrices(actor, id);
+        if ('sessionChanged' in result) {
+          reloadForNewSession();
+          return null;
+        }
+        if (result.checked > 0) sync((a) => actions.loadSnapshot(a));
+        return result;
+      } catch (err) {
+        console.error('[store] refresh de preços falhou', err);
+        return null;
+      }
     },
   };
 });
