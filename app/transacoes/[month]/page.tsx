@@ -1,10 +1,18 @@
 import { notFound } from 'next/navigation';
 
+import { bankParam } from '@/components/BankFilter';
 import { MonthDetail } from '@/components/MonthDetail';
 import { isMonthKey } from '@/lib/transaction-months';
 
-export default async function MonthPage({ params }: { params: Promise<{ month: string }> }) {
+export default async function MonthPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ month: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const { month } = await params;
   if (!isMonthKey(month)) notFound();
-  return <MonthDetail monthKey={month} />;
+  const { banco } = await searchParams;
+  return <MonthDetail monthKey={month} initialBank={bankParam(banco)} />;
 }

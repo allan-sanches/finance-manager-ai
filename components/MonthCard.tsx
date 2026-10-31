@@ -13,17 +13,20 @@ export function MonthCard({
   totals,
   expected = false,
   isCurrent = false,
+  bank = '',
 }: {
   totals: MonthTotals;
   expected?: boolean;
   isCurrent?: boolean;
+  /** Filtro de banco ativo: segue para a tela do mês. */
+  bank?: string;
 }) {
   const positive = totals.balance >= 0;
   const title = expected && isCurrent ? `Resto de ${monthTitle(totals.key).toLowerCase()}` : monthTitle(totals.key);
 
   return (
     <Link
-      href={`/transacoes/${totals.key}`}
+      href={bank ? `/transacoes/${totals.key}?banco=${encodeURIComponent(bank)}` : `/transacoes/${totals.key}`}
       className={`group flex flex-col gap-3 p-4 transition-transform active:scale-[0.99] ${
         expected ? 'border-info/50 bg-base-100/40 rounded-box border-2 border-dashed' : 'panel'
       }`}

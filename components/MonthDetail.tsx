@@ -14,6 +14,7 @@ import {
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
+import { BankFilter, matchesBank, useBankFilter, withBank } from '@/components/BankFilter';
 import { CardNote, SubCard } from '@/components/MonthCard';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
 import { TransactionRow } from '@/components/TransactionRow';
@@ -68,7 +69,7 @@ function byDay(rows: ReadonlyArray<Transaction>, order: 'asc' | 'desc'): [string
 }
 
 /** Tela de um mês: totais realizados, previstos e a lista de lançamentos separada pelos dois. */
-export function MonthDetail({ monthKey }: { monthKey: string }) {
+export function MonthDetail({ monthKey, initialBank = '' }: { monthKey: string; initialBank?: string }) {
   const hydrated = useHydrated();
   const transactions = useFinanceStore((s) => s.transactions);
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
@@ -76,18 +77,23 @@ export function MonthDetail({ monthKey }: { monthKey: string }) {
   const toggleTransactionPaid = useFinanceStore((s) => s.toggleTransactionPaid);
 
   const [filter, setFilter] = useState<Filter>('all');
+  const [bank, setBank] = useBankFilter(initialBank);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Transaction | undefined>(undefined);
 
   const { realized, expected, payments } = useMemo(() => {
     const today = todayISO();
     const inMonth = <T extends { date: string }>(rows: T[]) => rows.filter((r) => isSameMonth(r.date, monthKey));
-    const outflows = invoiceOutflows(invoices, today);
+    // Faturas não têm banco: com filtro de banco, os totais ficam só com os lançamentos dele.
+    const outflows = bank ? { realized: [], expected: [] } : invoiceOutflows(invoices, today);
     return {
-      ...splitByTiming(inMonth(transactions), today),
+      ...splitByTiming(
+        inMonth(transactions).filter((t) => matchesBank(t, bank)),
+        today,
+      ),
       payments: { realized: inMonth(outflows.realized), expected: inMonth(outflows.expected) },
     };
-  }, [transactions, invoices, monthKey]);
+  }, [transactions, invoices, monthKey, bank]);
   const realizedTotals = totalsOf(monthKey, realized, payments.realized);
   const expectedTotals = totalsOf(monthKey, expected, payments.expected);
   const match = FILTERS.find((f) => f.id === filter)!.match;
@@ -108,12 +114,12 @@ export function MonthDetail({ monthKey }: { monthKey: string }) {
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-5">
       <header className="flex flex-col gap-3">
-        <Link href="/transacoes" className="btn btn-ghost btn-sm self-start px-2">
+        <Link href={withBank('/transacoes', bank)} className="btn btn-ghost btn-sm self-start px-2">
           <ArrowLeft className="h-4 w-4" aria-hidden /> Todos os meses
         </Link>
         <div className="flex items-center justify-between gap-2">
           <Link
-            href={`/transacoes/${shiftMonth(monthKey, -1)}`}
+            href={withBank(`/transacoes/${shiftMonth(monthKey, -1)}`, bank)}
             className="btn btn-ghost btn-square"
             aria-label="Mês anterior"
           >
@@ -121,7 +127,7 @@ export function MonthDetail({ monthKey }: { monthKey: string }) {
           </Link>
           <h1 className="text-center text-2xl font-extrabold tracking-tight md:text-3xl">{monthTitle(monthKey)}</h1>
           <Link
-            href={`/transacoes/${shiftMonth(monthKey, 1)}`}
+            href={withBank(`/transacoes/${shiftMonth(monthKey, 1)}`, bank)}
             className="btn btn-ghost btn-square"
             aria-label="Próximo mês"
           >
@@ -134,6 +140,7 @@ export function MonthDetail({ monthKey }: { monthKey: string }) {
         <p className="text-base-content/60 py-10 text-center text-sm">Carregando…</p>
       ) : (
         <>
+          <BankFilter value={bank} onChange={setBank} />
           {(realized.length > 0 || payments.realized.length > 0) && (
             <TotalsPanel title="Realizado" totals={realizedTotals} />
           )}

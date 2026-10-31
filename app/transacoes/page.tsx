@@ -1,8 +1,9 @@
 'use client';
 
 import { CalendarClock, Plus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { use, useMemo, useState } from 'react';
 
+import { BankFilter, bankParam, matchesBank, useBankFilter } from '@/components/BankFilter';
 import { MonthCard } from '@/components/MonthCard';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
 import { EmptyState, PageHeader } from '@/components/ui';
@@ -11,24 +12,22 @@ import { useFinanceStore } from '@/lib/store';
 import { groupByMonth, splitByTiming } from '@/lib/transaction-months';
 import { useHydrated } from '@/lib/useHydratedStore';
 
-const NO_BANK = '__sem-banco__';
-
-export default function TransacoesPage() {
+export default function TransacoesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const hydrated = useHydrated();
   const transactions = useFinanceStore((s) => s.transactions);
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
-  const bankAccounts = useFinanceStore((s) => s.bankAccounts);
 
   const [txDialogOpen, setTxDialogOpen] = useState(false);
-  // '' = todos os bancos; NO_BANK = só os sem tag.
-  const [bankFilter, setBankFilter] = useState('');
+  const [bankFilter, setBankFilter] = useBankFilter(bankParam(use(searchParams).banco));
 
   // Realizado (até hoje) e previsto (datas futuras) nunca se misturam no mesmo card.
   const { history, forecast, currentKey } = useMemo(() => {
     const today = todayISO();
-    const filtered = bankFilter
-      ? transactions.filter((t) => (t.bankAccountId ?? NO_BANK) === bankFilter)
-      : transactions;
+    const filtered = transactions.filter((t) => matchesBank(t, bankFilter));
     const { realized, expected } = splitByTiming(filtered, today);
     // Faturas não têm banco: com filtro ligado, ficam de fora para os totais serem só do banco.
     const payments = bankFilter ? { realized: [], expected: [] } : invoiceOutflows(invoices, today);
@@ -55,27 +54,7 @@ export default function TransacoesPage() {
         }
       />
 
-      {hydrated && bankAccounts.length > 0 && (
-        <div className="-mt-2 mb-4 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filtrar por banco">
-          {[
-            { id: '', name: 'Todos' },
-            ...bankAccounts.map((a) => ({ id: a.id, name: a.name })),
-            { id: NO_BANK, name: 'Sem banco' },
-          ].map((o) => (
-            <button
-              key={o.id || 'todos'}
-              type="button"
-              aria-pressed={bankFilter === o.id}
-              className={`btn btn-sm min-h-11 shrink-0 rounded-full ${
-                bankFilter === o.id ? 'btn-neutral' : 'btn-ghost bg-base-200'
-              }`}
-              onClick={() => setBankFilter(o.id)}
-            >
-              {o.name}
-            </button>
-          ))}
-        </div>
-      )}
+      {hydrated && <BankFilter value={bankFilter} onChange={setBankFilter} className="-mt-2 mb-4" />}
 
       {!hydrated ? (
         <p className="text-base-content/60 py-10 text-center text-sm">Carregando…</p>
@@ -97,7 +76,7 @@ export default function TransacoesPage() {
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {forecast.map((m) => (
-                  <MonthCard key={m.key} totals={m} expected isCurrent={m.key === currentKey} />
+                  <MonthCard key={m.key} totals={m} expected isCurrent={m.key === currentKey} bank={bankFilter} />
                 ))}
               </div>
             </section>
@@ -110,7 +89,7 @@ export default function TransacoesPage() {
               </h2>
               <div className="grid gap-3 md:grid-cols-2">
                 {history.map((m) => (
-                  <MonthCard key={m.key} totals={m} isCurrent={m.key === currentKey} />
+                  <MonthCard key={m.key} totals={m} isCurrent={m.key === currentKey} bank={bankFilter} />
                 ))}
               </div>
             </section>
