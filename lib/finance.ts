@@ -224,23 +224,6 @@ export const paidByInvoice = (
 export const isTransfer = (tx: Pick<Transaction, 'isTransfer'>): boolean => Boolean(tx.isTransfer);
 
 /**
- * Quanto saiu das caixinhas/investimentos para as contas no mês (resgates menos aplicações).
- * Positivo = o mês usou dinheiro guardado; negativo = guardou mais do que tirou.
- */
-export function savingsDrawdown(
-  transactions: ReadonlyArray<Pick<Transaction, 'date' | 'type' | 'amount' | 'isTransfer' | 'savingsGoalId' | 'category'>>,
-  key: string = currentMonthKey(),
-): number {
-  let net = 0;
-  for (const tx of transactions) {
-    if (!tx.isTransfer || !isSameMonth(tx.date, key)) continue;
-    if (!tx.savingsGoalId && tx.category !== 'Investimentos') continue;
-    net += tx.type === 'income' ? tx.amount : -tx.amount;
-  }
-  return Math.round(net * 100) / 100;
-}
-
-/**
  * Saldo de hoje da conta: o último saldo informado mais o que entrou e saiu dela depois daquela data
  * (lançamentos com a tag do banco, já pagos). Compra no cartão não mexe na conta; movimentação sim.
  */

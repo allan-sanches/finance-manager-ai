@@ -23,7 +23,6 @@ import {
   nextOpenInvoice,
   shortDate,
   summarizeDebts,
-  savingsDrawdown,
   securedCardIds,
   securedCardSavings,
   summarizeMonth,
@@ -119,7 +118,6 @@ export default function DashboardPage() {
         balance={month.balance}
         income={month.income}
         expense={month.expense}
-        fromSavings={savingsDrawdown(transactions)}
         money={money}
       />
 

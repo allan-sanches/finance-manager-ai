@@ -8,7 +8,6 @@ import {
   invoiceOutflows,
   invoiceStatus,
   nextOpenInvoice,
-  savingsDrawdown,
   securedCardIds,
   securedCardSavings,
   shortDate,
@@ -247,38 +246,6 @@ describe('movimentações e saldo da conta', () => {
     ]);
     expect(balance).toBe(260);
     expect(after).toBe(2);
-  });
-});
-
-describe('savingsDrawdown', () => {
-  const t = (o: Partial<Transaction>): Transaction => ({
-    id: 'x',
-    description: 'x',
-    amount: 100,
-    type: 'expense',
-    category: 'Outros',
-    paymentMethod: 'bank_transfer',
-    date: '2026-10-10',
-    isFixed: false,
-    isPaid: true,
-    isTransfer: true,
-    ...o,
-  });
-
-  it('resgates menos aplicações de caixinhas e investimentos, ignorando transferência entre contas', () => {
-    expect(
-      savingsDrawdown(
-        [
-          t({ type: 'income', amount: 1000, category: 'Investimentos' }), // resgate CDB
-          t({ amount: 300, savingsGoalId: 'g1', category: 'Investimentos' }), // aplicação
-          t({ type: 'income', amount: 50, savingsGoalId: 'g2', category: 'Outros' }),
-          t({ type: 'income', amount: 999, category: 'Transferências' }), // entre contas: fora
-          t({ type: 'income', amount: 999, isTransfer: false, category: 'Investimentos' }), // rendimento
-          t({ type: 'income', amount: 999, date: '2026-09-30', category: 'Investimentos' }), // outro mês
-        ],
-        '2026-10',
-      ),
-    ).toBe(750);
   });
 });
 
