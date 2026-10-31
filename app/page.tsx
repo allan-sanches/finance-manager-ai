@@ -4,6 +4,7 @@ import { BellRing, CreditCard, Landmark, PiggyBank } from 'lucide-react';
 import Link from 'next/link';
 
 import { DashboardCharts } from '@/components/DashboardCharts';
+import { DashboardSearch } from '@/components/DashboardSearch';
 import { DebtsOverview } from '@/components/DebtsOverview';
 import { CategoryAvatar } from '@/components/CategoryAvatar';
 import { CategoryBreakdown } from '@/components/CategoryBreakdown';
@@ -89,6 +90,8 @@ export default function DashboardPage() {
           {hydrated ? greeting() : 'Olá'}! <span className="text-primary">💸</span>
         </h1>
       </header>
+
+      {hydrated && <DashboardSearch />}
 
       {hydrated && maturing.length > 0 && (
         <Link
