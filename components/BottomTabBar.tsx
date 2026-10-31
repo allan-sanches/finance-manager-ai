@@ -2,6 +2,7 @@
 
 import {
   ArrowLeftRight,
+  CreditCard,
   Download,
   House,
   Landmark,
@@ -32,6 +33,7 @@ const TABS_RIGHT: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/caixinhas', label: 'Caixinhas', icon: PiggyBank },
 ];
 const MORE: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: '/cartoes', label: 'Cartões', icon: CreditCard },
   { href: '/dividas', label: 'Dívidas', icon: Landmark },
   { href: '/listas', label: 'Listas', icon: ListChecks },
   { href: '/importar', label: 'Importar arquivos', icon: Download },

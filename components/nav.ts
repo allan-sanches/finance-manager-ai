@@ -1,5 +1,6 @@
 import {
   ArrowLeftRight,
+  CreditCard,
   Download,
   House,
   Landmark,
@@ -16,6 +17,7 @@ export type NavItem = { href: string; label: string; icon: LucideIcon };
 export const NAV: ReadonlyArray<NavItem> = [
   { href: '/', label: 'Início', icon: House },
   { href: '/transacoes', label: 'Transações', icon: ArrowLeftRight },
+  { href: '/cartoes', label: 'Cartões', icon: CreditCard },
   { href: '/dividas', label: 'Dívidas', icon: Landmark },
   { href: '/caixinhas', label: 'Caixinhas', icon: PiggyBank },
   { href: '/listas', label: 'Listas', icon: ListChecks },
