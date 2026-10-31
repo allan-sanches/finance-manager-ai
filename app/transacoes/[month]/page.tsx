@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 
-import { bankParam } from '@/components/BankFilter';
 import { MonthDetail } from '@/components/MonthDetail';
+import { bankParam } from '@/lib/bank-filter';
 import { isMonthKey } from '@/lib/transaction-months';
 
 export default async function MonthPage({

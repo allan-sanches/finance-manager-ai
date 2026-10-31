@@ -3,7 +3,8 @@
 import { CalendarClock, Plus } from 'lucide-react';
 import { use, useMemo, useState } from 'react';
 
-import { BankFilter, bankParam, matchesBank, useBankFilter } from '@/components/BankFilter';
+import { BankFilter, useBankFilter } from '@/components/BankFilter';
+import { bankParam, matchesBank } from '@/lib/bank-filter';
 import { MonthCard } from '@/components/MonthCard';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
 import { EmptyState, PageHeader } from '@/components/ui';

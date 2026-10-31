@@ -14,7 +14,8 @@ import {
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
-import { BankFilter, matchesBank, useBankFilter, withBank } from '@/components/BankFilter';
+import { BankFilter, useBankFilter } from '@/components/BankFilter';
+import { matchesBank, withBank } from '@/lib/bank-filter';
 import { CardNote, SubCard } from '@/components/MonthCard';
 import { TransactionFormDialog } from '@/components/TransactionFormDialog';
 import { TransactionRow } from '@/components/TransactionRow';

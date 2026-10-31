@@ -2,22 +2,8 @@
 
 import { useState } from 'react';
 
+import { NO_BANK } from '@/lib/bank-filter';
 import { useFinanceStore } from '@/lib/store';
-import type { Transaction } from '@/types/finance';
-
-/** Valor do filtro para "só os sem tag de banco"; '' = todos os bancos. */
-export const NO_BANK = '__sem-banco__';
-
-export const matchesBank = (tx: Pick<Transaction, 'bankAccountId'>, filter: string): boolean =>
-  !filter || (tx.bankAccountId ?? NO_BANK) === filter;
-
-/** `?banco=` da URL → valor do filtro ('' quando ausente). */
-export const bankParam = (value: string | string[] | undefined): string =>
-  typeof value === 'string' ? value : '';
-
-/** Link mantendo o filtro de banco ativo. */
-export const withBank = (href: string, bank: string) =>
-  bank ? `${href}?banco=${encodeURIComponent(bank)}` : href;
 
 /**
  * Filtro de banco guardado na URL (?banco=): sobrevive ao abrir um mês, voltar e recarregar.
