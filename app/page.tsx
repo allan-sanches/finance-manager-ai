@@ -29,6 +29,7 @@ import {
   todayISO,
 } from '@/lib/finance';
 import { withParams } from '@/lib/bank-filter';
+import { greeting } from '@/lib/greeting';
 import { maturityAlerts, maturityLabel, totalSavedBrl, USD } from '@/lib/savings';
 import { useFinanceStore } from '@/lib/store';
 import { useHydrated } from '@/lib/useHydratedStore';
@@ -36,14 +37,6 @@ import { useVisibleTransactions } from '@/lib/useVisibleTransactions';
 import { useUsdRate } from '@/lib/useUsdRate';
 
 const MONTH_NAME = new Intl.DateTimeFormat('pt-BR', { month: 'long', timeZone: APP_TIME_ZONE });
-const HOUR = new Intl.DateTimeFormat('pt-BR', { hour: 'numeric', hourCycle: 'h23', timeZone: APP_TIME_ZONE });
-
-function greeting(): string {
-  const h = Number(HOUR.format(new Date()));
-  if (h < 12) return 'Bom dia';
-  if (h < 18) return 'Boa tarde';
-  return 'Boa noite';
-}
 
 export default function DashboardPage() {
   const hydrated = useHydrated();
@@ -86,7 +79,7 @@ export default function DashboardPage() {
       <header className="pt-1 md:pt-0">
         <p className="eyebrow">{MONTH_NAME.format(new Date())} · visão geral</p>
         <h1 className="mt-1 text-3xl font-extrabold tracking-tight md:text-4xl">
-          {hydrated ? greeting() : 'Olá'}! <span className="text-primary">💸</span>
+          {hydrated ? greeting(settings.displayName) : 'Olá'}! <span className="text-primary">💸</span>
         </h1>
       </header>
 

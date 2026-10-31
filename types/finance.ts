@@ -157,6 +157,8 @@ export type AppSettings = {
   debtStatuses: DebtStatusOption[];
   /** Categorias ocultas: os lançamentos delas somem das listas, gráficos e totais (não do saldo das contas). */
   hiddenCategories: string[];
+  /** Como o app chama a pessoa nas saudações ("Bom dia, Allan"). Vazio = sem nome. */
+  displayName: string;
 };
 
 export type TransactionDraft = Omit<Transaction, 'id' | 'isPaid'> & {

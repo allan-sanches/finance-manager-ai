@@ -1,4 +1,5 @@
 import { ProfileEmailForm, ProfilePasswordForm, ProfileUsersPanel } from '@/components/ProfileForms';
+import { ProfileNameForm } from '@/components/ProfileNameForm';
 import { PageHeader } from '@/components/ui';
 import { requireUserId } from '@/lib/auth';
 import { getDb } from '@/lib/db';
@@ -14,7 +15,9 @@ export default async function PerfilPage() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <PageHeader title="Perfil" subtitle="Seu e-mail de acesso e a senha do app." />
+      <PageHeader title="Perfil" subtitle="Seu nome, o e-mail de acesso e a senha do app." />
+
+      <ProfileNameForm />
 
       <ProfileEmailForm email={user?.email ?? ''} />
 

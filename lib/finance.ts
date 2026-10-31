@@ -89,6 +89,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dashboardDebtStatuses: ['active', 'awaiting_offer', 'negotiated'],
   debtStatuses: DEFAULT_DEBT_STATUSES,
   hiddenCategories: [],
+  displayName: '',
 };
 
 /**
