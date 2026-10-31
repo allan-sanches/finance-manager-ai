@@ -153,3 +153,54 @@ describe('AI Gateway com imagens', () => {
     ]);
   });
 });
+
+describe('chatJsonWithGateway', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.resetModules();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubEnv('AI_GATEWAY_API_KEY', 'test-key');
+    vi.stubEnv('AI_GATEWAY_ZERO_DATA_RETENTION', '');
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it('manda o histórico com o modelo do Marx, schema e raciocínio desligado', async () => {
+    fetchMock.mockResolvedValue(completion(JSON.stringify({ reply: 'Oi, camarada!', transactions: [] })));
+    const { chatJsonWithGateway } = await import('@/lib/ai-gateway');
+    const messages = [
+      { role: 'system' as const, content: 'responda em json' },
+      { role: 'user' as const, content: 'como estão meus gastos?' },
+    ];
+    const schema = { type: 'object', properties: { reply: { type: 'string' } }, required: ['reply'] };
+    const result = await chatJsonWithGateway(messages, schema);
+
+    expect(result).toEqual({ ok: true, value: { reply: 'Oi, camarada!', transactions: [] } });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.model).toBe('deepseek/deepseek-v3.1');
+    expect(body.messages).toEqual(messages);
+    expect(body.response_format).toEqual({ type: 'json_schema', json_schema: { name: 'response', schema } });
+    expect(body.reasoning).toEqual({ enabled: false });
+  });
+
+  it('usa MARX_MODEL quando definido', async () => {
+    vi.stubEnv('MARX_MODEL', 'deepseek/deepseek-v4-pro');
+    fetchMock.mockResolvedValue(completion('{"reply":"ok","transactions":[]}'));
+    const { chatJsonWithGateway } = await import('@/lib/ai-gateway');
+    await chatJsonWithGateway([{ role: 'user', content: 'oi' }], { type: 'object' });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).model).toBe('deepseek/deepseek-v4-pro');
+  });
+
+  it('sem chave não chama a API', async () => {
+    vi.stubEnv('AI_GATEWAY_API_KEY', '');
+    const { chatJsonWithGateway } = await import('@/lib/ai-gateway');
+    const result = await chatJsonWithGateway([{ role: 'user', content: 'oi' }], { type: 'object' });
+    expect(result).toMatchObject({ ok: false, code: 'not_configured' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

@@ -34,10 +34,11 @@ const GATEWAY_REJECTED_ERROR =
 
 const CHAT_TIMEOUT_MS = 30_000;
 const DOCUMENT_TIMEOUT_MS = 120_000;
+const CONVERSATION_TIMEOUT_MS = 60_000;
 
 export const isGatewayConfigured = (): boolean => Boolean(apiKey);
 
-type JsonSchema = {
+export type JsonSchema = {
   type: string | string[];
   description?: string;
   enum?: Array<string | null>;
@@ -152,6 +153,70 @@ export function generateJsonWithGateway(
   request: StructuredJsonRequest,
 ): Promise<StructuredJsonResult> {
   return complete(request, DOCUMENT_TIMEOUT_MS);
+}
+
+export type GatewayChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+
+/**
+ * Modelo do assistente Marx: DeepSeek servido pelo Gateway, separado do modelo da extração.
+ * O V3.1 é o DeepSeek liberado no plano gratuito do Gateway; com créditos pagos, os V4 respondem melhor.
+ */
+export const marxModel = process.env.MARX_MODEL || 'deepseek/deepseek-v3.1';
+
+/**
+ * Conversa com histórico e saída em JSON Schema (o assistente Marx). Sem raciocínio: no celular a
+ * resposta rápida vale mais. Quem chama valida o objeto devolvido.
+ */
+export async function chatJsonWithGateway(
+  messages: ReadonlyArray<GatewayChatMessage>,
+  schema: JsonSchema,
+  { temperature = 0.7, maxTokens = 4096 }: { temperature?: number; maxTokens?: number } = {},
+): Promise<StructuredJsonResult> {
+  if (!apiKey) {
+    return { ok: false, code: 'not_configured', error: NOT_CONFIGURED_ERROR };
+  }
+
+  let raw: string | null | undefined;
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: marxModel,
+        messages,
+        response_format: { type: 'json_schema', json_schema: { name: 'response', schema } },
+        reasoning: { enabled: false },
+        temperature,
+        max_tokens: maxTokens,
+        stream: false,
+        ...(zeroDataRetention ? { providerOptions: { gateway: { zeroDataRetention: true } } } : {}),
+      }),
+      signal: AbortSignal.timeout(CONVERSATION_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      console.error('[ai-gateway] chat/completions failed', response.status, await response.text());
+      const error =
+        response.status === 401 || response.status === 403
+          ? GATEWAY_REJECTED_ERROR
+          : UPSTREAM_ERROR;
+      return { ok: false, code: 'upstream_error', error };
+    }
+    const payload = (await response.json()) as ChatCompletionResponse;
+    raw = payload.choices?.[0]?.message?.content;
+  } catch (err) {
+    console.error('[ai-gateway] chat/completions failed', err);
+    return { ok: false, code: 'upstream_error', error: UPSTREAM_ERROR };
+  }
+
+  try {
+    return { ok: true, value: raw ? JSON.parse(raw) : null };
+  } catch {
+    console.error('[ai-gateway] response is not valid JSON');
+    return { ok: false, code: 'invalid_output', error: INVALID_OUTPUT_ERROR };
+  }
 }
 
 export async function extractWithGateway(

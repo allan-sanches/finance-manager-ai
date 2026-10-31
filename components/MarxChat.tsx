@@ -125,9 +125,10 @@ export function MarxChat() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-40 flex h-14 items-center gap-2 rounded-full border-2 border-black bg-violet-500 py-1 pr-4 pl-1 font-bold text-white shadow-[3px_3px_0_0_#000] transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_#000] md:right-8 md:bottom-8"
+          className="fixed right-4 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-40 flex h-14 items-center gap-2 rounded-full border-2 border-black bg-violet-500 pr-5 font-bold text-white shadow-[3px_3px_0_0_#000] transition active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_0_#000] md:right-8 md:bottom-8"
         >
-          <MarxAvatar size={46} />
+          {/* O rosto é maior que a pílula e "salta" para fora dela. */}
+          <MarxAvatar size={76} className="-my-4 -ml-3" />
           Fale com o Marx
         </button>
       )}
@@ -140,7 +141,7 @@ export function MarxChat() {
       >
         <div className="modal-box flex h-[92dvh] max-h-none flex-col gap-0 p-0 md:h-[85vh] md:max-w-2xl">
           <header className="border-base-content/10 flex items-center gap-3 border-b px-4 py-3">
-            <MarxAvatar size={48} />
+            <MarxAvatar size={64} />
             <div className="min-w-0 flex-1 leading-tight">
               <h2 id="marx-title" className="font-extrabold">
                 Marx

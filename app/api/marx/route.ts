@@ -1,18 +1,18 @@
 import { NextResponse } from 'next/server';
 
 import type { ExtractionErrorCode } from '@/lib/ai';
+import { chatJsonWithGateway } from '@/lib/ai-gateway';
 import { getSessionUserId } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { getSnapshot } from '@/lib/db/repository';
-import { chatJsonWithDeepseek } from '@/lib/deepseek';
 import { mergeCategoryNames, todayISO } from '@/lib/finance';
 import { buildFinanceContext } from '@/lib/marx/context';
-import { buildMarxSystemPrompt, toDeepseekMessages } from '@/lib/marx/prompt';
+import { buildMarxSystemPrompt, MARX_RESPONSE_SCHEMA, toChatMessages } from '@/lib/marx/prompt';
 import { getMarketQuotes } from '@/lib/marx/quotes';
 import { marxRequestSchema, parseMarxReply } from '@/lib/marx/schemas';
 import { clientKeyFromRequest, createRateLimiter } from '@/lib/rate-limit';
 
-// Assistente Marx: conversa com o DeepSeek sobre os dados do usuário logado. Os dados saem do
+// Assistente Marx: conversa com o DeepSeek (via Vercel AI Gateway) sobre os dados do usuário logado. Os dados saem do
 // banco aqui no servidor (pela sessão), nunca do que o navegador manda; a chave fica no servidor.
 
 export const runtime = 'nodejs';
@@ -27,7 +27,7 @@ const STATUS_BY_ERROR: Record<ExtractionErrorCode, number> = {
 };
 
 const NOT_CONFIGURED =
-  'O Marx está de folga: falta configurar a DEEPSEEK_API_KEY no servidor.';
+  'O Marx está de folga: falta configurar a AI_GATEWAY_API_KEY no servidor.';
 const CONFUSED = 'O Marx se enrolou com essa. Tenta perguntar de outro jeito?';
 
 export async function POST(request: Request) {
@@ -67,7 +67,10 @@ export async function POST(request: Request) {
     financeContext: buildFinanceContext(snapshot, quotes, today),
   });
 
-  const result = await chatJsonWithDeepseek(toDeepseekMessages(system, parsed.data.messages));
+  const result = await chatJsonWithGateway(
+    toChatMessages(system, parsed.data.messages),
+    MARX_RESPONSE_SCHEMA,
+  );
   if (!result.ok) {
     const error = result.code === 'not_configured' ? NOT_CONFIGURED : result.code === 'invalid_output' ? CONFUSED : result.error;
     return NextResponse.json({ ok: false, error }, { status: STATUS_BY_ERROR[result.code] });

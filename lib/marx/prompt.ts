@@ -1,7 +1,47 @@
 import 'server-only';
 
-import type { DeepseekChatMessage } from '@/lib/deepseek';
+import type { GatewayChatMessage, JsonSchema } from '@/lib/ai-gateway';
 import type { MarxMessage } from '@/lib/marx/schemas';
+
+/** Formato da resposta (Structured Outputs no Gateway); parseMarxReply ainda valida tudo. */
+export const MARX_RESPONSE_SCHEMA: JsonSchema = {
+  type: 'object',
+  properties: {
+    reply: { type: 'string', description: 'Resposta ao usuário, em português.' },
+    transactions: {
+      type: 'array',
+      description: 'Gastos/receitas contados na última mensagem; vazio se não houver.',
+      items: {
+        type: 'object',
+        properties: {
+          description: { type: 'string' },
+          amount: { type: 'number', description: 'Valor positivo em reais.' },
+          type: { type: 'string', enum: ['expense', 'income'] },
+          category: { type: 'string' },
+          paymentMethod: { type: 'string', enum: ['cash', 'debit', 'credit_card', 'pix', 'bank_transfer'] },
+          creditCardId: { type: ['string', 'null'] },
+          bankAccountId: { type: ['string', 'null'] },
+          date: { type: 'string', description: 'YYYY-MM-DD' },
+          isFixed: { type: 'boolean' },
+          isPaid: { type: 'boolean' },
+        },
+        required: [
+          'description',
+          'amount',
+          'type',
+          'category',
+          'paymentMethod',
+          'creditCardId',
+          'bankAccountId',
+          'date',
+          'isFixed',
+          'isPaid',
+        ],
+      },
+    },
+  },
+  required: ['reply', 'transactions'],
+};
 
 type PromptInput = {
   today: string;
@@ -57,13 +97,13 @@ export function buildMarxSystemPrompt({ today, financeContext, categories }: Pro
 }
 
 /**
- * Histórico no formato do JSON mode: as falas anteriores do Marx voltam como o json que ele mesmo
- * teria mandado (sem os lançamentos, que já foram mostrados), para ele não sair do formato.
+ * Histórico no formato da saída em json: as falas anteriores do Marx voltam como o json que ele
+ * mesmo teria mandado (sem os lançamentos, que já foram mostrados), para ele não sair do formato.
  */
-export function toDeepseekMessages(system: string, history: ReadonlyArray<MarxMessage>): DeepseekChatMessage[] {
+export function toChatMessages(system: string, history: ReadonlyArray<MarxMessage>): GatewayChatMessage[] {
   return [
     { role: 'system', content: system },
-    ...history.map((m): DeepseekChatMessage =>
+    ...history.map((m): GatewayChatMessage =>
       m.role === 'assistant'
         ? { role: 'assistant', content: JSON.stringify({ reply: m.content, transactions: [] }) }
         : { role: 'user', content: m.content },
