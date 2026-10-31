@@ -17,7 +17,7 @@ import { SectionTitle } from '@/components/ui';
 import { BRL, cashflowLastMonths, expensesByCategory, invoiceOutflows, securedCardIds } from '@/lib/finance';
 import { moneyFormat } from '@/lib/privacy';
 import { useFinanceStore } from '@/lib/store';
-import { TONE_HEX } from '@/lib/tones';
+import { TONE_HEX, type Tone } from '@/lib/tones';
 import { useCategories } from '@/lib/useCategories';
 import { useHydrated } from '@/lib/useHydratedStore';
 import { useVisibleTransactions } from '@/lib/useVisibleTransactions';
@@ -35,6 +35,9 @@ const BRL_COMPACT = moneyFormat(
   { style: 'currency', currency: 'BRL', notation: 'compact', minimumFractionDigits: 0, maximumFractionDigits: 1 },
   'R$',
 );
+
+// Grafite (#262626) some no tema escuro: no gráfico vira um cinza médio, visível nos dois temas.
+const sliceColor = (tone: Tone) => (tone === 'graphite' ? '#a3a3a3' : TONE_HEX[tone]);
 
 export function DashboardCharts() {
   const hydrated = useHydrated();
@@ -104,7 +107,7 @@ export function DashboardCharts() {
                     stroke="none"
                   >
                     {categories.map((c) => (
-                      <Cell key={c.name} fill={TONE_HEX[styleOf(c.name).tone]} />
+                      <Cell key={c.name} fill={sliceColor(styleOf(c.name).tone)} />
                     ))}
                   </Pie>
                   <Tooltip formatter={(value) => BRL.format(Number(value))} contentStyle={tooltipStyle} />
@@ -114,7 +117,7 @@ export function DashboardCharts() {
             <ul className="w-full space-y-1.5 text-sm">
               {categories.slice(0, 6).map((c) => (
                 <li key={c.name} className="flex items-center justify-between gap-2">
-                  <Legend color={TONE_HEX[styleOf(c.name).tone]} label={c.name} />
+                  <Legend color={sliceColor(styleOf(c.name).tone)} label={c.name} />
                   <span className="font-bold tabular-nums">{BRL.format(c.value)}</span>
                 </li>
               ))}
