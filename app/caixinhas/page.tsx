@@ -18,7 +18,7 @@ import { useMemo, useState } from 'react';
 import { MoneyInput } from '@/components/MoneyInput';
 import { SavingsGoalFormDialog } from '@/components/SavingsGoalFormDialog';
 import { EmptyState, PageHeader } from '@/components/ui';
-import { BRL, cardLimit, cardUsage, todayISO } from '@/lib/finance';
+import { BRL, cardUsage, securedCardSavings, todayISO } from '@/lib/finance';
 import { parseMoneyInput } from '@/lib/money-mask';
 import {
   daysBetween,
@@ -82,10 +82,14 @@ export default function CaixinhasPage() {
   const usdRate = useUsdRate();
   const saved = totalSavedBrl(goals, usdRate?.rate ?? null);
   // Cartão de limite garantido: o CDB que vira limite também é dinheiro guardado (ex.: Inter).
-  const securedCards = creditCards
-    .filter((c) => c.securedLimit)
-    .map((card) => ({ card, limit: cardLimit(card, goals), used: cardUsage(card.id, transactions, invoices).used }));
-  const securedTotal = securedCards.reduce((sum, c) => sum + c.limit, 0);
+  // Mesma soma do card "Guardado" do dashboard (securedCardSavings).
+  const secured = securedCardSavings(creditCards, goals);
+  const securedCards = secured.cards.map(({ card, amount }) => ({
+    card,
+    limit: amount,
+    used: cardUsage(card.id, transactions, invoices).used,
+  }));
+  const securedTotal = secured.total;
   const savedTotal = saved.total + securedTotal;
   const monthlyYield = cdi
     ? goals

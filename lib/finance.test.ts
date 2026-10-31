@@ -9,6 +9,7 @@ import {
   nextOpenInvoice,
   savingsDrawdown,
   securedCardIds,
+  securedCardSavings,
   shortDate,
   summarizeMonth,
   todayISO,
@@ -290,5 +291,22 @@ describe('withoutHiddenCategories', () => {
 
   it('sem categorias ocultas devolve a mesma lista', () => {
     expect(withoutHiddenCategories(rows, [])).toBe(rows);
+  });
+});
+
+describe('securedCardSavings', () => {
+  const goals = [{ id: 'g1', currency: 'BRL' as const, currentAmount: 800 }];
+
+  it('soma o limite dos cartões garantidos; cartão comum ou com limite vindo de caixinha fica de fora', () => {
+    const r = securedCardSavings(
+      [
+        { id: 'inter', name: 'Inter', limit: 5120.24, limitSavingsGoalId: null, securedLimit: true },
+        { id: 'mp', name: 'MP', limit: 500, limitSavingsGoalId: null, securedLimit: false },
+        { id: 'x', name: 'X', limit: 100, limitSavingsGoalId: 'g1', securedLimit: true },
+      ],
+      goals,
+    );
+    expect(r.total).toBe(5120.24);
+    expect(r.cards.map((c) => c.card.id)).toEqual(['inter']);
   });
 });

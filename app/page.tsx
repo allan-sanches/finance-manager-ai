@@ -22,6 +22,7 @@ import {
   summarizeDebts,
   savingsDrawdown,
   securedCardIds,
+  securedCardSavings,
   summarizeMonth,
   todayISO,
 } from '@/lib/finance';
@@ -60,6 +61,9 @@ export default function DashboardPage() {
   const totalInvoice = creditCards.reduce((sum, c) => sum + usageOf(c.id), 0);
   const usdRate = useUsdRate();
   const saved = totalSavedBrl(savingsGoals, usdRate?.rate ?? null);
+  // Todas as caixinhas + o CDB que garante o limite do cartão (mesma soma da tela de Caixinhas).
+  const securedSavings = securedCardSavings(creditCards, savingsGoals);
+  const savedTotal = saved.total + securedSavings.total;
   const maturing = maturityAlerts(savingsGoals, todayISO());
   const dashboardDebts = debtsOnDashboard(debts, settings);
   const debtSummary = summarizeDebts(dashboardDebts);
@@ -141,19 +145,30 @@ export default function DashboardPage() {
           tone="violet"
           icon={PiggyBank}
           label="Guardado"
-          value={money(saved.total)}
+          value={money(savedTotal)}
           hint={
-            saved.usd === 0
-              ? `${savingsGoals.length} caixinha(s)`
-              : saved.usdInBrl !== null
-                ? `Inclui ${USD.format(saved.usd)} (≈ ${money(saved.usdInBrl)})`
-                : `+ ${USD.format(saved.usd)} em dólar`
+            [
+              `${savingsGoals.length + securedSavings.cards.length} caixinha(s)`,
+              saved.usd > 0 &&
+                (saved.usdInBrl !== null
+                  ? `inclui ${USD.format(saved.usd)} (≈ ${money(saved.usdInBrl)})`
+                  : `+ ${USD.format(saved.usd)} em dólar`),
+            ]
+              .filter(Boolean)
+              .join(' · ')
           }
         >
           <TileDetails
             empty="Nenhuma caixinha ainda."
             footer={{ href: '/caixinhas', label: 'Ver caixinhas' }}
-            rows={savingsGoals.map((g) => {
+            rows={[
+              ...securedSavings.cards.map(({ card, amount }) => ({
+                key: `cartao-${card.id}`,
+                label: card.name,
+                value: hydrated ? BRL.format(amount) : '—',
+                sub: 'CDB que garante o limite do cartão',
+              })),
+              ...savingsGoals.map((g) => {
               const fmt = g.currency === 'USD' ? USD : BRL;
               const pct = Math.round((g.currentAmount / Math.max(1, g.targetAmount)) * 100);
               return {
@@ -171,7 +186,8 @@ export default function DashboardPage() {
                   .join(' · '),
                 progress: pct,
               };
-            })}
+            }),
+            ]}
           />
         </ExpandableTile>
         <ExpandableTile

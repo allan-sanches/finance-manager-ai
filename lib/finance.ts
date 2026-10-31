@@ -59,6 +59,20 @@ export function cardLimit(
   return goal ? goal.currentAmount : card.limit;
 }
 
+/**
+ * CDB dos cartões de limite garantido (ex.: Inter): é dinheiro guardado, então entra no "Guardado"
+ * junto com as caixinhas. Cartão cujo limite já vem de uma caixinha fica de fora (já está nela).
+ */
+export function securedCardSavings<C extends Pick<CreditCard, 'id' | 'name' | 'limit' | 'limitSavingsGoalId' | 'securedLimit'>>(
+  cards: ReadonlyArray<C>,
+  goals: ReadonlyArray<Pick<SavingsGoal, 'id' | 'currency' | 'currentAmount'>>,
+): { cards: { card: C; amount: number }[]; total: number } {
+  const list = cards
+    .filter((c) => c.securedLimit && !goals.some((g) => g.id === c.limitSavingsGoalId))
+    .map((card) => ({ card, amount: cardLimit(card, goals) }));
+  return { cards: list, total: list.reduce((sum, c) => sum + c.amount, 0) };
+}
+
 /** Situação das dívidas novas (cadastro manual e importação). Pode ser renomeada, não apagada. */
 export const DEFAULT_DEBT_STATUS: DebtStatus = 'active';
 
