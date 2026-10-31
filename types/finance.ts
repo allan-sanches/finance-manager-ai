@@ -23,6 +23,7 @@ export type Transaction = {
   date: string;
   isFixed: boolean;
   isPaid: boolean;
+  createdAt?: string; // ISO timestamp do registro (só leitura): separa compra nova do valor já informado da fatura
 };
 
 export type CreditCard = {
@@ -50,6 +51,7 @@ export type CreditCardInvoice = {
   dueDate: string; // ISO YYYY-MM-DD
   amount: number;
   paymentDate?: string | null; // ISO YYYY-MM-DD; vazia = em aberto
+  recordedAt?: string; // ISO timestamp de quando o valor foi informado (só leitura, vem do servidor)
 };
 
 /**

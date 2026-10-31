@@ -310,3 +310,43 @@ describe('securedCardSavings', () => {
     expect(r.cards.map((c) => c.card.id)).toEqual(['inter']);
   });
 });
+
+describe('cardUsage: compra registrada depois do valor da fatura atual', () => {
+  const tx = (o: Partial<Transaction>): Transaction => ({
+    id: 'x',
+    description: 'x',
+    amount: 100,
+    type: 'expense',
+    category: 'Outros',
+    paymentMethod: 'credit_card',
+    creditCardId: 'inter',
+    date: '2026-10-31',
+    isFixed: false,
+    isPaid: true,
+    ...o,
+  });
+  const invoices = [
+    {
+      creditCardId: 'inter',
+      closingDate: '2026-11-28',
+      amount: 396.78,
+      paymentDate: null,
+      recordedAt: '2026-10-31T15:56:00.000Z',
+    },
+  ];
+
+  it('soma a compra nova; a que já existia quando a fatura foi informada continua dentro dela', () => {
+    const usage = cardUsage(
+      'inter',
+      [
+        tx({ amount: 55, createdAt: '2026-10-31T18:22:00.000Z' }), // nova
+        tx({ amount: 400, createdAt: '2026-10-31T18:22:01.000Z' }), // nova
+        tx({ amount: 200, date: '2026-10-30', createdAt: '2026-10-31T14:49:00.000Z' }), // já no valor
+        tx({ amount: 999 }), // sem createdAt: regra só pela data
+      ],
+      invoices,
+      '2026-10-31',
+    );
+    expect(usage).toMatchObject({ unbilled: 455, openInvoices: 396.78, used: 851.78 });
+  });
+});

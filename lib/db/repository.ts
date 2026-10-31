@@ -109,15 +109,18 @@ export async function getSnapshot(db: Db, userId: string): Promise<FinanceSnapsh
 
   return {
     transactions: txRows.map(
-      ({ createdAt: _, userId: __, ...t }): Transaction => ({
+      ({ createdAt, userId: __, ...t }): Transaction => ({
         ...t,
+        createdAt: createdAt.toISOString(),
         creditCardId: t.creditCardId ?? null,
         bankAccountId: t.bankAccountId ?? null,
         savingsGoalId: t.savingsGoalId ?? null,
       }),
     ),
     creditCards: cardRows.map(({ createdAt: _, userId: __, ...c }): CreditCard => c),
-    creditCardInvoices: invoiceRows.map(({ createdAt: _, userId: __, ...i }): CreditCardInvoice => i),
+    creditCardInvoices: invoiceRows.map(
+      ({ createdAt: _, updatedAt, userId: __, ...i }): CreditCardInvoice => ({ ...i, recordedAt: updatedAt.toISOString() }),
+    ),
     bankAccounts: accountRows.map(({ createdAt: _, userId: __, ...a }): BankAccount => a),
     savingsGoals: goalRows.map(({ createdAt: _, userId: __, ...g }): SavingsGoal => g),
     shoppingItems: itemRows.map(
@@ -208,7 +211,9 @@ export async function addTransaction(db: Db, userId: string, input: Transaction)
     const creditCardId = await existingCardId(tx, userId, input.creditCardId);
     const bankAccountId = await existingAccountId(tx, userId, input.bankAccountId);
     const savingsGoalId = await existingGoalId(tx, userId, input.savingsGoalId);
-    const row = { ...input, userId, creditCardId, bankAccountId, savingsGoalId, isTransfer: input.isTransfer ?? false };
+    // createdAt vem do banco (o do cliente é só para a tela até a resposta chegar).
+    const { createdAt: _, ...data } = input;
+    const row = { ...data, userId, creditCardId, bankAccountId, savingsGoalId, isTransfer: input.isTransfer ?? false };
     await tx.insert(transactions).values(row);
     await adjustInvoice(tx, userId, creditCardId, invoiceContribution(row));
   });
@@ -340,7 +345,8 @@ export async function addCreditCardInvoice(
 ): Promise<void> {
   await db.transaction(async (tx) => {
     if (!(await existingCardId(tx, userId, input.creditCardId))) return;
-    await tx.insert(creditCardInvoices).values({ ...input, userId });
+    const { recordedAt: _, ...data } = input; // vem do banco (updated_at)
+    await tx.insert(creditCardInvoices).values({ ...data, userId });
     await adjustInvoice(tx, userId, input.creditCardId, -paidContribution(input));
   });
 }
@@ -359,7 +365,10 @@ export async function updateCreditCardInvoice(
       .where(ownInvoice(userId, id))
       .for('update');
     if (!prev) return;
-    await tx.update(creditCardInvoices).set(patch).where(ownInvoice(userId, id));
+    // Novo valor informado: as compras registradas até agora passam a contar como dentro dele.
+    const { recordedAt: _, ...data } = patch;
+    const touched = data.amount !== undefined ? { updatedAt: new Date() } : {};
+    await tx.update(creditCardInvoices).set({ ...data, ...touched }).where(ownInvoice(userId, id));
     const next = { ...prev, ...patch };
     await adjustInvoice(tx, userId, prev.creditCardId, paidContribution(prev) - paidContribution(next));
   });

@@ -664,10 +664,20 @@ describe('faturas do cartão', () => {
     await repo.addCreditCardInvoice(db, OWNER, { ...inv, paymentDate: '2026-11-10' });
     expect(await invoice()).toBe(200);
     expect((await repo.getSnapshot(db, OWNER)).creditCardInvoices).toEqual([
-      { ...inv, paymentDate: '2026-11-10' },
+      { ...inv, paymentDate: '2026-11-10', recordedAt: expect.any(String) },
     ]);
     await repo.removeCreditCardInvoice(db, OWNER, 'inv-1');
     expect(await invoice()).toBe(500);
+  });
+
+  it('informar um novo valor marca o momento (recordedAt); pagar não muda', async () => {
+    await repo.addCreditCardInvoice(db, OWNER, inv);
+    const first = (await repo.getSnapshot(db, OWNER)).creditCardInvoices[0].recordedAt!;
+    await new Promise((r) => setTimeout(r, 15));
+    await repo.updateCreditCardInvoice(db, OWNER, 'inv-1', { paymentDate: '2026-11-10' });
+    expect((await repo.getSnapshot(db, OWNER)).creditCardInvoices[0].recordedAt).toBe(first);
+    await repo.updateCreditCardInvoice(db, OWNER, 'inv-1', { amount: 410 });
+    expect((await repo.getSnapshot(db, OWNER)).creditCardInvoices[0].recordedAt! > first).toBe(true);
   });
 
   it('apagar o cartão apaga as faturas dele', async () => {

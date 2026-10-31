@@ -1,0 +1,1 @@
+ALTER TABLE "credit_card_invoices" ADD COLUMN "updated_at" timestamp with time zone DEFAULT now() NOT NULL;

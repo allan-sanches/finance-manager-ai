@@ -280,27 +280,35 @@ export type CardUsage = {
  */
 export function cardUsage(
   cardId: string,
-  transactions: ReadonlyArray<Pick<Transaction, 'paymentMethod' | 'creditCardId' | 'date' | 'amount' | 'type'>>,
-  invoices: ReadonlyArray<Pick<CreditCardInvoice, 'creditCardId' | 'closingDate' | 'amount' | 'paymentDate'>>,
+  transactions: ReadonlyArray<
+    Pick<Transaction, 'paymentMethod' | 'creditCardId' | 'date' | 'amount' | 'type' | 'createdAt'>
+  >,
+  invoices: ReadonlyArray<
+    Pick<CreditCardInvoice, 'creditCardId' | 'closingDate' | 'amount' | 'paymentDate' | 'recordedAt'>
+  >,
   today: string = todayISO(),
 ): CardUsage {
   let lastPastClosing: string | null = null;
-  let nextClosing: string | null = null;
+  let current: { closingDate: string; recordedAt?: string } | null = null;
   let openInvoices = 0;
   for (const i of invoices) {
     if (i.creditCardId !== cardId) continue;
     if (i.closingDate < today) {
       if (!lastPastClosing || i.closingDate > lastPastClosing) lastPastClosing = i.closingDate;
-    } else if (!nextClosing || i.closingDate < nextClosing) {
-      nextClosing = i.closingDate;
+    } else if (!current || i.closingDate < current.closingDate) {
+      current = i;
     }
     if (!i.paymentDate) openInvoices += i.amount;
   }
-  const lastClosingDate = nextClosing ?? lastPastClosing;
+  const lastClosingDate = current?.closingDate ?? lastPastClosing;
+  // A fatura atual (ainda vai fechar) foi informada num momento: compra registrada depois disso
+  // ainda não está no valor dela, mesmo com data anterior ao fechamento.
+  const currentRecordedAt = current?.recordedAt;
   let unbilled = 0;
   for (const tx of transactions) {
     if (!isCardPurchase(tx) || tx.creditCardId !== cardId) continue;
-    if (lastClosingDate && tx.date < lastClosingDate) continue;
+    const afterRecorded = Boolean(currentRecordedAt && tx.createdAt && tx.createdAt > currentRecordedAt);
+    if (lastClosingDate && tx.date < lastClosingDate && !afterRecorded) continue;
     // Receita no cartão é estorno: abate da fatura.
     unbilled += tx.type === 'income' ? -tx.amount : tx.amount;
   }

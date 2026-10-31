@@ -76,6 +76,8 @@ export const creditCardInvoices = pgTable('credit_card_invoices', {
   amount: money('amount').notNull(),
   paymentDate: date('payment_date', { mode: 'string' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  // Quando o valor foi informado: compras registradas depois ainda não estão nele (ver cardUsage).
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('credit_card_invoices_user_id_idx').on(t.userId)]);
 
 // Saldo informado à mão pelo usuário (não é calculado a partir das transações).

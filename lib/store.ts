@@ -123,6 +123,7 @@ const transactionFromDraft = (draft: TransactionDraft): Transaction => ({
   date: draft.date,
   isFixed: draft.isFixed,
   isPaid: draft.isPaid ?? false,
+  createdAt: new Date().toISOString(),
 });
 
 // Mutações são aplicadas na hora (otimista) e enviadas ao servidor em fila, na ordem.
@@ -331,7 +332,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
 
     addCreditCardInvoice: (draft) => {
-      const invoice: CreditCardInvoice = { id: newId(), ...draft, paymentDate: draft.paymentDate ?? null };
+      const invoice: CreditCardInvoice = {
+        id: newId(),
+        ...draft,
+        paymentDate: draft.paymentDate ?? null,
+        recordedAt: new Date().toISOString(),
+      };
       set((s) => ({ creditCardInvoices: [invoice, ...s.creditCardInvoices] }));
       payInvoiceLocally(invoice.creditCardId, paidContribution(invoice), set);
       sync((actor) => actions.addCreditCardInvoice(actor, invoice));
@@ -341,7 +347,13 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     updateCreditCardInvoice: (id, patch) => {
       const prev = get().creditCardInvoices.find((i) => i.id === id);
       if (!prev) return;
-      const next: CreditCardInvoice = { ...prev, ...patch, id, creditCardId: prev.creditCardId };
+      const next: CreditCardInvoice = {
+        ...prev,
+        ...patch,
+        id,
+        creditCardId: prev.creditCardId,
+        ...(patch.amount !== undefined ? { recordedAt: new Date().toISOString() } : {}),
+      };
       set((s) => ({ creditCardInvoices: s.creditCardInvoices.map((i) => (i.id === id ? next : i)) }));
       payInvoiceLocally(prev.creditCardId, paidContribution(next) - paidContribution(prev), set);
       sync((actor) => actions.updateCreditCardInvoice(actor, id, patch));
