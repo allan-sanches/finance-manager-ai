@@ -357,10 +357,11 @@ function GoalCard({
             </span>
             <ul className="flex flex-col gap-1">
               {deposits.map(({ deposit, daysLeft }) => (
-                <li key={deposit.id} className="flex items-center justify-between gap-2">
-                  <span className="metric">{money.format(deposit.amount)}</span>
+                <li key={deposit.id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                  <span className="metric shrink-0">{money.format(deposit.amount)}</span>
+                  {/* Texto curto e selo que cresce: no celular o card é estreito e o selo de altura fixa vazava. */}
                   <span
-                    className={`badge border-0 font-semibold ${
+                    className={`badge h-auto min-h-6 shrink-0 whitespace-nowrap border-0 py-0.5 font-semibold ${
                       daysLeft <= 0
                         ? 'bg-emerald-300 text-neutral-900'
                         : daysLeft <= MATURITY_WARNING_DAYS
@@ -368,9 +369,11 @@ function GoalCard({
                           : 'bg-base-100'
                     }`}
                   >
-                    {daysLeft <= 0
-                      ? maturityLabel(daysLeft, deposit.maturityDate)
-                      : `${formatDay(deposit.maturityDate)} · ${maturityLabel(daysLeft, deposit.maturityDate).toLowerCase()}`}
+                    {daysLeft < 0
+                      ? `Venceu ${formatDayShort(deposit.maturityDate)}`
+                      : daysLeft <= 1
+                        ? maturityLabel(daysLeft, deposit.maturityDate)
+                        : `${formatDayShort(deposit.maturityDate)} · em ${daysLeft} dias`}
                   </span>
                 </li>
               ))}
@@ -460,6 +463,12 @@ function GoalCard({
 function formatDay(iso: string): string {
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;
+}
+
+/** "25/11": sem o ano, para caber no selo de vencimento. */
+function formatDayShort(iso: string): string {
+  const [, m, d] = iso.split('-');
+  return `${d}/${m}`;
 }
 
 function formatMonth(iso: string): string {
