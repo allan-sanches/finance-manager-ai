@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, X } from 'lucide-react';
+import { Eye, EyeOff, Plus, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 import { CategoryAvatar } from '@/components/CategoryAvatar';
@@ -15,6 +15,32 @@ export function CategorySettings() {
   const categories = useFinanceStore((s) => s.categories);
   const addCategory = useFinanceStore((s) => s.addCategory);
   const removeCategory = useFinanceStore((s) => s.removeCategory);
+  const hiddenList = useFinanceStore((s) => s.settings.hiddenCategories);
+  const updateSettings = useFinanceStore((s) => s.updateSettings);
+
+  // Oculta = some das listas, gráficos e totais (o saldo das contas e o limite dos cartões seguem reais).
+  const hidden = new Set((hiddenList ?? []).map(normalizeCategoryName));
+  const isHidden = (name: string) => hidden.has(normalizeCategoryName(name));
+  function toggleHidden(name: string) {
+    const current = hiddenList ?? [];
+    updateSettings({
+      hiddenCategories: isHidden(name)
+        ? current.filter((n) => normalizeCategoryName(n) !== normalizeCategoryName(name))
+        : [...current, name],
+    });
+  }
+  const hideButton = (name: string) => (
+    <button
+      type="button"
+      className={`btn btn-ghost btn-sm btn-square ${isHidden(name) ? 'text-warning' : ''}`}
+      aria-pressed={isHidden(name)}
+      aria-label={isHidden(name) ? `Mostrar ${name}` : `Ocultar ${name}`}
+      title={isHidden(name) ? 'Oculta: fora das listas e dos totais' : 'Ocultar das listas e dos totais'}
+      onClick={() => toggleHidden(name)}
+    >
+      {isHidden(name) ? <EyeOff className="h-4 w-4" aria-hidden /> : <Eye className="h-4 w-4" aria-hidden />}
+    </button>
+  );
 
   const [name, setName] = useState('');
   const [emoji, setEmoji] = useState(EMOJI_SUGGESTIONS[0]);
@@ -96,12 +122,19 @@ export function CategorySettings() {
       </form>
 
       <div className="divider my-4" />
+      <p className="text-base-content/60 mb-2 text-xs">
+        Toque no olho para ocultar uma categoria: os lançamentos dela saem das listas, gráficos e totais. O
+        saldo das contas e o limite dos cartões continuam contando tudo.
+      </p>
 
       <ul className="flex flex-col gap-1">
         {categories.map((c) => (
           <li key={c.id} className="flex min-h-12 items-center gap-3">
             <CategoryAvatar category={c.name} size="sm" />
-            <span className="flex-1 truncate font-semibold">{c.name}</span>
+            <span className={`flex-1 truncate font-semibold ${isHidden(c.name) ? 'line-through opacity-60' : ''}`}>
+              {c.name}
+            </span>
+            {hideButton(c.name)}
             <button
               type="button"
               className="btn btn-ghost btn-sm btn-square text-error"
@@ -121,10 +154,11 @@ export function CategorySettings() {
           </li>
         ))}
         {CATEGORIES.map((name) => (
-          <li key={name} className="flex min-h-12 items-center gap-3 opacity-70">
+          <li key={name} className="flex min-h-12 items-center gap-3">
             <CategoryAvatar category={name} size="sm" />
-            <span className="flex-1 truncate">{name}</span>
+            <span className={`flex-1 truncate ${isHidden(name) ? 'line-through opacity-60' : 'opacity-70'}`}>{name}</span>
             <span className="text-base-content/50 text-xs">padrão</span>
+            {hideButton(name)}
           </li>
         ))}
       </ul>

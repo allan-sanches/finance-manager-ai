@@ -20,6 +20,7 @@ import { useFinanceStore } from '@/lib/store';
 import { TONE_HEX } from '@/lib/tones';
 import { useCategories } from '@/lib/useCategories';
 import { useHydrated } from '@/lib/useHydratedStore';
+import { useVisibleTransactions } from '@/lib/useVisibleTransactions';
 
 // Tokens do tema via CSS var: os gráficos acompanham o claro/escuro sem JS.
 const tooltipStyle = {
@@ -37,7 +38,7 @@ const BRL_COMPACT = moneyFormat(
 
 export function DashboardCharts() {
   const hydrated = useHydrated();
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useVisibleTransactions();
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const { styleOf } = useCategories();

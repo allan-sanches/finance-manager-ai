@@ -31,6 +31,7 @@ import {
   type MonthTotals,
 } from '@/lib/transaction-months';
 import { useHydrated } from '@/lib/useHydratedStore';
+import { useVisibleTransactions } from '@/lib/useVisibleTransactions';
 import type { Transaction } from '@/types/finance';
 
 type Filter = 'all' | 'income' | 'expense' | 'debt' | 'transfer' | 'fixed' | 'credit' | 'open';
@@ -72,7 +73,7 @@ function byDay(rows: ReadonlyArray<Transaction>, order: 'asc' | 'desc'): [string
 /** Tela de um mês: totais realizados, previstos e a lista de lançamentos separada pelos dois. */
 export function MonthDetail({ monthKey, initialBank = '' }: { monthKey: string; initialBank?: string }) {
   const hydrated = useHydrated();
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useVisibleTransactions();
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const removeTransaction = useFinanceStore((s) => s.removeTransaction);

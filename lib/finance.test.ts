@@ -12,6 +12,7 @@ import {
   shortDate,
   summarizeMonth,
   todayISO,
+  withoutHiddenCategories,
 } from '@/lib/finance';
 import type { CreditCardInvoice, Transaction } from '@/types/finance';
 
@@ -276,5 +277,18 @@ describe('savingsDrawdown', () => {
         '2026-10',
       ),
     ).toBe(750);
+  });
+});
+
+describe('withoutHiddenCategories', () => {
+  const rows = [{ category: 'Apostas' }, { category: 'Alimentação' }, { category: 'apostas ' }];
+
+  it('tira as categorias ocultas, sem ligar para maiúsculas, acentos ou espaços', () => {
+    expect(withoutHiddenCategories(rows, ['APOSTAS'])).toEqual([{ category: 'Alimentação' }]);
+    expect(withoutHiddenCategories(rows, ['alimentacao'])).toHaveLength(2);
+  });
+
+  it('sem categorias ocultas devolve a mesma lista', () => {
+    expect(withoutHiddenCategories(rows, [])).toBe(rows);
   });
 });

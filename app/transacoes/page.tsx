@@ -12,6 +12,7 @@ import { invoiceOutflows, monthKey, securedCardIds, todayISO } from '@/lib/finan
 import { useFinanceStore } from '@/lib/store';
 import { groupByMonth, splitByTiming } from '@/lib/transaction-months';
 import { useHydrated } from '@/lib/useHydratedStore';
+import { useVisibleTransactions } from '@/lib/useVisibleTransactions';
 
 export default function TransacoesPage({
   searchParams,
@@ -19,7 +20,7 @@ export default function TransacoesPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const hydrated = useHydrated();
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useVisibleTransactions();
   const invoices = useFinanceStore((s) => s.creditCardInvoices);
   const creditCards = useFinanceStore((s) => s.creditCards);
 

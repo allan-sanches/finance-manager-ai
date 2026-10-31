@@ -153,6 +153,8 @@ export type AppSettings = {
   dashboardDebtStatuses: DebtStatus[];
   /** Situações de dívida, na ordem em que aparecem. 'active' é a de dívidas novas e não pode ser apagada. */
   debtStatuses: DebtStatusOption[];
+  /** Categorias ocultas: os lançamentos delas somem das listas, gráficos e totais (não do saldo das contas). */
+  hiddenCategories: string[];
 };
 
 export type TransactionDraft = Omit<Transaction, 'id' | 'isPaid'> & {

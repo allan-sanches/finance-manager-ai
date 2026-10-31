@@ -214,6 +214,7 @@ export const settingsPatchSchema = z
       .max(30)
       .refine((list) => new Set(list.map((s) => s.id)).size === list.length, 'Situação repetida.')
       .refine((list) => list.some((s) => s.id === 'active'), 'A situação padrão não pode ser apagada.'),
+    hiddenCategories: z.array(z.string().trim().min(1).max(80)).max(100),
   })
   .partial();
 

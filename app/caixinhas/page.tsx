@@ -12,12 +12,13 @@ import {
   Trash2,
   TrendingUp,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { MoneyInput } from '@/components/MoneyInput';
 import { SavingsGoalFormDialog } from '@/components/SavingsGoalFormDialog';
 import { EmptyState, PageHeader } from '@/components/ui';
-import { BRL, todayISO } from '@/lib/finance';
+import { BRL, cardLimit, cardUsage, todayISO } from '@/lib/finance';
 import { parseMoneyInput } from '@/lib/money-mask';
 import {
   daysBetween,
@@ -45,6 +46,8 @@ export default function CaixinhasPage() {
   const withdrawFromGoal = useFinanceStore((s) => s.withdrawFromGoal);
   const removeSavingsGoal = useFinanceStore((s) => s.removeSavingsGoal);
   const transactions = useFinanceStore((s) => s.transactions);
+  const creditCards = useFinanceStore((s) => s.creditCards);
+  const invoices = useFinanceStore((s) => s.creditCardInvoices);
 
   // Movimentações do mês ligadas a cada caixinha: despesa = guardou, receita = tirou (sempre em R$).
   const movesByGoal = useMemo(() => {
@@ -78,6 +81,12 @@ export default function CaixinhasPage() {
 
   const usdRate = useUsdRate();
   const saved = totalSavedBrl(goals, usdRate?.rate ?? null);
+  // Cartão de limite garantido: o CDB que vira limite também é dinheiro guardado (ex.: Inter).
+  const securedCards = creditCards
+    .filter((c) => c.securedLimit)
+    .map((card) => ({ card, limit: cardLimit(card, goals), used: cardUsage(card.id, transactions, invoices).used }));
+  const securedTotal = securedCards.reduce((sum, c) => sum + c.limit, 0);
+  const savedTotal = saved.total + securedTotal;
   const monthlyYield = cdi
     ? goals
         .filter((g) => g.currency === 'BRL')
@@ -143,12 +152,19 @@ export default function CaixinhasPage() {
           <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
             <div className="tile flex flex-col gap-1 bg-violet-500 p-4 text-white">
               <span className="eyebrow">Guardado no total</span>
-              <span className="metric text-2xl">{BRL.format(saved.total)}</span>
-              {saved.usd > 0 && (
+              <span className="metric text-2xl">{BRL.format(savedTotal)}</span>
+              {(saved.usd > 0 || securedTotal > 0) && (
                 <span className="text-xs font-semibold opacity-85">
-                  {saved.usdInBrl !== null
-                    ? `${BRL.format(saved.brl)} em real + ${BRL.format(saved.usdInBrl)} do dólar`
-                    : 'Sem a parte em dólar: cotação indisponível'}
+                  {[
+                    `${BRL.format(saved.brl)} em real`,
+                    saved.usd > 0 &&
+                      (saved.usdInBrl !== null
+                        ? `${BRL.format(saved.usdInBrl)} do dólar`
+                        : 'dólar sem cotação (fora do total)'),
+                    securedTotal > 0 && `${BRL.format(securedTotal)} de CDB do cartão`,
+                  ]
+                    .filter(Boolean)
+                    .join(' + ')}
                 </span>
               )}
             </div>
@@ -183,6 +199,39 @@ export default function CaixinhasPage() {
               : 'Projeções consideram o CDI de hoje constante'}
             {' '}e descontam o IR regressivo de cada aporte.
           </p>
+
+          {securedCards.length > 0 && (
+            <section>
+              <h2 className="eyebrow mb-2 px-1">Garantia de cartão</h2>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {securedCards.map(({ card, limit, used }) => {
+                  const pctUsed = Math.min(100, Math.round((used / Math.max(1, limit)) * 100));
+                  return (
+                    <article key={card.id} className="panel flex flex-col overflow-hidden">
+                      <div className={`flex flex-col gap-3 p-4 ${TONE_CLASS.orange}`}>
+                        <div className="min-w-0">
+                          <h3 className="truncate text-lg font-extrabold">{card.name}</h3>
+                          <p className="text-xs font-semibold opacity-80">CDB que garante o limite do cartão</p>
+                        </div>
+                        <p className="metric text-3xl">{BRL.format(limit)}</p>
+                        <div className="h-2.5 overflow-hidden rounded-full bg-black/15" aria-hidden>
+                          <div className="h-full rounded-full bg-current" style={{ width: `${pctUsed}%` }} />
+                        </div>
+                        <p className="text-xs font-semibold opacity-80">
+                          {BRL.format(used)} em uso no cartão · {BRL.format(Math.max(0, limit - used))} livre
+                        </p>
+                      </div>
+                      <div className="flex justify-end p-2">
+                        <Link href="/cartoes" className="btn btn-ghost btn-sm">
+                          Ver cartão e faturas
+                        </Link>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {groups.map(([institution, items]) => (
             <section key={institution || 'sem'}>

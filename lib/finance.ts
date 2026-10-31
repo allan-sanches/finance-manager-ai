@@ -74,7 +74,21 @@ export const DEFAULT_DEBT_STATUSES: DebtStatusOption[] = [
 export const DEFAULT_SETTINGS: AppSettings = {
   dashboardDebtStatuses: ['active', 'awaiting_offer', 'negotiated'],
   debtStatuses: DEFAULT_DEBT_STATUSES,
+  hiddenCategories: [],
 };
+
+/**
+ * Tira os lançamentos das categorias ocultas (comparando sem maiúsculas/acentos). Vale para listas,
+ * gráficos e totais; o saldo das contas e o limite dos cartões continuam com tudo, porque são reais.
+ */
+export function withoutHiddenCategories<T extends Pick<Transaction, 'category'>>(
+  transactions: T[],
+  hidden: ReadonlyArray<string>,
+): T[] {
+  if (hidden.length === 0) return transactions;
+  const set = new Set(hidden.map(normalizeCategoryName));
+  return transactions.filter((t) => !set.has(normalizeCategoryName(t.category)));
+}
 
 /** Situação pelo id; id que não existe mais (apagada em outro aparelho) aparece com o próprio id, em cinza. */
 export function debtStatusOption(settings: Pick<AppSettings, 'debtStatuses'>, id: DebtStatus): DebtStatusOption {
