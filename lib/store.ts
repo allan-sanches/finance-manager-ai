@@ -32,6 +32,8 @@ type FinanceState = FinanceSnapshot & {
   /** Logout: apaga os dados da memória da aba. */
   reset: () => void;
   dismissSyncError: () => void;
+  /** Relê os dados do servidor na fila das alterações: nunca volta para um estado mais velho. */
+  refresh: () => void;
 
   // Transactions
   addTransaction: (draft: TransactionDraft) => Transaction;
@@ -184,6 +186,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       set({ ...initialState, hydrated: false, syncError: null, sessionUserId: null });
     },
     dismissSyncError: () => set({ syncError: null }),
+    refresh: () => sync((actor) => actions.loadSnapshot(actor)),
 
     addTransaction: (draft) => {
       const tx = transactionFromDraft(draft);

@@ -29,6 +29,10 @@ import {
   transactionPatchSchema,
   transactionSchema,
 } from '@/lib/finance-schemas';
+import { assertFetchableUrl, fetchProductInfo, ProductFetchError } from '@/lib/product-fetch';
+import type { ProductInfo } from '@/lib/product-page';
+import { checkWishPrices, PRICE_CHECK_INTERVAL_MS } from '@/lib/price-watch';
+import { createRateLimiter } from '@/lib/rate-limit';
 import { normalizeCategoryName } from '@/lib/tones';
 import type { FinanceSnapshot } from '@/types/finance';
 
@@ -220,6 +224,55 @@ export async function updateShoppingItem(actor: unknown, id: unknown, patch: unk
 export async function removeShoppingItem(actor: unknown, id: unknown) {
   const itemId = idSchema.parse(id);
   return run(actor, (db, userId) => repo.removeShoppingItem(db, userId, itemId));
+}
+
+// ---------- Preço automático da lista de desejos ----------
+// Cada leitura abre uma página de loja pelo servidor: limita por conta para ninguém usar o app
+// como robô de requisições.
+const checkLookupRate = createRateLimiter({ limit: 20, windowMs: 60_000 });
+const checkForcedRefreshRate = createRateLimiter({ limit: 30, windowMs: 60 * 60_000 });
+
+export type LookupResult = { ok: true; info: ProductInfo } | { ok: false; error: string };
+
+/** Formulário do desejo: lê nome, preço e foto do link antes de salvar. */
+export async function lookupProduct(url: unknown): Promise<LookupResult> {
+  const userId = await requireUserId();
+  if (typeof url !== 'string' || url.length > 2000) return { ok: false, error: 'Link inválido.' };
+  if (!checkLookupRate(userId).allowed) return { ok: false, error: 'Muitas consultas seguidas. Espere um minuto.' };
+  try {
+    assertFetchableUrl(url.trim());
+    const info = await fetchProductInfo(url.trim());
+    // Sem preço quase sempre é página de bloqueio anti-robô; o nome dela ("Mercado Libre") não serve.
+    if (info.price === null) {
+      return { ok: false, error: 'Não achei o preço nessa página (a loja pode bloquear consultas automáticas).' };
+    }
+    return { ok: true, info };
+  } catch (err) {
+    return { ok: false, error: err instanceof ProductFetchError ? err.message : 'Não foi possível abrir o link.' };
+  }
+}
+
+export type RefreshResult = { checked: number; updated: number; limited?: boolean };
+
+/**
+ * Lê de novo o preço na loja. Sem `id`: os desejos da conta sem leitura nas últimas 6h (a página
+ * chama ao abrir). Com `id`: aquele desejo, na hora. Não passa pelo `run` para não devolver o
+ * snapshot: o cliente recarrega pela fila dele depois.
+ */
+export async function refreshWishPrices(actor: unknown, id?: unknown): Promise<RefreshResult | SessionChanged> {
+  const userId = await requireUserId();
+  if (actor !== userId) return { sessionChanged: true };
+  const itemId = id === undefined ? undefined : idSchema.parse(id);
+  if (itemId && !checkForcedRefreshRate(userId).allowed) return { checked: 0, updated: 0, limited: true };
+  const db = getDb();
+  const wishes = await repo.listWishesToCheck(db, {
+    userId,
+    ids: itemId ? [itemId] : undefined,
+    staleBefore: itemId ? new Date() : new Date(Date.now() - PRICE_CHECK_INTERVAL_MS),
+    limit: 30,
+  });
+  const updated = await checkWishPrices(db, wishes);
+  return { checked: wishes.length, updated };
 }
 
 /**

@@ -168,7 +168,110 @@ describe('caixinhas e listas', () => {
       listType: 'household',
       estimatedPrice: null,
       isPurchased: true,
+      imageUrl: null,
+      productUrl: null,
+      priceHistory: [],
+      priceCheckedAt: null,
+      priceCheckError: null,
     });
+  });
+
+  it('guarda foto, link e histórico de preço do desejo', async () => {
+    await repo.addShoppingItem(db, OWNER, {
+      id: 'w1',
+      name: 'Fone',
+      listType: 'wishlist',
+      estimatedPrice: 500,
+      priority: 'high',
+      isPurchased: false,
+      imageUrl: 'data:image/jpeg;base64,AAAA',
+      productUrl: 'https://loja.example/fone',
+      priceHistory: [{ date: '2026-10-01', price: 500 }],
+    });
+    await repo.updateShoppingItem(db, OWNER, 'w1', {
+      estimatedPrice: 420,
+      priceHistory: [
+        { date: '2026-10-01', price: 500 },
+        { date: '2026-10-20', price: 420 },
+      ],
+    });
+    const [item] = (await repo.getSnapshot(db, OWNER)).shoppingItems;
+    expect(item).toMatchObject({
+      estimatedPrice: 420,
+      imageUrl: 'data:image/jpeg;base64,AAAA',
+      productUrl: 'https://loja.example/fone',
+      priceHistory: [
+        { date: '2026-10-01', price: 500 },
+        { date: '2026-10-20', price: 420 },
+      ],
+    });
+  });
+});
+
+describe('leitura automática de preço', () => {
+  const wish = (id: string, overrides = {}) => ({
+    id,
+    name: id,
+    listType: 'wishlist' as const,
+    isPurchased: false,
+    productUrl: `https://loja.example/${id}`,
+    estimatedPrice: 100,
+    priceHistory: [{ date: '2026-10-01', price: 100 }],
+    ...overrides,
+  });
+  const now = new Date('2026-10-31T15:00:00Z');
+
+  it('lista só desejos com link, não comprados e sem leitura recente', async () => {
+    await repo.addShoppingItem(db, OWNER, wish('com-link'));
+    await repo.addShoppingItem(db, OWNER, wish('sem-link', { productUrl: null }));
+    await repo.addShoppingItem(db, OWNER, wish('comprado', { isPurchased: true }));
+    await repo.addShoppingItem(db, OWNER, { id: 'casa', name: 'Arroz', listType: 'household', isPurchased: false });
+    await repo.addShoppingItem(db, OWNER, wish('recente'));
+    await repo.recordPriceCheck(db, OWNER, 'recente', { ok: true, price: 100, imageUrl: null }, { date: '2026-10-31', now });
+
+    const due = await repo.listWishesToCheck(db, { staleBefore: new Date('2026-10-31T12:00:00Z') });
+    expect(due.map((w) => w.id)).toEqual(['com-link']);
+  });
+
+  it('grava um ponto por dia, preenche a foto que faltava e limpa o erro', async () => {
+    await repo.addShoppingItem(db, OWNER, wish('w'));
+    await repo.recordPriceCheck(db, OWNER, 'w', { ok: false, error: 'A loja bloqueou.' }, { date: '2026-10-30', now });
+    let [item] = (await repo.getSnapshot(db, OWNER)).shoppingItems;
+    expect(item).toMatchObject({ priceCheckError: 'A loja bloqueou.', estimatedPrice: 100 });
+
+    await repo.recordPriceCheck(
+      db,
+      OWNER,
+      'w',
+      { ok: true, price: 89.9, imageUrl: 'https://cdn.example/w.jpg' },
+      { date: '2026-10-31', now },
+    );
+    [item] = (await repo.getSnapshot(db, OWNER)).shoppingItems;
+    expect(item).toMatchObject({
+      estimatedPrice: 89.9,
+      imageUrl: 'https://cdn.example/w.jpg',
+      priceCheckError: null,
+      priceHistory: [
+        { date: '2026-10-01', price: 100 },
+        { date: '2026-10-31', price: 89.9 },
+      ],
+    });
+    expect(item.priceCheckedAt).not.toBeNull();
+  });
+
+  it('trocar o link zera a última leitura', async () => {
+    await repo.addShoppingItem(db, OWNER, wish('w'));
+    await repo.recordPriceCheck(db, OWNER, 'w', { ok: false, error: 'falhou' }, { date: '2026-10-31', now });
+    await repo.updateShoppingItem(db, OWNER, 'w', { productUrl: 'https://outra.example/w' });
+    const [item] = (await repo.getSnapshot(db, OWNER)).shoppingItems;
+    expect(item).toMatchObject({ priceCheckedAt: null, priceCheckError: null });
+  });
+
+  it('não grava leitura no desejo de outra conta', async () => {
+    await repo.addShoppingItem(db, OWNER, wish('w'));
+    await repo.recordPriceCheck(db, 'outra', 'w', { ok: true, price: 1, imageUrl: null }, { date: '2026-10-31', now });
+    const [item] = (await repo.getSnapshot(db, OWNER)).shoppingItems;
+    expect(item.estimatedPrice).toBe(100);
   });
 });
 

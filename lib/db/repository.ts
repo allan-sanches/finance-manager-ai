@@ -1,10 +1,11 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 
 import * as schema from '@/lib/db/schema';
 import { DEFAULT_SETTINGS, mergeCategoryNames } from '@/lib/finance';
 import type { SnapshotInput } from '@/lib/finance-schemas';
 import { normalizeCategoryName } from '@/lib/tones';
+import { withPrice } from '@/lib/wishlist';
 import type {
   AppSettings,
   BankAccount,
@@ -456,7 +457,72 @@ export async function updateShoppingItem(
   patch: Partial<Omit<ShoppingItem, 'id'>>,
 ): Promise<void> {
   if (Object.keys(patch).length === 0) return;
-  await db.update(shoppingItems).set(patch).where(ownItem(userId, id));
+  // Link novo: a próxima leitura automática roda logo e o erro do link antigo some.
+  const linkChanged = 'productUrl' in patch ? { priceCheckedAt: null, priceCheckError: null } : {};
+  await db.update(shoppingItems).set({ ...patch, ...linkChanged }).where(ownItem(userId, id));
+}
+
+export type WishToCheck = { id: string; userId: string; productUrl: string };
+
+/**
+ * Desejos com link da loja, ainda não comprados, sem leitura desde `staleBefore`.
+ * Sem `userId` pega de todas as contas (rotina automática); com `ids`, só esses.
+ */
+export async function listWishesToCheck(
+  db: Db,
+  { userId, ids, staleBefore, limit = 200 }: { userId?: string; ids?: string[]; staleBefore: Date; limit?: number },
+): Promise<WishToCheck[]> {
+  const rows = await db
+    .select({ id: shoppingItems.id, userId: shoppingItems.userId, productUrl: shoppingItems.productUrl })
+    .from(shoppingItems)
+    .where(
+      and(
+        eq(shoppingItems.listType, 'wishlist'),
+        eq(shoppingItems.isPurchased, false),
+        isNotNull(shoppingItems.productUrl),
+        userId ? eq(shoppingItems.userId, userId) : undefined,
+        ids ? inArray(shoppingItems.id, ids) : undefined,
+        or(isNull(shoppingItems.priceCheckedAt), lt(shoppingItems.priceCheckedAt, staleBefore.toISOString())),
+      ),
+    )
+    .orderBy(asc(sql`coalesce(${shoppingItems.priceCheckedAt}, 'epoch')`))
+    .limit(limit);
+  return rows.filter((r): r is WishToCheck => r.productUrl !== null);
+}
+
+export type PriceCheckResult =
+  | { ok: true; price: number | null; imageUrl: string | null }
+  | { ok: false; error: string };
+
+/** Grava a leitura automática: preço do dia no histórico (um ponto por dia) e, se faltar, a foto da loja. */
+export async function recordPriceCheck(
+  db: Db,
+  userId: string,
+  id: string,
+  result: PriceCheckResult,
+  { date, now }: { date: string; now: Date },
+): Promise<void> {
+  const [item] = await db
+    .select({ priceHistory: shoppingItems.priceHistory, imageUrl: shoppingItems.imageUrl })
+    .from(shoppingItems)
+    .where(ownItem(userId, id));
+  if (!item) return;
+  const checkedAt = now.toISOString();
+  if (!result.ok || result.price === null) {
+    const error = result.ok ? 'Não achei o preço nessa página.' : result.error;
+    await db.update(shoppingItems).set({ priceCheckedAt: checkedAt, priceCheckError: error }).where(ownItem(userId, id));
+    return;
+  }
+  await db
+    .update(shoppingItems)
+    .set({
+      estimatedPrice: result.price,
+      priceHistory: withPrice(item.priceHistory, result.price, date, { daily: true }),
+      imageUrl: item.imageUrl ?? result.imageUrl,
+      priceCheckedAt: checkedAt,
+      priceCheckError: null,
+    })
+    .where(ownItem(userId, id));
 }
 
 export async function removeShoppingItem(db: Db, userId: string, id: string): Promise<void> {

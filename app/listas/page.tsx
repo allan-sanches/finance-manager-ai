@@ -10,43 +10,23 @@ import { BRL } from '@/lib/finance';
 import { parseMoneyInput } from '@/lib/money-mask';
 import { useFinanceStore } from '@/lib/store';
 import { useHydrated } from '@/lib/useHydratedStore';
-import type { ListType, ShoppingItem } from '@/types/finance';
-
-const PRIORITY_LABEL: Record<NonNullable<ShoppingItem['priority']>, string> = {
-  low: 'Baixa',
-  medium: 'Média',
-  high: 'Alta',
-};
-
-const PRIORITY_BADGE: Record<NonNullable<ShoppingItem['priority']>, string> = {
-  low: 'bg-slate-200 text-neutral-900',
-  medium: 'bg-cyan-300 text-neutral-900',
-  high: 'bg-pink-500 text-white',
-};
+import type { ListType } from '@/types/finance';
 
 export default function ListasPage() {
   return (
-    <div className="mx-auto flex max-w-5xl flex-col">
-      <PageHeader title="Listas" subtitle="Compras da casa e desejos, com preço e prioridade." />
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <ShoppingList
-          listType="household"
-          title="🛒 Compras da casa"
-          subtitle="Itens recorrentes e do dia a dia"
-          tone="bg-lime-300 text-neutral-900"
-        />
-        <ShoppingList
-          listType="wishlist"
-          title="✨ Lista de desejos"
-          subtitle="Com valor estimado e prioridade"
-          tone="bg-violet-500 text-white"
-        />
-      </div>
+    <div className="mx-auto flex max-w-2xl flex-col">
+      <PageHeader title="Lista de compras" subtitle="O que falta em casa, com preço estimado." />
+      <ShoppingList
+        listType="household"
+        title="🛒 Compras da casa"
+        subtitle="Itens recorrentes e do dia a dia"
+        tone="bg-lime-300 text-neutral-900"
+      />
     </div>
   );
 }
 
+// A lista de desejos tem página própria (app/desejos), com foto e acompanhamento de preço.
 function ShoppingList({
   listType,
   title,
@@ -74,7 +54,6 @@ function ShoppingList({
 
   const [name, setName] = useState('');
   const [estimatedPrice, setEstimatedPrice] = useState('');
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('medium');
 
   function handleAdd(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -84,11 +63,9 @@ function ShoppingList({
       name: name.trim(),
       listType,
       estimatedPrice: price || null,
-      priority: listType === 'wishlist' ? priority : undefined,
     });
     setName('');
     setEstimatedPrice('');
-    setPriority('medium');
   }
 
   const totalEstimated = items.reduce((sum, i) => sum + (i.estimatedPrice ?? 0), 0);
@@ -108,7 +85,7 @@ function ShoppingList({
           <div className="join w-full">
             <input
               className="input input-bordered join-item w-full"
-              placeholder={listType === 'household' ? 'Ex: Arroz, sabão…' : 'Ex: PS5, Curso de…'}
+              placeholder="Ex: Arroz, sabão…"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={80}
@@ -122,25 +99,12 @@ function ShoppingList({
               <Plus className="h-5 w-5" aria-hidden />
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <MoneyInput
-              placeholder="Preço (opcional)"
-              aria-label="Preço estimado"
-              value={estimatedPrice}
-              onChange={setEstimatedPrice}
-            />
-            {listType === 'wishlist' && (
-              <select
-                className="select select-bordered"
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as 'low' | 'medium' | 'high')}
-              >
-                <option value="low">Prioridade baixa</option>
-                <option value="medium">Prioridade média</option>
-                <option value="high">Prioridade alta</option>
-              </select>
-            )}
-          </div>
+          <MoneyInput
+            placeholder="Preço (opcional)"
+            aria-label="Preço estimado"
+            value={estimatedPrice}
+            onChange={setEstimatedPrice}
+          />
         </form>
 
         <ul className="mt-3 space-y-1">
@@ -148,9 +112,7 @@ function ShoppingList({
             <li className="text-base-content/60 py-6 text-center text-sm">Carregando…</li>
           ) : items.length === 0 ? (
             <li className="text-base-content/60 py-6 text-center text-sm">
-              {listType === 'household'
-                ? 'Sua lista está vazia.'
-                : 'Sem desejos cadastrados ainda.'}
+              Sua lista está vazia.
             </li>
           ) : (
             items.map((item) => (
@@ -172,11 +134,6 @@ function ShoppingList({
                 >
                   {item.name}
                 </span>
-                {item.priority && listType === 'wishlist' && (
-                  <span className={`badge badge-sm shrink-0 border-0 font-bold ${PRIORITY_BADGE[item.priority]}`}>
-                    {PRIORITY_LABEL[item.priority]}
-                  </span>
-                )}
                 {item.estimatedPrice != null && (
                   <span className="text-base-content/60 shrink-0 text-xs tabular-nums">
                     {BRL.format(item.estimatedPrice)}

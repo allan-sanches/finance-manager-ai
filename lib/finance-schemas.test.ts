@@ -5,6 +5,8 @@ import {
   debtPatchSchema,
   savingsGoalPatchSchema,
   savingsGoalSchema,
+  shoppingItemPatchSchema,
+  shoppingItemSchema,
 } from '@/lib/finance-schemas';
 
 describe('patches não preenchem campos ausentes', () => {
@@ -19,6 +21,29 @@ describe('patches não preenchem campos ausentes', () => {
   it('caixinha nova sem moeda vira BRL e campos opcionais viram null', () => {
     const goal = savingsGoalSchema.parse({ id: 'g', name: 'X', targetAmount: 10, currentAmount: 0 });
     expect(goal).toMatchObject({ currency: 'BRL', cdiPercent: null, lockDays: null, depositDate: null, monthlyContribution: null });
+  });
+});
+
+describe('shoppingItemSchema (lista de desejos)', () => {
+  const wish = { id: 'w', name: 'Fone', listType: 'wishlist', isPurchased: false };
+
+  it('editar só o preço não apaga foto nem link', () => {
+    expect(shoppingItemPatchSchema.parse({ estimatedPrice: 10 })).toEqual({ estimatedPrice: 10 });
+  });
+
+  it('aceita foto em data URL ou https e link http(s)', () => {
+    expect(
+      shoppingItemSchema.parse({ ...wish, imageUrl: 'data:image/jpeg;base64,AAAA', productUrl: 'http://loja.example/x' }),
+    ).toMatchObject({ imageUrl: 'data:image/jpeg;base64,AAAA', productUrl: 'http://loja.example/x' });
+    expect(shoppingItemSchema.parse({ ...wish, imageUrl: 'https://cdn.example/a.jpg' }).imageUrl).toBe(
+      'https://cdn.example/a.jpg',
+    );
+  });
+
+  it('recusa links que rodariam script', () => {
+    expect(() => shoppingItemSchema.parse({ ...wish, productUrl: 'javascript:alert(1)' })).toThrow();
+    expect(() => shoppingItemSchema.parse({ ...wish, imageUrl: 'data:text/html;base64,AAAA' })).toThrow();
+    expect(() => shoppingItemSchema.parse({ ...wish, imageUrl: 'http://cdn.example/a.jpg' })).toThrow();
   });
 });
 

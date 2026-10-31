@@ -19,6 +19,7 @@ import type {
   DebtStatus,
   ListType,
   PaymentMethod,
+  PricePoint,
   TimeDeposit,
   TransactionType,
 } from '@/types/finance';
@@ -174,5 +175,12 @@ export const shoppingItems = pgTable('shopping_items', {
   estimatedPrice: money('estimated_price'),
   priority: text('priority').$type<'low' | 'medium' | 'high'>(),
   isPurchased: boolean('is_purchased').notNull().default(false),
+  // Lista de desejos: miniatura (data URL pequena ou link), link da loja e os preços anotados.
+  imageUrl: text('image_url'),
+  productUrl: text('product_url'),
+  priceHistory: jsonb('price_history').$type<PricePoint[]>().notNull().default([]),
+  // Última leitura automática do preço no link da loja, e o motivo se ela falhou.
+  priceCheckedAt: timestamp('price_checked_at', { withTimezone: true, mode: 'string' }),
+  priceCheckError: text('price_check_error'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('shopping_items_user_id_idx').on(t.userId)]);

@@ -121,6 +121,17 @@ export const savingsGoalPatchSchema = z
   })
   .partial();
 
+// Foto do desejo: miniatura gerada no aparelho (data URL, ~30 KB) ou link https de uma imagem.
+// Nada de outros esquemas: o valor vai direto para o src de um <img>.
+const MAX_IMAGE_CHARS = 300_000;
+const imageUrl = z.union([
+  z.string().max(MAX_IMAGE_CHARS).regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/),
+  z.url({ protocol: /^https$/ }).max(2000),
+]);
+// Link da loja vai num <a href>: só http(s), nunca javascript:.
+const productUrl = z.url({ protocol: /^https?$/ }).max(2000);
+const priceHistory = z.array(z.object({ date: isoDate, price: money })).max(500);
+
 export const shoppingItemSchema = z.object({
   id,
   name: shortText,
@@ -128,9 +139,23 @@ export const shoppingItemSchema = z.object({
   estimatedPrice: money.nullish().transform((v) => v ?? null),
   priority: z.enum(['low', 'medium', 'high']).optional(),
   isPurchased: z.boolean(),
+  imageUrl: imageUrl.nullish().transform((v) => v ?? null),
+  productUrl: productUrl.nullish().transform((v) => v ?? null),
+  priceHistory: priceHistory.optional(),
 });
 
-export const shoppingItemPatchSchema = shoppingItemSchema.omit({ id: true }).partial();
+export const shoppingItemPatchSchema = z
+  .object({
+    name: shortText,
+    listType: z.enum(['household', 'wishlist']),
+    estimatedPrice: money.nullable(),
+    priority: z.enum(['low', 'medium', 'high']),
+    isPurchased: z.boolean(),
+    imageUrl: imageUrl.nullable(),
+    productUrl: productUrl.nullable(),
+    priceHistory,
+  })
+  .partial();
 
 export const categorySchema = z.object({
   id,

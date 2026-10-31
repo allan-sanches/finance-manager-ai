@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   CreditCard,
   Download,
+  Gift,
   House,
   Landmark,
   ListChecks,
@@ -35,7 +36,8 @@ const TABS_RIGHT: { href: string; label: string; icon: LucideIcon }[] = [
 const MORE: { href: string; label: string; icon: LucideIcon }[] = [
   { href: '/cartoes', label: 'Cartões', icon: CreditCard },
   { href: '/dividas', label: 'Dívidas', icon: Landmark },
-  { href: '/listas', label: 'Listas', icon: ListChecks },
+  { href: '/listas', label: 'Lista de compras', icon: ListChecks },
+  { href: '/desejos', label: 'Lista de desejos', icon: Gift },
   { href: '/importar', label: 'Importar arquivos', icon: Download },
   { href: '/ia-input', label: 'Entrada por IA', icon: Sparkles },
   { href: '/perfil', label: 'Perfil', icon: UserRound },

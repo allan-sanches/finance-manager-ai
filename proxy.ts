@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/session';
 
-const PUBLIC_PATHS = new Set(['/login', '/api/health']);
+// /api/cron/prices se protege com Bearer (lib/price-watch-secret.ts), não com sessão.
+const PUBLIC_PATHS = new Set(['/login', '/api/health', '/api/cron/prices']);
 
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

@@ -96,6 +96,17 @@ export type ShoppingItem = {
   estimatedPrice?: number | null;
   priority?: 'low' | 'medium' | 'high';
   isPurchased: boolean;
+  imageUrl?: string | null; // Foto do item: miniatura em data:image (enviada do aparelho) ou link https
+  productUrl?: string | null; // Link da loja
+  priceHistory?: PricePoint[]; // Preços anotados, do mais antigo ao mais novo; o último é o estimatedPrice
+  priceCheckedAt?: string | null; // Última leitura automática do preço no productUrl (ISO date-time); só o servidor grava
+  priceCheckError?: string | null; // Por que a última leitura automática falhou
+};
+
+/** Um preço visto em um dia, para acompanhar se o desejo ficou mais barato. */
+export type PricePoint = {
+  date: string; // ISO YYYY-MM-DD
+  price: number;
 };
 
 /** Categoria criada pelo usuário; as padrão (Alimentação, Moradia…) ficam em lib/finance.ts. */

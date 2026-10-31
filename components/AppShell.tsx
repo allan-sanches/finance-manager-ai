@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 import { BottomTabBar } from '@/components/BottomTabBar';
 import { LocalDataImport } from '@/components/LocalDataImport';
@@ -27,6 +27,7 @@ export function AppShell({
   const pathname = usePathname();
   const hydrate = useFinanceStore((s) => s.hydrate);
   const reset = useFinanceStore((s) => s.reset);
+  const refresh = useFinanceStore((s) => s.refresh);
 
   // Olho: lido antes do primeiro paint, e antes da hidratação do store (os valores só aparecem depois dela).
   const privateMode = usePrivacyHidden();
@@ -35,10 +36,21 @@ export function AppShell({
   }, []);
 
   // Sem sessão (logout), a memória da aba é apagada: os dados de uma conta não ficam para a próxima.
+  // O snapshot do layout só hidrata na primeira vez (ou ao trocar de conta). Depois disso ele pode vir
+  // do cache de prefetch do Next, mais velho que as alterações já feitas (ex.: caixinha apagada voltava
+  // no dashboard); então só pede uma releitura ao servidor, na fila das alterações.
+  const hydratedUser = useRef<string | null>(null);
   useEffect(() => {
-    if (snapshot && userId) hydrate(snapshot, userId);
-    else reset();
-  }, [snapshot, userId, hydrate, reset]);
+    if (!snapshot || !userId) {
+      hydratedUser.current = null;
+      reset();
+    } else if (hydratedUser.current !== userId) {
+      hydratedUser.current = userId;
+      hydrate(snapshot, userId);
+    } else {
+      refresh();
+    }
+  }, [snapshot, userId, hydrate, reset, refresh]);
 
   if (pathname === '/login') return <>{children}</>;
 
