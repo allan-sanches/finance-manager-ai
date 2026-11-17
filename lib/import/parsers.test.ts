@@ -198,6 +198,42 @@ describe('findDuplicateEntries', () => {
     const dupes = findDuplicateEntries([entry, entry, { ...entry, amount: 46 }], existing);
     expect([...dupes]).toEqual([0]);
   });
+
+  const line = (description: string, amount: number, date: string, type: 'income' | 'expense' = 'expense') => ({
+    description,
+    amount,
+    type,
+    date,
+    category: 'Outros',
+    paymentMethod: 'pix' as const,
+  });
+
+  it('reconhece o mesmo lançamento com outra descrição (a IA reescreve a cada leitura)', () => {
+    const typed = [{ ...line('Corrida', 12.61, '2026-10-25'), id: 'u1', isFixed: false, isPaid: true }];
+    const dupes = findDuplicateEntries([line('Pix enviado: UBER DO BRASIL TECNOLOGIA LTDA', 12.61, '2026-10-25')], typed);
+    expect([...dupes]).toEqual([0]);
+  });
+
+  it('aceita 1 dia de diferença, mas não 2, e não troca entrada por saída', () => {
+    const typed = [{ ...line('Mercado', 17.25, '2026-11-03'), id: 'm1', isFixed: false, isPaid: true }];
+    expect([...findDuplicateEntries([line('MERCADO CARDOSO II', 17.25, '2026-11-04')], typed)]).toEqual([0]);
+    expect([...findDuplicateEntries([line('MERCADO CARDOSO II', 17.25, '2026-11-05')], typed)]).toEqual([]);
+    expect([...findDuplicateEntries([line('MERCADO CARDOSO II', 17.25, '2026-11-03', 'income')], typed)]).toEqual([]);
+  });
+
+  it('vários Pix de mesmo valor no dia: cada um já cadastrado cobre uma linha só', () => {
+    const typed = [
+      { ...line('GOLD TECNOLOGIA', 200, '2026-10-26'), id: 'g1', isFixed: false, isPaid: true },
+      { ...line('Mattos Tech', 200, '2026-10-26'), id: 'g2', isFixed: false, isPaid: true },
+    ];
+    const entries = [
+      line('Pix enviado: VEM COMPRAR COMERCIO', 200, '2026-10-26'),
+      line('Pix enviado: Mattos Tech', 200, '2026-10-26'),
+      line('Pix enviado: GOLD TECNOLOGIA DE SISTEMAS', 200, '2026-10-26'),
+    ];
+    // Duas no app, três no extrato: a nova é a VEM COMPRAR; as outras casam com o seu par.
+    expect([...findDuplicateEntries(entries, typed)].sort()).toEqual([1, 2]);
+  });
 });
 
 describe('readScrTotals', () => {

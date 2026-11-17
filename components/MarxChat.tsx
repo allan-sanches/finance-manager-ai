@@ -17,11 +17,12 @@ import { fireMarxLaser, MarxAvatar } from '@/components/MarxAvatar';
 import { usePrivacyHidden } from '@/components/PrivacyToggle';
 import { StatementImportReview } from '@/components/StatementImportReview';
 import { BRL, DEBT_SOURCE_LABEL, PAYMENT_METHOD_LABEL, shortDate } from '@/lib/finance';
+import { findDuplicateEntries } from '@/lib/import/dedupe';
 import { DEFAULT_MARX_MODEL, isMarxModel, MARX_MODELS, marxModelLabel, type MarxModelId } from '@/lib/marx/models';
 import { MARX_MAX_MESSAGE_LENGTH, type MarxReply } from '@/lib/marx/schemas';
 import { shrinkImage } from '@/lib/shrinkImage';
 import { useFinanceStore } from '@/lib/store';
-import type { ImportPreview, TransactionDraft } from '@/types/finance';
+import type { ImportPreview, Transaction, TransactionDraft } from '@/types/finance';
 
 type ProposalStatus = 'pending' | 'added' | 'discarded';
 type DocumentStatus = 'pending' | 'done' | 'discarded';
@@ -131,7 +132,16 @@ export function MarxChat() {
       const response = await fetch('/api/marx', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ model, messages: next.map(({ role, content: c }) => ({ role, content: c })) }),
+        // O resultado da revisão de um documento ("12 lançamento(s) importado(s).") vai junto, para o Marx saber.
+        body: JSON.stringify({
+          model,
+          messages: next.map(({ role, content: c, documentResult }) => ({
+            role,
+            content: documentResult ? `${c}
+
+${documentResult}` : c,
+          })),
+        }),
       });
       const payload = (await response.json().catch(() => ({
         ok: false,
@@ -199,7 +209,7 @@ export function MarxChat() {
         {
           id: newId(),
           role: 'assistant',
-          content: describeDocument(payload.data),
+          content: describeDocument(payload.data, useFinanceStore.getState().transactions),
           document: payload.data,
           documentStatus: 'pending',
         },
@@ -476,11 +486,22 @@ function InlineMarkdown({ text }: { text: string }) {
   );
 }
 
-function describeDocument(preview: ImportPreview): string {
+const plural = (n: number, one: string, many: string) => (n === 1 ? `1 ${one}` : `${n} ${many}`);
+
+function describeDocument(preview: ImportPreview, existing: ReadonlyArray<Transaction>): string {
   const n = preview.entries.length;
   if (preview.kind === 'statement') {
     if (n === 0) return 'Li o extrato, mas não encontrei lançamentos nele. Confira se é o arquivo certo.';
-    return `Li o extrato: **${n === 1 ? '1 lançamento' : `${n} lançamentos`}**. Confira abaixo, ajuste o que precisar e importe — os repetidos já vêm desmarcados.`;
+    // Mesma conta que a revisão faz ao abrir: o resumo e os itens desmarcados batem.
+    const repeated = findDuplicateEntries(preview.entries, existing).size;
+    const fresh = n - repeated;
+    if (repeated === 0) {
+      return `Li o extrato: **${plural(n, 'lançamento', 'lançamentos')}**, nenhum ainda no app. Confira abaixo, ajuste o que precisar e importe.`;
+    }
+    if (fresh === 0) {
+      return `Li o extrato: ${n === 1 ? 'esse lançamento já está' : `os ${n} lançamentos já estão`} no app. Não há nada novo para importar.`;
+    }
+    return `Li o extrato: ${plural(n, 'lançamento', 'lançamentos')}, dos quais **${plural(repeated, 'já está', 'já estão')} no app** e ${repeated === 1 ? 'veio desmarcado' : 'vieram desmarcados'}. Sobram **${plural(fresh, 'novo', 'novos')}** para conferir abaixo.`;
   }
   const source = DEBT_SOURCE_LABEL[preview.source];
   if (n === 0) return `Li o relatório do ${source}, mas não encontrei dívidas nele.`;

@@ -88,6 +88,8 @@ export function buildMarxSystemPrompt({ today, financeContext, categories }: Pro
     `category: copie exatamente um nome desta lista (JSON, apenas dados): ${JSON.stringify(categories)}. Se nenhum servir, "Outros".`,
     'isFixed true só para recorrência clara (aluguel, assinatura, "todo mês"). isPaid false só se ele disser que ainda vai pagar.',
     '',
+    'DOCUMENTOS: mensagens do usuário que começam com "📎" são arquivos (extrato, Registrato, Serasa) que o próprio app leu. Você não vê o conteúdo, só o resumo na sua resposta seguinte. O app mostra a revisão abaixo dessa resposta e já desmarca sozinho o que existe no app (mesmo tipo e valor, até 1 dia de diferença, mesmo com descrição diferente); o usuário importa só o que ficar marcado. Se ele perguntar sobre repetidos, explique isso. Nunca peça para ele apontar quais lançamentos são novos e nunca crie lançamentos a partir de um documento.',
+    '',
     `Responda SEMPRE com um único objeto json válido, sem nada fora dele, neste formato: ${JSON_EXAMPLE}`,
     'Os campos com "|" aceitam exatamente um dos valores listados. Sem lançamentos, mande "transactions": [].',
     '',
