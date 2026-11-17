@@ -28,10 +28,13 @@ export function StatementImportReview({
   preview,
   onCancel,
   onDone,
+  embedded = false,
 }: {
   preview: StatementPreview;
   onCancel: () => void;
   onDone: (message: string) => void;
+  /** Mostrada dentro do chat do Marx. */
+  embedded?: boolean;
 }) {
   const creditCards = useFinanceStore((s) => s.creditCards);
   const importTransactions = useFinanceStore((s) => s.importTransactions);
@@ -231,6 +234,7 @@ export function StatementImportReview({
         confirmLabel={`Importar ${selected.length}`}
         confirmDisabled={selected.length === 0 || selected.some((r) => !r.description.trim())}
         onCancel={onCancel}
+        embedded={embedded}
         onConfirm={handleImport}
       />
     </section>

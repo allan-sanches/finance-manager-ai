@@ -33,7 +33,8 @@ const GATEWAY_REJECTED_ERROR =
   'O AI Gateway recusou a requisição (chave, plano ou modelo indisponível no plano). Confira AI_GATEWAY_API_KEY e AI_GATEWAY_MODEL.';
 
 const CHAT_TIMEOUT_MS = 30_000;
-const DOCUMENT_TIMEOUT_MS = 120_000;
+// Extrato de mês cheio: ~1 min por 150 lançamentos mesmo com raciocínio mínimo.
+const DOCUMENT_TIMEOUT_MS = 180_000;
 const CONVERSATION_TIMEOUT_MS = 60_000;
 
 export const isGatewayConfigured = (): boolean => Boolean(apiKey);
@@ -118,7 +119,12 @@ async function complete(
           type: 'json_schema',
           json_schema: { name: 'response', schema: toJsonSchema(request.geminiSchema) },
         },
-        temperature: 0,
+        // GPT-5 raciocina por padrão (esforço médio): num extrato longo isso passa dos 120 s do
+        // timeout. Transcrever lançamentos não pede raciocínio — vai com o esforço mínimo, e esses
+        // modelos não aceitam temperature.
+        ...(gatewayModel.startsWith('openai/gpt-5')
+          ? { reasoning: { effort: 'minimal' } }
+          : { temperature: 0 }),
         max_tokens: request.maxOutputTokens,
         stream: false,
         ...(zeroDataRetention ? { providerOptions: { gateway: { zeroDataRetention: true } } } : {}),

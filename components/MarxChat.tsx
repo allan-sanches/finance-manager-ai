@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, RotateCcw, SendHorizontal, Trash2, X } from 'lucide-react';
+import { Check, Paperclip, RotateCcw, SendHorizontal, Trash2, X } from 'lucide-react';
 import {
   Fragment,
   useEffect,
@@ -12,15 +12,19 @@ import {
 } from 'react';
 
 import { CategoryAvatar } from '@/components/CategoryAvatar';
+import { DebtImportReview } from '@/components/DebtImportReview';
 import { fireMarxLaser, MarxAvatar } from '@/components/MarxAvatar';
 import { usePrivacyHidden } from '@/components/PrivacyToggle';
-import { BRL, PAYMENT_METHOD_LABEL, shortDate } from '@/lib/finance';
+import { StatementImportReview } from '@/components/StatementImportReview';
+import { BRL, DEBT_SOURCE_LABEL, PAYMENT_METHOD_LABEL, shortDate } from '@/lib/finance';
 import { DEFAULT_MARX_MODEL, isMarxModel, MARX_MODELS, marxModelLabel, type MarxModelId } from '@/lib/marx/models';
 import { MARX_MAX_MESSAGE_LENGTH, type MarxReply } from '@/lib/marx/schemas';
+import { shrinkImage } from '@/lib/shrinkImage';
 import { useFinanceStore } from '@/lib/store';
-import type { TransactionDraft } from '@/types/finance';
+import type { ImportPreview, TransactionDraft } from '@/types/finance';
 
 type ProposalStatus = 'pending' | 'added' | 'discarded';
+type DocumentStatus = 'pending' | 'done' | 'discarded';
 
 type ChatItem = {
   id: string;
@@ -31,9 +35,20 @@ type ChatItem = {
   addedCount?: number;
   /** "1,4s · ChatGPT 4.1 mini": para comparar a velocidade dos modelos. */
   meta?: string;
+  /** Arquivos que o usuário anexou (guardados para "Tentar de novo"). */
+  files?: File[];
+  /** Prévia do documento lido por /api/import, revisada dentro da conversa. */
+  document?: ImportPreview;
+  documentStatus?: DocumentStatus;
+  documentResult?: string;
 };
 
 type ApiResponse = { ok: true; data: MarxReply; model: string } | { ok: false; error: string };
+type ImportApiResponse = { ok: true; data: ImportPreview } | { ok: false; error: string };
+
+// Mesmo limite da rota de importação: vários arquivos só se forem prints.
+const MAX_ATTACHED_IMAGES = 8;
+const ATTACH_ACCEPT = '.pdf,.ofx,.csv,.txt,image/*';
 
 // Modelo escolhido no chat, guardado no aparelho. No servidor e na hidratação vale o padrão.
 const MODEL_STORAGE_KEY = 'marx-model';
@@ -86,7 +101,9 @@ export function MarxChat() {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
+  const [readingFile, setReadingFile] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const model = useMarxModel();
 
   useEffect(() => {
@@ -144,11 +161,69 @@ export function MarxChat() {
     }
   }
 
-  /** Tenta de novo a última pergunta que ficou sem resposta. */
+  /**
+   * Documento anexado: a mesma leitura da tela de importação (/api/import), com o tipo reconhecido
+   * no servidor — extrato (PDF, OFX, CSV), Registrato ou Serasa (PDF ou prints).
+   */
+  async function sendFiles(files: File[], history: ChatItem[] = items) {
+    if (files.length === 0 || loading) return;
+    const allImages = files.every((f) => f.type.startsWith('image/'));
+    if (files.length > 1 && !allImages) {
+      setError('Para mandar vários arquivos de uma vez, envie só prints (imagens). PDF vai um por vez.');
+      return;
+    }
+    if (files.length > MAX_ATTACHED_IMAGES) {
+      setError(`Envie no máximo ${MAX_ATTACHED_IMAGES} prints por vez.`);
+      return;
+    }
+    const label = files.length > 1 ? `${files.length} prints` : files[0].name;
+    setItems([...history, { id: newId(), role: 'user', content: `📎 ${label}`, files }]);
+    setError(null);
+    setLoading(true);
+    setReadingFile(true);
+    try {
+      const body = new FormData();
+      body.set('kind', 'auto');
+      for (const f of await Promise.all(files.map(shrinkImage))) body.append('file', f);
+      const response = await fetch('/api/import', { method: 'POST', body });
+      const payload = (await response.json().catch(() => ({
+        ok: false,
+        error: `Erro inesperado do servidor (${response.status}).`,
+      }))) as ImportApiResponse;
+      if (!payload.ok) {
+        setError(payload.error);
+        return;
+      }
+      setItems((current) => [
+        ...current,
+        {
+          id: newId(),
+          role: 'assistant',
+          content: describeDocument(payload.data),
+          document: payload.data,
+          documentStatus: 'pending',
+        },
+      ]);
+    } catch {
+      setError('Sem conexão com o servidor. Confere a internet e tenta de novo.');
+    } finally {
+      setLoading(false);
+      setReadingFile(false);
+    }
+  }
+
+  /** Tenta de novo a última pergunta (ou o último arquivo) que ficou sem resposta. */
   function retry() {
     const last = items.at(-1);
     if (last?.role !== 'user') return;
-    void send(last.content, items.slice(0, -1));
+    if (last.files) void sendFiles(last.files, items.slice(0, -1));
+    else void send(last.content, items.slice(0, -1));
+  }
+
+  function settleDocument(id: string, status: DocumentStatus, result?: string) {
+    setItems((current) =>
+      current.map((i) => (i.id === id ? { ...i, documentStatus: status, documentResult: result } : i)),
+    );
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -249,12 +324,28 @@ export function MarxChat() {
                         onSettle={(status, count) => settleProposals(item.id, status, count)}
                       />
                     )}
+                    {item.document && (
+                      <DocumentReview
+                        preview={item.document}
+                        status={item.documentStatus ?? 'pending'}
+                        result={item.documentResult}
+                        onSettle={(status, result) => settleDocument(item.id, status, result)}
+                      />
+                    )}
                   </li>
                 ))}
                 {loading && (
-                  <li className="flex items-center gap-2" aria-label="Marx está escrevendo">
-                    <span className="bg-base-200 rounded-2xl rounded-bl-md px-4 py-3">
+                  <li
+                    className="flex items-center gap-2"
+                    aria-label={readingFile ? 'Marx está lendo o documento' : 'Marx está escrevendo'}
+                  >
+                    <span className="bg-base-200 flex items-center gap-2 rounded-2xl rounded-bl-md px-4 py-3">
                       <span className="loading loading-dots loading-sm" />
+                      {readingFile && (
+                        <span className="text-base-content/70 text-sm">
+                          Lendo o documento… um PDF pode levar até um minuto.
+                        </span>
+                      )}
                     </span>
                   </li>
                 )}
@@ -277,6 +368,28 @@ export function MarxChat() {
             onSubmit={handleSubmit}
             className="border-base-content/10 flex items-end gap-2 border-t px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
           >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ATTACH_ACCEPT}
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const picked = Array.from(e.target.files ?? []);
+                e.target.value = ''; // permite mandar o mesmo arquivo de novo
+                void sendFiles(picked);
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-ghost btn-square h-12 w-12"
+              aria-label="Anexar documento"
+              title="Anexar extrato, Registrato ou Serasa (PDF, OFX, CSV ou prints)"
+              disabled={loading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip className="h-5 w-5" aria-hidden />
+            </button>
             <label htmlFor="marx-input" className="sr-only">
               Mensagem para o Marx
             </label>
@@ -316,7 +429,8 @@ function Welcome({ onPick, disabled }: { onPick: (text: string) => void; disable
         role="assistant"
         content={
           'Saudações. Sou Karl Marx. Tenho diante de mim seus gastos, suas reservas, seus desejos e suas dívidas — e também o câmbio e os juros que o capital cobra de você.\n\n' +
-          'Pergunte o que quiser, ou relate vários gastos de uma vez: eu os registro para que você confira antes de lançar.'
+          'Pergunte o que quiser, ou relate vários gastos de uma vez: eu os registro para que você confira antes de lançar.\n\n' +
+          'Pelo clipe, mande também documentos: o extrato do banco (PDF, OFX ou CSV), o Registrato ou o Serasa (PDF ou prints).'
         }
       />
       <div className="flex flex-wrap gap-2">
@@ -359,6 +473,53 @@ function InlineMarkdown({ text }: { text: string }) {
         <Fragment key={i}>{i % 2 === 1 ? <strong>{part}</strong> : part}</Fragment>
       ))}
     </>
+  );
+}
+
+function describeDocument(preview: ImportPreview): string {
+  const n = preview.entries.length;
+  if (preview.kind === 'statement') {
+    if (n === 0) return 'Li o extrato, mas não encontrei lançamentos nele. Confira se é o arquivo certo.';
+    return `Li o extrato: **${n === 1 ? '1 lançamento' : `${n} lançamentos`}**. Confira abaixo, ajuste o que precisar e importe — os repetidos já vêm desmarcados.`;
+  }
+  const source = DEBT_SOURCE_LABEL[preview.source];
+  if (n === 0) return `Li o relatório do ${source}, mas não encontrei dívidas nele.`;
+  return `Li o relatório do ${source}: **${n === 1 ? '1 dívida' : `${n} dívidas`}**. Confira abaixo antes de salvar.`;
+}
+
+/** Revisão do documento dentro da conversa: as mesmas telas da importação. */
+function DocumentReview({
+  preview,
+  status,
+  result,
+  onSettle,
+}: {
+  preview: ImportPreview;
+  status: DocumentStatus;
+  result?: string;
+  onSettle: (status: DocumentStatus, result?: string) => void;
+}) {
+  if (status === 'done') {
+    return (
+      <p className="text-success flex items-center gap-1 text-sm font-semibold">
+        <Check className="h-4 w-4" aria-hidden />
+        {result}
+      </p>
+    );
+  }
+  if (status === 'discarded') {
+    return <p className="text-base-content/50 text-sm">Importação cancelada.</p>;
+  }
+  if (preview.entries.length === 0) return null;
+  const handlers = {
+    embedded: true,
+    onCancel: () => onSettle('discarded'),
+    onDone: (message: string) => onSettle('done', message),
+  };
+  return preview.kind === 'statement' ? (
+    <StatementImportReview preview={preview} {...handlers} />
+  ) : (
+    <DebtImportReview preview={preview} {...handlers} />
   );
 }
 

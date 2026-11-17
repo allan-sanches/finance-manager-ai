@@ -13,6 +13,7 @@ import {
 } from '@/lib/import/ai-documents';
 import { parseCsv } from '@/lib/import/csv';
 import { toPromptImage } from '@/lib/import/images';
+import { detectPdfKind } from '@/lib/import/detect';
 import { looksLikeOfx, parseOfx } from '@/lib/import/ofx';
 import {
   extractPdfLayoutText,
@@ -30,13 +31,15 @@ import type { ImportPreview, InvoicePreview } from '@/types/finance';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
+export const maxDuration = 200;
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGES = 8;
 const checkRateLimit = createRateLimiter({ limit: 10, windowMs: 60_000 });
 
-const kindSchema = z.enum(['statement', 'scr', 'serasa', 'invoice']);
+// 'auto' vem do chat do Marx: quem envia não escolhe o tipo. Prints viram Serasa, OFX/CSV viram
+// extrato e o PDF é reconhecido pelo cabeçalho. Fatura de cartão só pela tela do cartão.
+const kindSchema = z.enum(['statement', 'scr', 'serasa', 'invoice', 'auto']);
 
 const STATUS_BY_ERROR: Record<ExtractionErrorCode, number> = {
   not_configured: 503,
@@ -62,15 +65,18 @@ export async function POST(request: Request) {
     return fail('Envie o arquivo como multipart/form-data.', 400);
   }
 
-  const kind = kindSchema.safeParse(form.get('kind'));
-  if (!kind.success) return fail('Tipo de importação inválido.', 400);
+  const requested = kindSchema.safeParse(form.get('kind'));
+  if (!requested.success) return fail('Tipo de importação inválido.', 400);
+  const isAuto = requested.data === 'auto';
   const files = form.getAll('file').filter((f): f is File => f instanceof File && f.size > 0);
   if (files.length === 0) return fail('Selecione um arquivo.', 400);
   if (files.some((f) => f.size > MAX_FILE_BYTES))
     return fail('Arquivo muito grande (máximo 5 MB).', 413);
   // Serasa e fatura aceitam prints (vários de uma vez); os outros, um arquivo só.
-  const acceptsImages = kind.data === 'serasa' || kind.data === 'invoice';
+  const acceptsImages = isAuto || requested.data === 'serasa' || requested.data === 'invoice';
   if (files.length > 1 && !acceptsImages) return fail('Envie um arquivo por vez.', 400);
+  let kind: Exclude<typeof requested.data, 'auto'> =
+    requested.data === 'auto' ? 'serasa' : requested.data;
   if (files.length > MAX_IMAGES) return fail(`Envie no máximo ${MAX_IMAGES} prints por vez.`, 400);
 
   // Prints (uma ou mais imagens): a IA lê as imagens direto.
@@ -87,7 +93,7 @@ export async function POST(request: Request) {
         );
       }
       const result =
-        kind.data === 'invoice'
+        kind === 'invoice'
           ? await extractInvoice(provider, { images }, await userCategoryNames())
           : await extractDebtsFromImages(provider, images);
       if (!result.ok) return fail(result.error, STATUS_BY_ERROR[result.code]);
@@ -96,12 +102,13 @@ export async function POST(request: Request) {
     if (files.length > 1)
       return fail('Para vários arquivos, envie só imagens (PNG, JPG ou WebP).', 415);
   }
+  if (isAuto) kind = 'statement'; // não é imagem: OFX/CSV são extrato; o PDF é reconhecido abaixo
 
   const bytes = new Uint8Array(await files[0].arrayBuffer());
   const isPdf = new TextDecoder().decode(bytes.slice(0, 5)) === '%PDF-';
 
   // Extrato em OFX/CSV: leitura local, sem IA.
-  if (kind.data === 'statement' && !isPdf) {
+  if (kind === 'statement' && !isPdf) {
     const text = decodeText(bytes);
     if (looksLikeOfx(text)) {
       const { entries, skipped } = parseOfx(text);
@@ -119,9 +126,9 @@ export async function POST(request: Request) {
 
   if (!isPdf) {
     return fail(
-      kind.data === 'serasa'
+      kind === 'serasa'
         ? 'Envie o PDF do Serasa ou prints da tela (PNG, JPG ou WebP).'
-        : kind.data === 'invoice'
+        : kind === 'invoice'
           ? 'Envie o PDF da fatura ou prints da tela (PNG, JPG ou WebP).'
           : 'O relatório do Registrato deve ser enviado em PDF.',
       415,
@@ -155,13 +162,14 @@ export async function POST(request: Request) {
   if (layoutText.length > MAX_DOCUMENT_CHARS) {
     return fail('Documento longo demais para ler de uma vez. Envie um período menor.', 413);
   }
+  if (isAuto) kind = detectPdfKind(layoutText);
 
   const result =
-    kind.data === 'statement'
+    kind === 'statement'
       ? await extractStatementFromText(provider, layoutText, await userCategoryNames())
-      : kind.data === 'invoice'
+      : kind === 'invoice'
         ? await extractInvoice(provider, { layoutText }, await userCategoryNames())
-        : await extractDebtsFromText(provider, kind.data, layoutText);
+        : await extractDebtsFromText(provider, kind, layoutText);
   if (!result.ok) return fail(result.error, STATUS_BY_ERROR[result.code]);
   return ok(result.preview);
 }

@@ -13,10 +13,13 @@ export function DebtImportReview({
   preview,
   onCancel,
   onDone,
+  embedded = false,
 }: {
   preview: DebtReportPreview;
   onCancel: () => void;
   onDone: (message: string) => void;
+  /** Mostrada dentro do chat do Marx. */
+  embedded?: boolean;
 }) {
   const replaceDebts = useFinanceStore((s) => s.replaceDebts);
   const existingCount = useFinanceStore(
@@ -126,6 +129,7 @@ export function DebtImportReview({
         confirmLabel={`Salvar ${selected.length} dívida(s)`}
         confirmDisabled={selected.length === 0}
         onCancel={onCancel}
+        embedded={embedded}
         onConfirm={handleSave}
       />
     </section>
