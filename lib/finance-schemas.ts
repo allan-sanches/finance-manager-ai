@@ -26,6 +26,9 @@ export const transactionSchema = z.object({
   date: isoDate,
   isFixed: z.boolean(),
   isPaid: z.boolean(),
+  installmentGroupId: id.nullish().transform((v) => v ?? null),
+  installmentNumber: z.number().int().min(1).max(99).nullish().transform((v) => v ?? null),
+  installmentCount: z.number().int().min(1).max(99).nullish().transform((v) => v ?? null),
 });
 
 export const transactionPatchSchema = transactionSchema.omit({ id: true }).partial();

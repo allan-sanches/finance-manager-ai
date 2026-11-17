@@ -7,6 +7,7 @@ import { InvoicePurchasesReview, type PurchaseRow } from '@/components/InvoicePu
 import { MoneyInput } from '@/components/MoneyInput';
 import { BRL, cardUsage, invoiceStatus, shortDate, todayISO, type InvoiceStatus } from '@/lib/finance';
 import { findDuplicateCardEntries } from '@/lib/import/dedupe';
+import { upcomingInvoices } from '@/lib/installments';
 import { parseMoneyInput, toMoneyInput } from '@/lib/money-mask';
 import { shrinkImage } from '@/lib/shrinkImage';
 import { useFinanceStore } from '@/lib/store';
@@ -306,6 +307,8 @@ export function CreditCardInvoicesDialog({ open, onClose, card }: Props) {
           </ul>
         )}
 
+        {card && <UpcomingInvoicesList card={card} />}
+
         <div className="modal-action mt-2">
           <button type="button" className="btn" onClick={onClose}>
             Fechar
@@ -316,5 +319,32 @@ export function CreditCardInvoicesDialog({ open, onClose, card }: Props) {
         <button>fechar</button>
       </form>
     </dialog>
+  );
+}
+
+/** Próximas faturas: o valor informado pelo banco ou, sem ele, a soma das parcelas que caem no ciclo. */
+function UpcomingInvoicesList({ card }: { card: CreditCard }) {
+  const transactions = useFinanceStore((s) => s.transactions);
+  const invoices = useFinanceStore((s) => s.creditCardInvoices);
+  const upcoming = upcomingInvoices(card, transactions, invoices, todayISO(), 12);
+  if (upcoming.length === 0) return null;
+  return (
+    <section className="bg-base-200 rounded-box mt-3 p-3">
+      <p className="text-sm font-bold">Próximas faturas</p>
+      <p className="text-base-content/60 text-xs">
+        Informada = valor do banco (mais o que você lançou depois). Prevista = soma das parcelas que caem nela.
+      </p>
+      <ul className="mt-2 flex flex-col gap-1">
+        {upcoming.map((u) => (
+          <li key={u.closingDate} className="flex items-center gap-2 text-sm">
+            <span className="font-semibold capitalize">{monthLabel(u.dueDate)}</span>
+            <span className={`badge badge-sm ${u.source === 'informed' ? 'badge-ghost' : 'badge-info'}`}>
+              {u.source === 'informed' ? 'informada' : 'prevista'}
+            </span>
+            <span className="ml-auto font-bold tabular-nums">{BRL.format(u.amount)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

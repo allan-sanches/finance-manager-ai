@@ -5,11 +5,13 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { MoneyInput } from '@/components/MoneyInput';
 import {
+  BRL,
   CATEGORIES,
   PAYMENT_METHOD_LABEL,
   TRANSACTION_TYPE_LABEL,
   todayISO,
 } from '@/lib/finance';
+import { MAX_INSTALLMENTS, splitPurchase } from '@/lib/installments';
 import { parseMoneyInput, toMoneyInput } from '@/lib/money-mask';
 import { useFinanceStore } from '@/lib/store';
 import { useOpenedWith } from '@/lib/useMounted';
@@ -40,6 +42,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
   // Cartões de limite garantido sem caixinha: aplicação/resgate no investimento muda o limite.
   const securedCards = creditCards.filter((c) => c.securedLimit && !savingsGoals.some((g) => g.id === c.limitSavingsGoalId));
   const addTransaction = useFinanceStore((s) => s.addTransaction);
+  const importTransactions = useFinanceStore((s) => s.importTransactions);
   const updateTransaction = useFinanceStore((s) => s.updateTransaction);
   const removeTransaction = useFinanceStore((s) => s.removeTransaction);
   const { names: categoryNames } = useCategories();
@@ -56,6 +59,9 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
   const [date, setDate] = useState(todayISO());
   const [isFixed, setIsFixed] = useState(false);
   const [isPaid, setIsPaid] = useState(true);
+  // Compra parcelada (só na criação, no cartão): vira uma transação por parcela.
+  const [installments, setInstallments] = useState(1);
+  const [amountIs, setAmountIs] = useState<'total' | 'installment'>('total');
   const [error, setError] = useState<string | null>(null);
 
   // sync dialog open state with prop
@@ -101,6 +107,8 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
       setIsFixed(false);
       setIsPaid(true);
     }
+    setInstallments(1);
+    setAmountIs('total');
     setError(null);
   }
 
@@ -135,11 +143,16 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
 
     if (initial) {
       updateTransaction(initial.id, draft);
+    } else if (canSplit && installments > 1) {
+      importTransactions(splitPurchase(draft, installments, amountIs));
     } else {
       addTransaction(draft);
     }
     onClose();
   }
+
+  const canSplit = !initial && paymentMethod === 'credit_card' && type === 'expense' && !isTransfer;
+  const typedAmount = parseMoneyInput(amount) ?? 0;
 
   return (
     <dialog
@@ -279,6 +292,48 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
                 </select>
               )}
             </label>
+          )}
+
+          {canSplit && (
+            <div className="grid grid-cols-2 gap-3">
+              <label className="form-control">
+                <span className="label-text">Parcelas</span>
+                <select
+                  className="select select-bordered"
+                  value={installments}
+                  onChange={(e) => setInstallments(Number(e.target.value))}
+                >
+                  {Array.from({ length: MAX_INSTALLMENTS }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={n}>
+                      {n === 1 ? 'À vista' : `${n}x`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {installments > 1 && (
+                <label className="form-control">
+                  <span className="label-text">O valor digitado é</span>
+                  <select
+                    className="select select-bordered"
+                    value={amountIs}
+                    onChange={(e) => setAmountIs(e.target.value as 'total' | 'installment')}
+                  >
+                    <option value="total">O total da compra</option>
+                    <option value="installment">O de cada parcela</option>
+                  </select>
+                </label>
+              )}
+              {installments > 1 && typedAmount > 0 && (
+                <p className="text-base-content/70 col-span-2 text-sm">
+                  {installments}x de{' '}
+                  <strong>
+                    {BRL.format(amountIs === 'total' ? Math.floor((typedAmount * 100) / installments) / 100 : typedAmount)}
+                  </strong>{' '}
+                  (total {BRL.format(amountIs === 'total' ? typedAmount : typedAmount * installments)}), uma em cada fatura a
+                  partir desta.
+                </p>
+              )}
+            </div>
           )}
 
           <div className="rounded-box bg-base-200 grid gap-2 p-3">

@@ -23,6 +23,10 @@ export type Transaction = {
   date: string;
   isFixed: boolean;
   isPaid: boolean;
+  // Compra parcelada: cada parcela é uma transação na fatura em que cai (ver lib/installments.ts).
+  installmentGroupId?: string | null;
+  installmentNumber?: number | null;
+  installmentCount?: number | null;
   createdAt?: string; // ISO timestamp do registro (só leitura): separa compra nova do valor já informado da fatura
 };
 

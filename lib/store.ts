@@ -123,6 +123,9 @@ const transactionFromDraft = (draft: TransactionDraft): Transaction => ({
   date: draft.date,
   isFixed: draft.isFixed,
   isPaid: draft.isPaid ?? false,
+  installmentGroupId: draft.installmentGroupId ?? null,
+  installmentNumber: draft.installmentNumber ?? null,
+  installmentCount: draft.installmentCount ?? null,
   createdAt: new Date().toISOString(),
 });
 

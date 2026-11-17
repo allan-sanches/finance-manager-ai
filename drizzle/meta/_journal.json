@@ -134,6 +134,13 @@
       "when": 1794935513325,
       "tag": "0018_card_limit_date",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794936355058,
+      "tag": "0019_transaction_installments",
+      "breakpoints": true
     }
   ]
 }

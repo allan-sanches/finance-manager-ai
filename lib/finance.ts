@@ -321,11 +321,18 @@ export function cardUsage(
   // A fatura atual (ainda vai fechar) foi informada num momento: compra registrada depois disso
   // ainda não está no valor dela, mesmo com data anterior ao fechamento.
   const currentRecordedAt = current?.recordedAt;
+  // Faturas futuras informadas (ex.: parcelas de jan, fev), da mais próxima para a mais distante.
+  const future = invoices
+    .filter((i) => i.creditCardId === cardId && !i.paymentDate && lastClosingDate && i.closingDate > lastClosingDate)
+    .sort((a, b) => a.closingDate.localeCompare(b.closingDate));
   let unbilled = 0;
   for (const tx of transactions) {
     if (!isCardPurchase(tx) || tx.creditCardId !== cardId) continue;
     const afterRecorded = Boolean(currentRecordedAt && tx.createdAt && tx.createdAt > currentRecordedAt);
     if (lastClosingDate && tx.date < lastClosingDate && !afterRecorded) continue;
+    // Parcela que cai numa fatura futura já informada e foi lançada antes dela: já está no valor.
+    const cycle = future.find((i) => tx.date < i.closingDate);
+    if (cycle?.recordedAt && tx.createdAt && tx.createdAt <= cycle.recordedAt) continue;
     // Receita no cartão é estorno: abate da fatura.
     unbilled += tx.type === 'income' ? -tx.amount : tx.amount;
   }

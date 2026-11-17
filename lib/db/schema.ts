@@ -113,6 +113,11 @@ export const transactions = pgTable('transactions', {
   date: date('date', { mode: 'string' }).notNull(),
   isFixed: boolean('is_fixed').notNull().default(false),
   isPaid: boolean('is_paid').notNull().default(false),
+  // Compra parcelada no cartão: cada parcela é uma transação na fatura em que cai. O grupo liga as
+  // parcelas da mesma compra; número/total dizem qual é ("2 de 4").
+  installmentGroupId: text('installment_group_id'),
+  installmentNumber: integer('installment_number'),
+  installmentCount: integer('installment_count'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('transactions_user_id_idx').on(t.userId)]);
 
