@@ -8,6 +8,7 @@ import type { PromptImage } from '@/lib/ai-prompt';
 import type { AiProvider } from '@/lib/ai-provider';
 import { BRL, CATEGORIES, todayISO } from '@/lib/finance';
 import { readScrTotals } from '@/lib/import/scr-totals';
+import { looksLikeTransfer } from '@/lib/import/transfers';
 import { DEFAULT_IMPORT_CATEGORY, normalizeText } from '@/lib/import/statement';
 import type {
   DebtEntry,
@@ -48,6 +49,7 @@ const statementOutputSchema = z.object({
       type: z.enum(['income', 'expense']),
       category: z.string().trim().min(1).max(80).catch(DEFAULT_IMPORT_CATEGORY),
       paymentMethod: z.enum(statementPaymentMethods).catch('debit'),
+      isTransfer: z.boolean().catch(false).optional(),
     }),
   ),
 });
@@ -60,7 +62,7 @@ const statementGeminiSchema = (categories: ReadonlyArray<string>): Schema => ({
       type: Type.ARRAY,
       items: {
         type: Type.OBJECT,
-        required: ['date', 'description', 'amount', 'type', 'category', 'paymentMethod'],
+        required: ['date', 'description', 'amount', 'type', 'category', 'paymentMethod', 'isTransfer'],
         properties: {
           date: { type: Type.STRING, description: 'YYYY-MM-DD' },
           description: { type: Type.STRING },
@@ -68,6 +70,10 @@ const statementGeminiSchema = (categories: ReadonlyArray<string>): Schema => ({
           type: { type: Type.STRING, enum: ['income', 'expense'] },
           category: { type: Type.STRING, enum: [...categories] },
           paymentMethod: { type: Type.STRING, enum: [...statementPaymentMethods] },
+          isTransfer: {
+            type: Type.BOOLEAN,
+            description: 'true se só muda o dinheiro de lugar (contas do próprio titular, investimento, fatura)',
+          },
         },
       },
     },
@@ -87,6 +93,7 @@ const statementInstruction = (categories: ReadonlyArray<string>) =>
     `date em YYYY-MM-DD. Se o extrato omitir o ano, use o do período do extrato; sem período, o ano de ${todayISO().slice(0, 4)}.`,
     `category: uma de ${JSON.stringify(categories)}; na dúvida, "${DEFAULT_IMPORT_CATEGORY}".`,
     'paymentMethod: "pix" para Pix, "bank_transfer" para TED/DOC/transferência, "cash" para saque/depósito em dinheiro, senão "debit".',
+    'isTransfer: true quando o dinheiro só muda de lugar e não é gasto nem receita: Pix/TED enviado ou recebido do PRÓPRIO titular da conta (o mesmo nome do cabeçalho do extrato), aplicação e resgate de investimento (CDB, poupança, caixinha), depósito em conta em dólar e pagamento de fatura de cartão. Pix de/para outras pessoas, mesmo parentes com sobrenome igual, é false. IOF e tarifas são false.',
   ].join(' ');
 
 /** Reposição de "Pix no crédito": o prompt manda ignorar, e aqui a regra vale mesmo se a IA não ouvir. */
@@ -109,6 +116,8 @@ export function parseStatementOutput(
       date: e.date,
       category: categories.includes(e.category) ? e.category : DEFAULT_IMPORT_CATEGORY,
       paymentMethod: e.paymentMethod,
+      // A IA reconhece o próprio titular; as regras fixas garantem investimento e fatura.
+      isTransfer: Boolean(e.isTransfer) || looksLikeTransfer(e.description),
     }));
 }
 

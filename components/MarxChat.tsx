@@ -495,13 +495,18 @@ function describeDocument(preview: ImportPreview, existing: ReadonlyArray<Transa
     // Mesma conta que a revisão faz ao abrir: o resumo e os itens desmarcados batem.
     const repeated = findDuplicateEntries(preview.entries, existing).size;
     const fresh = n - repeated;
+    const movedCount = preview.entries.filter((e) => e.isTransfer).length;
+    const moved =
+      movedCount > 0
+        ? ` ${movedCount === 1 ? '1 é movimentação' : `${movedCount} são movimentações`} (investimento, fatura ou entre suas contas) e fica${movedCount === 1 ? '' : 'm'} fora de entradas e saídas.`
+        : '';
     if (repeated === 0) {
-      return `Li o extrato: **${plural(n, 'lançamento', 'lançamentos')}**, nenhum ainda no app. Confira abaixo, ajuste o que precisar e importe.`;
+      return `Li o extrato: **${plural(n, 'lançamento', 'lançamentos')}**, nenhum ainda no app.${moved} Confira abaixo, ajuste o que precisar e importe.`;
     }
     if (fresh === 0) {
       return `Li o extrato: ${n === 1 ? 'esse lançamento já está' : `os ${n} lançamentos já estão`} no app. Não há nada novo para importar.`;
     }
-    return `Li o extrato: ${plural(n, 'lançamento', 'lançamentos')}, dos quais **${plural(repeated, 'já está', 'já estão')} no app** e ${repeated === 1 ? 'veio desmarcado' : 'vieram desmarcados'}. Sobram **${plural(fresh, 'novo', 'novos')}** para conferir abaixo.`;
+    return `Li o extrato: ${plural(n, 'lançamento', 'lançamentos')}, dos quais **${plural(repeated, 'já está', 'já estão')} no app** e ${repeated === 1 ? 'veio desmarcado' : 'vieram desmarcados'}. Sobram **${plural(fresh, 'novo', 'novos')}** para conferir abaixo.${moved}`;
   }
   const source = DEBT_SOURCE_LABEL[preview.source];
   if (n === 0) return `Li o relatório do ${source}, mas não encontrei dívidas nele.`;

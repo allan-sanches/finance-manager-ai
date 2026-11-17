@@ -22,8 +22,9 @@ import {
   redactPersonalIds,
 } from '@/lib/import/pdf-text';
 import { decodeText } from '@/lib/import/statement';
+import { looksLikeTransfer } from '@/lib/import/transfers';
 import { clientKeyFromRequest, createRateLimiter } from '@/lib/rate-limit';
-import type { ImportPreview, InvoicePreview } from '@/types/finance';
+import type { ImportPreview, InvoicePreview, StatementEntry } from '@/types/finance';
 
 // Recebe o arquivo, devolve só a PRÉVIA tipada. Nada é gravado aqui: o usuário revisa na tela e
 // confirma pelas Server Actions (importTransactions / replaceDebts), que validam tudo de novo.
@@ -117,14 +118,19 @@ export async function POST(request: Request) {
     const text = decodeText(bytes);
     if (looksLikeOfx(text)) {
       const { entries, skipped } = parseOfx(text);
-      return ok({ kind: 'statement', format: 'ofx', entries, warnings: skippedWarning(skipped) });
+      return ok({
+        kind: 'statement',
+        format: 'ofx',
+        entries: withTransfers(entries),
+        warnings: skippedWarning(skipped),
+      });
     }
     const csv = parseCsv(text);
     if (!csv.ok) return fail(csv.error, 422);
     return ok({
       kind: 'statement',
       format: 'csv',
-      entries: csv.entries,
+      entries: withTransfers(csv.entries),
       warnings: skippedWarning(csv.skipped),
     });
   }
@@ -181,6 +187,11 @@ export async function POST(request: Request) {
 
 function ok(data: ImportPreview | InvoicePreview) {
   return NextResponse.json({ ok: true, data }, { status: 200 });
+}
+
+/** Investimento, fatura e conta em dólar entram como movimentação (ver lib/import/transfers.ts). */
+function withTransfers(entries: StatementEntry[]): StatementEntry[] {
+  return entries.map((e) => ({ ...e, isTransfer: looksLikeTransfer(e.description) }));
 }
 
 function skippedWarning(skipped: number): string[] {

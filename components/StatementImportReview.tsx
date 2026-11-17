@@ -63,9 +63,12 @@ export function StatementImportReview({
     duplicate: duplicates.has(i),
   }));
   const selected = view.filter((r) => r.selected);
-  const income = selected.filter((r) => r.type === 'income').reduce((s, r) => s + r.amount, 0);
-  const expense = selected.filter((r) => r.type === 'expense').reduce((s, r) => s + r.amount, 0);
   const card = creditCards.find((c) => c.id === target);
+  // Na conta, movimentação (investimento, fatura, entre contas próprias) fica fora dos totais.
+  const moved = (r: Row) => !card && Boolean(r.isTransfer);
+  const income = selected.filter((r) => r.type === 'income' && !moved(r)).reduce((s, r) => s + r.amount, 0);
+  const expense = selected.filter((r) => r.type === 'expense' && !moved(r)).reduce((s, r) => s + r.amount, 0);
+  const movedCount = selected.filter(moved).length;
 
   function patchRow(index: number, patch: Partial<Row>) {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)));
@@ -82,6 +85,7 @@ export function StatementImportReview({
       date: r.date,
       isFixed: false,
       isPaid: !card, // compra no cartão fica em aberto até a fatura ser paga
+      isTransfer: moved(r),
     }));
     importTransactions(drafts);
     onDone(`${drafts.length} lançamento(s) importado(s).`);
@@ -195,8 +199,11 @@ export function StatementImportReview({
                         {BRL.format(r.amount)}
                       </span>
                     </div>
-                    {r.duplicate && (
-                      <span className="badge badge-info badge-sm mt-1">já está no app</span>
+                    {(r.duplicate || moved(r)) && (
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        {r.duplicate && <span className="badge badge-info badge-sm">já está no app</span>}
+                        {moved(r) && <span className="badge badge-ghost badge-sm">↔ movimentação</span>}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -217,6 +224,22 @@ export function StatementImportReview({
                     <option key={c}>{c}</option>
                   ))}
                 </select>
+                {!card && (
+                  <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3">
+                    <span className="text-sm">
+                      Movimentação
+                      <span className="text-base-content/60 block text-xs">
+                        Investimento, fatura ou entre suas contas: fica fora de entradas e saídas.
+                      </span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="toggle toggle-sm"
+                      checked={Boolean(r.isTransfer)}
+                      onChange={(e) => patchRow(i, { isTransfer: e.target.checked })}
+                    />
+                  </label>
+                )}
               </div>
             </li>
           ))}
@@ -229,6 +252,7 @@ export function StatementImportReview({
             {selected.length} de {rows.length} ·{' '}
             <span className="text-success">{BRL.format(income)}</span> ·{' '}
             <span className="text-error">{BRL.format(expense)}</span>
+            {movedCount > 0 && <> · {movedCount} movimentação(ões)</>}
           </>
         }
         confirmLabel={`Importar ${selected.length}`}

@@ -189,6 +189,8 @@ export type StatementEntry = {
   date: string;
   category: string;
   paymentMethod: Exclude<PaymentMethod, 'credit_card'>;
+  /** Movimentação (investimento, fatura, entre contas próprias): fora de entradas e saídas. */
+  isTransfer?: boolean;
 };
 
 export type StatementPreview = {
