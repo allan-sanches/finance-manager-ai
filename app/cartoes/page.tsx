@@ -120,8 +120,10 @@ export default function CartoesPage() {
                     <div className="h-full rounded-full bg-white" style={{ width: `${pct}%` }} />
                   </div>
                   <p className="text-xs font-semibold opacity-90">
-                    {pct}% do limite de {BRL.format(limit)} · livre{' '}
-                    {BRL.format(Math.max(0, limit - usage.used))}
+                    {pct}% do limite de {BRL.format(limit)} ·{' '}
+                    {limit >= usage.used
+                      ? `livre ${BRL.format(limit - usage.used)}`
+                      : `${BRL.format(usage.used - limit)} acima do limite`}
                     {limitGoal && ` · garantido pela caixinha ${limitGoal.name}`}
                   </p>
                 </div>

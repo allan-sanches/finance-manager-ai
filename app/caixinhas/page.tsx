@@ -222,7 +222,8 @@ export default function CaixinhasPage() {
                           <div className="h-full rounded-full bg-current" style={{ width: `${pctUsed}%` }} />
                         </div>
                         <p className="text-xs font-semibold opacity-80">
-                          {BRL.format(used)} em uso no cartão · {BRL.format(Math.max(0, limit - used))} livre
+                          {BRL.format(used)} em uso no cartão ·{' '}
+                          {limit >= used ? `${BRL.format(limit - used)} livre` : `${BRL.format(used - limit)} acima do limite`}
                         </p>
                       </div>
                       <div className="flex justify-end p-2">
