@@ -179,7 +179,7 @@ export async function extractWithGemini(
     creditCards.map((c) => c.id),
   );
   if (!data) {
-    console.error('[gemini] response outside expected schema', raw);
+    console.error('[gemini] response outside expected schema');
     return { ok: false, code: 'invalid_output', error: INVALID_OUTPUT_ERROR };
   }
 

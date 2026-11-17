@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { isAiProviderConfigured, resolveAiProvider, type ExtractionErrorCode } from '@/lib/ai';
 import { AI_PROVIDER_COOKIE } from '@/lib/ai-provider';
+import { getSessionUserId } from '@/lib/auth';
 import { userCategoryNames } from '@/lib/categories-server';
 import {
   extractDebtsFromImages,
@@ -50,7 +51,11 @@ const STATUS_BY_ERROR: Record<ExtractionErrorCode, number> = {
 const fail = (error: string, status: number) => NextResponse.json({ ok: false, error }, { status });
 
 export async function POST(request: Request) {
-  const rate = checkRateLimit(clientKeyFromRequest(request));
+  // O proxy só confere a assinatura; aqui vale também a versão (senha trocada derruba a sessão).
+  const userId = await getSessionUserId();
+  if (!userId) return fail('Não autenticado.', 401);
+
+  const rate = checkRateLimit(`${userId}:${clientKeyFromRequest(request)}`);
   if (!rate.allowed) {
     return NextResponse.json(
       { ok: false, error: 'Muitas importações seguidas. Aguarde um pouco e tente de novo.' },

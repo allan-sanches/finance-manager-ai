@@ -38,6 +38,8 @@ export const users = pgTable('users', {
   email: text('email').unique(),
   passwordHash: text('password_hash'),
   isAdmin: boolean('is_admin').notNull().default(false),
+  // Sobe a cada troca de senha: cookies com versão antiga deixam de valer (ver lib/auth.ts).
+  sessionVersion: integer('session_version').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

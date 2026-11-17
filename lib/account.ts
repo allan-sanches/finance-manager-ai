@@ -21,7 +21,10 @@ export async function checkUserPassword(user: UserRecord, candidate: string): Pr
  * Login por e-mail e senha. E-mail em branco entra no owner enquanto ele não cadastrar um e-mail,
  * para a conta de antes do multiusuário não ficar trancada para fora.
  */
-export async function authenticate(email: string, password: string): Promise<string | null> {
+export async function authenticate(
+  email: string,
+  password: string,
+): Promise<{ id: string; sessionVersion: number } | null> {
   const db = getDb();
   const normalized = normalizeEmail(email);
   let user: UserRecord | null;
@@ -37,5 +40,7 @@ export async function authenticate(email: string, password: string): Promise<str
     await verifyPasswordHash(password, await dummyHash);
     return null;
   }
-  return (await checkUserPassword(user, password)) ? user.id : null;
+  return (await checkUserPassword(user, password))
+    ? { id: user.id, sessionVersion: user.sessionVersion }
+    : null;
 }

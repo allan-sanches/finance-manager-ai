@@ -644,6 +644,7 @@ export type UserRecord = {
   email: string | null;
   passwordHash: string | null;
   isAdmin: boolean;
+  sessionVersion: number;
 };
 
 const userColumns = {
@@ -651,6 +652,7 @@ const userColumns = {
   email: users.email,
   passwordHash: users.passwordHash,
   isAdmin: users.isAdmin,
+  sessionVersion: users.sessionVersion,
 };
 
 export async function getUser(db: Db, id: string): Promise<UserRecord | null> {
@@ -665,7 +667,7 @@ export async function findUserByEmail(db: Db, email: string): Promise<UserRecord
 }
 
 /** Para a tela de perfil do admin: sem o hash. */
-export async function listUsers(db: Db): Promise<Omit<UserRecord, 'passwordHash'>[]> {
+export async function listUsers(db: Db): Promise<Pick<UserRecord, 'id' | 'email' | 'isAdmin'>[]> {
   return db
     .select({ id: users.id, email: users.email, isAdmin: users.isAdmin })
     .from(users)
@@ -682,12 +684,25 @@ export async function createUser(
 export async function updateUser(
   db: Db,
   id: string,
-  patch: { email?: string | null; passwordHash?: string },
+  patch: { email?: string | null },
 ): Promise<void> {
   await db
     .update(users)
     .set({ ...patch, updatedAt: new Date() })
     .where(eq(users.id, id));
+}
+
+/**
+ * Troca a senha e sobe a versão da sessão no mesmo UPDATE: todo cookie emitido antes deixa de
+ * valer. Devolve a versão nova (para manter logado o aparelho que fez a troca), ou null sem conta.
+ */
+export async function setUserPassword(db: Db, id: string, passwordHash: string): Promise<number | null> {
+  const [row] = await db
+    .update(users)
+    .set({ passwordHash, sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() })
+    .where(eq(users.id, id))
+    .returning({ sessionVersion: users.sessionVersion });
+  return row?.sessionVersion ?? null;
 }
 
 // ---------- Importação do localStorage ----------

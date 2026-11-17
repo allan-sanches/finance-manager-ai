@@ -1,4 +1,4 @@
-// Sessão: cookie com "<userId>.<expiraEm>.<hmac>" assinado com SESSION_SECRET.
+// Sessão: cookie com "<userId>.<versão>.<expiraEm>.<hmac>" assinado com SESSION_SECRET.
 // Sem "server-only" porque o proxy.ts também importa; não há segredo neste arquivo, só lógica.
 
 export const SESSION_COOKIE = 'fm_session';
@@ -40,27 +40,41 @@ export function isAuthConfigured(): boolean {
 // IDs de usuário: 'owner' ou UUID. Sem ponto nem dois-pontos, que separam as partes do token.
 const USER_ID_PATTERN = /^[A-Za-z0-9-]+$/;
 
-export async function createSessionToken(userId: string, now: number = Date.now()): Promise<string> {
+/**
+ * O que o cookie afirma. A assinatura só prova que o servidor emitiu o token; quem confere se a
+ * `version` ainda é a da conta (senha não foi trocada depois) é o lib/auth.ts, que consulta o banco.
+ */
+export type SessionClaims = { userId: string; version: number };
+
+const sign = (secret: string, userId: string, version: string, expiresAt: string) =>
+  hmac(secret, `session:${userId}:${version}:${expiresAt}`);
+
+export async function createSessionToken(
+  userId: string,
+  version: number,
+  now: number = Date.now(),
+): Promise<string> {
   const secret = getSecret();
   if (!secret) throw new Error('SESSION_SECRET ausente ou com menos de 32 caracteres.');
   if (!USER_ID_PATTERN.test(userId)) throw new Error('ID de usuário inválido para a sessão.');
+  if (!Number.isSafeInteger(version) || version < 0) throw new Error('Versão de sessão inválida.');
   const expiresAt = String(Math.floor(now / 1000) + SESSION_TTL_SECONDS);
-  return `${userId}.${expiresAt}.${await hmac(secret, `session:${userId}:${expiresAt}`)}`;
+  return `${userId}.${version}.${expiresAt}.${await sign(secret, userId, String(version), expiresAt)}`;
 }
 
-/** Devolve o id do usuário dono do token, ou null se for inválido ou expirado. */
+/** Devolve usuário e versão do token, ou null se a assinatura for inválida ou o token expirou. */
 export async function verifySessionToken(
   token: string | undefined | null,
   now: number = Date.now(),
-): Promise<string | null> {
+): Promise<SessionClaims | null> {
   const secret = getSecret();
   if (!secret || !token) return null;
-  const [userId, expiresAt, signature, ...rest] = token.split('.');
-  if (!userId || !expiresAt || !signature || rest.length > 0) return null;
-  if (!USER_ID_PATTERN.test(userId)) return null;
+  const [userId, version, expiresAt, signature, ...rest] = token.split('.');
+  if (!userId || !version || !expiresAt || !signature || rest.length > 0) return null;
+  if (!USER_ID_PATTERN.test(userId) || !/^\d{1,15}$/.test(version)) return null;
   if (!/^\d+$/.test(expiresAt) || Number(expiresAt) * 1000 <= now) return null;
-  const valid = safeEqual(signature, await hmac(secret, `session:${userId}:${expiresAt}`));
-  return valid ? userId : null;
+  const valid = safeEqual(signature, await sign(secret, userId, version, expiresAt));
+  return valid ? { userId, version: Number(version) } : null;
 }
 
 /** Compara via HMAC para que o tempo não dependa de quantos caracteres batem. */

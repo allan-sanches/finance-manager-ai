@@ -115,15 +115,3 @@ export type ShoppingItem = {
 ## 4. Exemplo de Prompt Inicial Esperado pelo Desenvolvedor
 
 Sempre que receber comandos para iniciar o desenvolvimento do core do projeto, estruture primeiro o Route Handler da IA em `app/api/chat/route.ts` utilizando o modelo JSON estruturado, seguido pelos hooks de sincronização de estado globais ou componentes de interface baseados em Daisy UI.
-
----
-
-## 5. Regras Operacionais do Repositório
-
-### 5.1 Autoria de Commits
-
-**Somente o usuário com email `allan_alvarenga@msn.com` está autorizado a fazer commits neste repositório.**
-
-- Antes de qualquer operação `git commit`, verifique `git config user.email`.
-- Se o email configurado for diferente de `allan_alvarenga@msn.com`, **pare imediatamente** e avise o usuário antes de prosseguir.
-- Não altere `git config` automaticamente para contornar essa verificação.

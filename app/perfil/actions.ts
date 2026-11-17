@@ -5,9 +5,15 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { checkUserPassword, normalizeEmail } from '@/lib/account';
-import { requireUserId } from '@/lib/auth';
+import { requireUserId, setSessionCookie } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { createUser as insertUser, findUserByEmail, getUser, updateUser } from '@/lib/db/repository';
+import {
+  createUser as insertUser,
+  findUserByEmail,
+  getUser,
+  setUserPassword,
+  updateUser,
+} from '@/lib/db/repository';
 import { hashPassword } from '@/lib/password';
 import { MIN_PASSWORD_LENGTH } from '@/lib/password-rules';
 import { createRateLimiter } from '@/lib/rate-limit';
@@ -76,9 +82,14 @@ export async function changePassword(
   }
   if (next === current) return { ok: false, message: 'A nova senha é igual à atual.' };
 
-  await updateUser(getDb(), userId, { passwordHash: await hashPassword(next) });
+  // A versão nova derruba as sessões dos outros aparelhos; este recebe um cookie novo e segue logado.
+  const version = await setUserPassword(getDb(), userId, await hashPassword(next));
+  if (version !== null) await setSessionCookie(userId, version);
   revalidatePath('/perfil');
-  return { ok: true, message: 'Senha alterada. Use a nova senha no próximo login.' };
+  return {
+    ok: true,
+    message: 'Senha alterada. Os outros aparelhos conectados saíram e vão pedir a senha nova.',
+  };
 }
 
 async function requireAdmin(): Promise<string | null> {
@@ -132,6 +143,10 @@ export async function resetUserPassword(
   const target = await getUser(getDb(), targetId);
   if (!target) return { ok: false, message: 'Conta não encontrada.' };
 
-  await updateUser(getDb(), targetId, { passwordHash: await hashPassword(password) });
-  return { ok: true, message: `Senha redefinida. Passe a nova senha para ${target.email ?? 'a pessoa'}.` };
+  // Também desconecta a conta em todos os aparelhos (útil se a senha vazou).
+  await setUserPassword(getDb(), targetId, await hashPassword(password));
+  return {
+    ok: true,
+    message: `Senha redefinida e sessões abertas encerradas. Passe a nova senha para ${target.email ?? 'a pessoa'}.`,
+  };
 }

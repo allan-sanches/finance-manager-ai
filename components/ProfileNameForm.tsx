@@ -8,7 +8,7 @@ import { useHydrated } from '@/lib/useHydratedStore';
 
 const MAX_NAME = 40;
 
-/** Nome usado nas saudações do app ("Bom dia, Allan"). Fica nas preferências da conta. */
+/** Nome usado nas saudações do app ("Bom dia, Ana"). Fica nas preferências da conta. */
 export function ProfileNameForm() {
   const hydrated = useHydrated();
   const saved = useFinanceStore((s) => s.settings.displayName ?? '');
@@ -40,7 +40,7 @@ export function ProfileNameForm() {
               setDraft(e.target.value);
               setMessage(null);
             }}
-            placeholder="Ex: Allan"
+            placeholder="Ex: Ana"
             className="input input-bordered input-lg w-full"
             autoComplete="given-name"
             maxLength={MAX_NAME}

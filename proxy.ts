@@ -5,13 +5,13 @@ import { SESSION_COOKIE, verifySessionToken } from '@/lib/session';
 // /api/cron/prices se protege com Bearer (lib/price-watch-secret.ts), não com sessão.
 const PUBLIC_PATHS = new Set(['/login', '/api/health', '/api/cron/prices']);
 
+// Primeira barreira, sem banco: só confere a assinatura do cookie. Se a versão ainda vale (a senha
+// não foi trocada depois), quem confere é o lib/auth.ts em cada página, action e rota. Por isso o
+// "já logado em /login vai para /" fica na própria página de login.
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const authenticated = (await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value)) !== null;
 
-  if (pathname === '/login' && authenticated) {
-    return NextResponse.redirect(new URL('/', request.url));
-  }
   if (PUBLIC_PATHS.has(pathname) || authenticated) {
     return NextResponse.next();
   }

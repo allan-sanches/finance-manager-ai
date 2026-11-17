@@ -3,19 +3,17 @@
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-import { authenticate } from '@/lib/account';
+import { authenticate, normalizeEmail } from '@/lib/account';
+import { setSessionCookie } from '@/lib/auth';
 import { createRateLimiter } from '@/lib/rate-limit';
-import {
-  SESSION_COOKIE,
-  SESSION_TTL_SECONDS,
-  createSessionToken,
-  isAuthConfigured,
-  safeRedirectPath,
-} from '@/lib/session';
+import { SESSION_COOKIE, isAuthConfigured, safeRedirectPath } from '@/lib/session';
 
 export type LoginState = { error: string | null };
 
 const checkLoginRate = createRateLimiter({ limit: 5, windowMs: 60_000 });
+// O IP vem do X-Forwarded-For, que o cliente pode forjar; o limite por conta segura força bruta
+// mesmo trocando o IP a cada tentativa.
+const checkAccountLoginRate = createRateLimiter({ limit: 10, windowMs: 15 * 60_000 });
 
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
   if (!isAuthConfigured()) {
@@ -37,18 +35,14 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   if (typeof email !== 'string' || typeof password !== 'string') {
     return { error: 'E-mail ou senha incorretos.' };
   }
-  const userId = await authenticate(email, password);
-  if (!userId) return { error: 'E-mail ou senha incorretos.' };
+  const accountRate = checkAccountLoginRate(normalizeEmail(email));
+  if (!accountRate.allowed) {
+    return { error: `Muitas tentativas. Tente de novo em ${accountRate.retryAfterSeconds}s.` };
+  }
+  const user = await authenticate(email, password);
+  if (!user) return { error: 'E-mail ou senha incorretos.' };
 
-  const store = await cookies();
-  store.set(SESSION_COOKIE, await createSessionToken(userId), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: SESSION_TTL_SECONDS,
-  });
-
+  await setSessionCookie(user.id, user.sessionVersion);
   redirect(safeRedirectPath(formData.get('next')));
 }
 

@@ -6,6 +6,7 @@ import {
   type ExtractionErrorCode,
 } from '@/lib/ai';
 import { AI_PROVIDER_COOKIE } from '@/lib/ai-provider';
+import { getSessionUserId } from '@/lib/auth';
 import { userCategoryNames } from '@/lib/categories-server';
 import { chatRequestSchema } from '@/lib/chat-schemas';
 import { clientKeyFromRequest, createRateLimiter } from '@/lib/rate-limit';
@@ -22,7 +23,13 @@ const STATUS_BY_ERROR: Record<ExtractionErrorCode, number> = {
 };
 
 export async function POST(request: Request) {
-  const rate = checkRateLimit(clientKeyFromRequest(request));
+  // O proxy só confere a assinatura; aqui vale também a versão (senha trocada derruba a sessão).
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return NextResponse.json({ ok: false, error: 'Não autenticado.' }, { status: 401 });
+  }
+
+  const rate = checkRateLimit(`${userId}:${clientKeyFromRequest(request)}`);
   if (!rate.allowed) {
     return NextResponse.json(
       { ok: false, error: 'Muitas requisições. Aguarde um pouco e tente de novo.' },

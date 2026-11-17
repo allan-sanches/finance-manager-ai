@@ -475,17 +475,33 @@ describe('contas', () => {
 
 describe('usuários', () => {
   it('a migração cria o owner como admin, sem e-mail nem senha', async () => {
-    expect(await repo.getUser(db, OWNER)).toEqual({ id: OWNER, email: null, passwordHash: null, isAdmin: true });
+    expect(await repo.getUser(db, OWNER)).toEqual({
+      id: OWNER,
+      email: null,
+      passwordHash: null,
+      isAdmin: true,
+      sessionVersion: 0,
+    });
   });
 
   it('grava e-mail e senha sem um apagar o outro, acha pelo e-mail e não vaza no snapshot', async () => {
     await repo.updateUser(db, OWNER, { email: 'eu@exemplo.com' });
-    await repo.updateUser(db, OWNER, { passwordHash: 'scrypt$hash' });
+    expect(await repo.setUserPassword(db, OWNER, 'scrypt$hash')).toBe(1);
     expect(await repo.findUserByEmail(db, 'eu@exemplo.com')).toMatchObject({
       id: OWNER,
       passwordHash: 'scrypt$hash',
     });
     expect(JSON.stringify(await repo.getSnapshot(db, OWNER))).not.toContain('scrypt');
+  });
+
+  it('cada troca de senha sobe a versão da sessão só da conta trocada', async () => {
+    await repo.createUser(db, { id: 'u2', email: 'outra@exemplo.com', passwordHash: 'scrypt$x' });
+    expect(await repo.setUserPassword(db, 'u2', 'scrypt$y')).toBe(1);
+    expect(await repo.setUserPassword(db, 'u2', 'scrypt$z')).toBe(2);
+    await repo.updateUser(db, 'u2', { email: 'nova@exemplo.com' });
+    expect(await repo.getUser(db, 'u2')).toMatchObject({ passwordHash: 'scrypt$z', sessionVersion: 2 });
+    expect((await repo.getUser(db, OWNER))?.sessionVersion).toBe(0);
+    expect(await repo.setUserPassword(db, 'nao-existe', 'scrypt$w')).toBeNull();
   });
 
   it('não deixa dois usuários com o mesmo e-mail', async () => {

@@ -132,7 +132,7 @@ async function complete(
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) {
-      console.error('[ai-gateway] chat/completions failed', response.status, await response.text());
+      console.error('[ai-gateway] chat/completions failed', response.status, (await response.text()).slice(0, 300));
       // 401/403 vêm de chave, plano ou modelo fora do plano: tentar de novo não resolve.
       const error =
         response.status === 401 || response.status === 403
@@ -199,7 +199,7 @@ export async function chatJsonWithGateway(
       signal: AbortSignal.timeout(CONVERSATION_TIMEOUT_MS),
     });
     if (!response.ok) {
-      console.error('[ai-gateway] chat/completions failed', response.status, await response.text());
+      console.error('[ai-gateway] chat/completions failed', response.status, (await response.text()).slice(0, 300));
       const error =
         response.status === 401 || response.status === 403
           ? GATEWAY_REJECTED_ERROR

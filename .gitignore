@@ -47,3 +47,6 @@ next-env.d.ts
 !.vscode/settings.json
 !.vscode/extensions.json
 .idea
+
+# regras locais do Claude Code (dados pessoais do mantenedor)
+CLAUDE.local.md

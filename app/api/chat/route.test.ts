@@ -5,6 +5,8 @@ vi.mock('@/lib/ai', () => ({
   extractTransactionFromText: extractMock,
   resolveAiProvider: (saved?: string) => (saved === 'deepseek' ? 'deepseek' : 'gemini'),
 }));
+const sessionMock = vi.hoisted(() => vi.fn(async (): Promise<string | null> => 'owner'));
+vi.mock('@/lib/auth', () => ({ getSessionUserId: sessionMock }));
 vi.mock('@/lib/categories-server', () => ({
   userCategoryNames: async () => ['Alimentação', 'Pet', 'Outros'],
 }));
@@ -24,6 +26,14 @@ describe('POST /api/chat', () => {
   beforeEach(() => {
     vi.resetModules();
     extractMock.mockReset();
+  });
+
+  it('retorna 401 sem sessão válida (ex.: senha trocada em outro aparelho)', async () => {
+    sessionMock.mockResolvedValueOnce(null);
+    const { POST } = await import('./route');
+    const res = await POST(post({ message: 'oi' }));
+    expect(res.status).toBe(401);
+    expect(extractMock).not.toHaveBeenCalled();
   });
 
   it('retorna 400 para JSON malformado', async () => {

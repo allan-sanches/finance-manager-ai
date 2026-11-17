@@ -91,7 +91,7 @@ export async function generateJsonWithDeepseek(
       signal: AbortSignal.timeout(DOCUMENT_TIMEOUT_MS),
     });
     if (!response.ok) {
-      console.error('[deepseek] chat/completions failed', response.status, await response.text());
+      console.error('[deepseek] chat/completions failed', response.status, (await response.text()).slice(0, 300));
       return { ok: false, code: 'upstream_error', error: UPSTREAM_ERROR };
     }
     const payload = (await response.json()) as ChatCompletionResponse;
@@ -145,7 +145,7 @@ export async function extractWithDeepseek(
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!response.ok) {
-      console.error('[deepseek] chat/completions failed', response.status, await response.text());
+      console.error('[deepseek] chat/completions failed', response.status, (await response.text()).slice(0, 300));
       return { ok: false, code: 'upstream_error', error: UPSTREAM_ERROR };
     }
     const payload = (await response.json()) as ChatCompletionResponse;
@@ -167,7 +167,7 @@ export async function extractWithDeepseek(
     creditCards.map((c) => c.id),
   );
   if (!data) {
-    console.error('[deepseek] response outside expected schema', raw);
+    console.error('[deepseek] response outside expected schema');
     return { ok: false, code: 'invalid_output', error: INVALID_OUTPUT_ERROR };
   }
 
