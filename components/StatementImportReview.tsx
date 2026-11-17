@@ -46,6 +46,9 @@ export function StatementImportReview({
   const [target, setTarget] = useState<string>(ACCOUNT_TARGET);
   // Fatura de cartão em CSV costuma vir com compras positivas; inverter corrige o sinal de tudo.
   const [inverted, setInverted] = useState(false);
+  // "Pix no crédito" vira compra no cartão: qual cartão recebe essas compras.
+  const [pixCardId, setPixCardId] = useState<string>(() => creditCards[0]?.id ?? '');
+  const hasCreditPix = preview.entries.some((e) => e.paidByCard);
 
   const duplicates = useMemo(
     () => findDuplicateEntries(inverted ? preview.entries.map(flip) : preview.entries, existing),
@@ -65,7 +68,8 @@ export function StatementImportReview({
   const selected = view.filter((r) => r.selected);
   const card = creditCards.find((c) => c.id === target);
   // Na conta, movimentação (investimento, fatura, entre contas próprias) fica fora dos totais.
-  const moved = (r: Row) => !card && Boolean(r.isTransfer);
+  const moved = (r: Row) => !card && Boolean(r.isTransfer) && !r.paidByCard;
+  const creditPix = (r: Row) => !card && Boolean(r.paidByCard);
   const income = selected.filter((r) => r.type === 'income' && !moved(r)).reduce((s, r) => s + r.amount, 0);
   const expense = selected.filter((r) => r.type === 'expense' && !moved(r)).reduce((s, r) => s + r.amount, 0);
   const movedCount = selected.filter(moved).length;
@@ -80,11 +84,11 @@ export function StatementImportReview({
       amount: r.amount,
       type: r.type,
       category: r.category,
-      paymentMethod: card ? 'credit_card' : r.paymentMethod,
-      creditCardId: card?.id ?? null,
+      paymentMethod: card || creditPix(r) ? 'credit_card' : r.paymentMethod,
+      creditCardId: card?.id ?? (creditPix(r) ? pixCardId || null : null),
       date: r.date,
       isFixed: false,
-      isPaid: !card, // compra no cartão fica em aberto até a fatura ser paga
+      isPaid: !card && !creditPix(r), // compra no cartão fica em aberto até a fatura ser paga
       isTransfer: moved(r),
     }));
     importTransactions(drafts);
@@ -129,6 +133,25 @@ export function StatementImportReview({
               ))}
             </select>
           </label>
+          {hasCreditPix && !card && creditCards.length > 0 && (
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium">Cartão do Pix no crédito</span>
+              <select
+                className="select select-bordered w-full"
+                value={pixCardId}
+                onChange={(e) => setPixCardId(e.target.value)}
+              >
+                {creditCards.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    Cartão {c.name}
+                  </option>
+                ))}
+              </select>
+              <span className="text-base-content/60 text-xs">
+                O banco cobrou esses Pix no cartão: entram como compra nele, não como saída da conta.
+              </span>
+            </label>
+          )}
           <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3">
             <span className="text-sm">
               Inverter entradas e saídas
@@ -188,7 +211,7 @@ export function StatementImportReview({
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="text-base-content/60 text-xs">
                         {formatDate(r.date)} ·{' '}
-                        {card ? PAYMENT_METHOD_LABEL.credit_card : PAYMENT_METHOD_LABEL[r.paymentMethod]}
+                        {card || creditPix(r) ? PAYMENT_METHOD_LABEL.credit_card : PAYMENT_METHOD_LABEL[r.paymentMethod]}
                       </span>
                       <span
                         className={`shrink-0 font-semibold ${
@@ -199,10 +222,11 @@ export function StatementImportReview({
                         {BRL.format(r.amount)}
                       </span>
                     </div>
-                    {(r.duplicate || moved(r)) && (
+                    {(r.duplicate || moved(r) || creditPix(r)) && (
                       <span className="mt-1 flex flex-wrap gap-1">
                         {r.duplicate && <span className="badge badge-info badge-sm">já está no app</span>}
                         {moved(r) && <span className="badge badge-ghost badge-sm">↔ movimentação</span>}
+                        {creditPix(r) && <span className="badge badge-warning badge-sm">Pix no crédito</span>}
                       </span>
                     )}
                   </div>
@@ -224,7 +248,7 @@ export function StatementImportReview({
                     <option key={c}>{c}</option>
                   ))}
                 </select>
-                {!card && (
+                {!card && !r.paidByCard && (
                   <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3">
                     <span className="text-sm">
                       Movimentação

@@ -191,6 +191,8 @@ export type StatementEntry = {
   paymentMethod: Exclude<PaymentMethod, 'credit_card'>;
   /** Movimentação (investimento, fatura, entre contas próprias): fora de entradas e saídas. */
   isTransfer?: boolean;
+  /** "Pix no crédito": saiu da conta mas o banco cobrou no cartão; entra como compra no cartão. */
+  paidByCard?: boolean;
 };
 
 export type StatementPreview = {

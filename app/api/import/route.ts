@@ -22,7 +22,7 @@ import {
   redactPersonalIds,
 } from '@/lib/import/pdf-text';
 import { decodeText } from '@/lib/import/statement';
-import { looksLikeTransfer } from '@/lib/import/transfers';
+import { looksLikeTransfer, pairCreditPix } from '@/lib/import/transfers';
 import { clientKeyFromRequest, createRateLimiter } from '@/lib/rate-limit';
 import type { ImportPreview, InvoicePreview, StatementEntry } from '@/types/finance';
 
@@ -189,9 +189,9 @@ function ok(data: ImportPreview | InvoicePreview) {
   return NextResponse.json({ ok: true, data }, { status: 200 });
 }
 
-/** Investimento, fatura e conta em dólar entram como movimentação (ver lib/import/transfers.ts). */
+/** Investimento, fatura e conta em dólar viram movimentação; Pix no crédito, compra no cartão (lib/import/transfers.ts). */
 function withTransfers(entries: StatementEntry[]): StatementEntry[] {
-  return entries.map((e) => ({ ...e, isTransfer: looksLikeTransfer(e.description) }));
+  return pairCreditPix(entries.map((e) => ({ ...e, isTransfer: looksLikeTransfer(e.description) })));
 }
 
 function skippedWarning(skipped: number): string[] {

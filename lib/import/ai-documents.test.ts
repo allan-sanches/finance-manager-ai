@@ -38,16 +38,16 @@ describe('parseDebtOutput', () => {
 });
 
 describe('parseStatementOutput', () => {
-  it('descarta a reposição do "Pix no crédito" e mantém o Pix enviado', () => {
+  it('"Pix no crédito": o Pix vira compra no cartão e a reposição sai', () => {
     const pix = { date: '2026-10-26', amount: 200, category: 'Outros', paymentMethod: 'pix' };
     const raw = {
       entries: [
         { ...pix, description: 'Pix enviado: GOLD TECNOLOGIA', type: 'expense' },
         { ...pix, description: 'Crédito liberado: "Pix no crédito"', type: 'income' },
-        { ...pix, description: 'Pix no credito', type: 'income' },
       ],
     };
-    expect(parseStatementOutput(raw)?.map((e) => e.description)).toEqual(['Pix enviado: GOLD TECNOLOGIA']);
+    const entries = parseStatementOutput(raw);
+    expect(entries?.map((e) => [e.description, e.paidByCard])).toEqual([['Pix enviado: GOLD TECNOLOGIA', true]]);
   });
 
   it('normaliza categoria e meio de pagamento desconhecidos', () => {

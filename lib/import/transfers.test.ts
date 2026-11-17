@@ -1,6 +1,42 @@
 import { describe, expect, it } from 'vitest';
 
-import { looksLikeTransfer } from '@/lib/import/transfers';
+import { looksLikeTransfer, pairCreditPix } from '@/lib/import/transfers';
+
+describe('pairCreditPix', () => {
+  const e = (description: string, amount: number, type: 'income' | 'expense', date = '2026-10-26') => ({
+    description,
+    amount,
+    type,
+    date,
+  });
+
+  it('junta cada reposição ao Pix de mesmo valor e dia, mesmo com outros no meio', () => {
+    const out = pairCreditPix([
+      e('Pix enviado: GOLD', 200, 'expense'),
+      e('Credito liberado: Pix no credito', 200, 'income'),
+      e('Pix enviado: CLARO', 263.14, 'expense'),
+      e('Pix enviado: PRIME', 100, 'expense'),
+      e('Pix enviado: Mattos', 200, 'expense'),
+      e('Credito liberado: Pix no credito', 100, 'income'),
+    ]);
+    expect(out.map((x) => [x.description, Boolean(x.paidByCard)])).toEqual([
+      ['Pix enviado: GOLD', true],
+      ['Pix enviado: CLARO', false],
+      ['Pix enviado: PRIME', true],
+      ['Pix enviado: Mattos', false],
+    ]);
+  });
+
+  it('reposição sem Pix correspondente fica como movimentação (não some do saldo)', () => {
+    const out = pairCreditPix([e('Credito liberado: Pix no credito', 50, 'income')]);
+    expect(out).toEqual([{ ...e('Credito liberado: Pix no credito', 50, 'income'), isTransfer: true }]);
+  });
+
+  it('não junta com Pix de outro dia', () => {
+    const out = pairCreditPix([e('Pix enviado: X', 30, 'expense', '2026-10-25'), e('Pix no credito', 30, 'income')]);
+    expect(out.map((x) => Boolean(x.paidByCard))).toEqual([false, false]);
+  });
+});
 
 describe('looksLikeTransfer', () => {
   it.each([
