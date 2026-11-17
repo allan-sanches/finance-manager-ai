@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { MoneyInput } from '@/components/MoneyInput';
-import { BRL, cardLimit, todayISO } from '@/lib/finance';
+import { BRL, cardLimit, cardUsage, todayISO } from '@/lib/finance';
 import { parseMoneyInput, toMoneyInput } from '@/lib/money-mask';
 import { useFinanceStore } from '@/lib/store';
 import { useOpenedWith } from '@/lib/useMounted';
@@ -23,6 +23,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
   const allGoals = useFinanceStore((s) => s.savingsGoals);
   const goals = allGoals.filter((g) => g.currency === 'BRL');
   const transactions = useFinanceStore((s) => s.transactions);
+  const invoices = useFinanceStore((s) => s.creditCardInvoices);
 
   const [name, setName] = useState('');
   const [limit, setLimit] = useState('');
@@ -30,6 +31,9 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
   const [securedLimit, setSecuredLimit] = useState(false);
   const [closingDay, setClosingDay] = useState('1');
   const [dueDay, setDueDay] = useState('10');
+  const [cdiPercent, setCdiPercent] = useState('');
+  // Limite usado como o banco mostra (opcional): vira a referência do uso do limite.
+  const [used, setUsed] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,6 +51,12 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
     setSecuredLimit(Boolean(initial?.securedLimit));
     setClosingDay(initial ? String(initial.closingDay) : '1');
     setDueDay(initial ? String(initial.dueDay) : '10');
+    setCdiPercent(initial?.cdiPercent != null ? String(initial.cdiPercent) : '');
+    setUsed(
+      initial?.usedDate
+        ? toMoneyInput(cardUsage(initial.id, transactions, invoices, todayISO(), initial).used)
+        : '',
+    );
     setError(null);
   }
 
@@ -65,6 +75,14 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
     if (!Number.isInteger(due) || due < 1 || due > 28) {
       return setError('Dia de vencimento deve ser entre 1 e 28.');
     }
+    const cdi = cdiPercent.trim() ? Number(cdiPercent.replace(',', '.')) : null;
+    if (cdi != null && (!Number.isFinite(cdi) || cdi < 0 || cdi > 1000)) return setError('% do CDI inválido.');
+    const usedNum = used.trim() ? parseMoneyInput(used) : null;
+    const bank = {
+      cdiPercent: securedLimit && !goal ? cdi : null,
+      usedAmount: usedNum,
+      usedDate: usedNum != null ? todayISO() : null,
+    };
 
     if (initial) {
       updateCreditCard(initial.id, {
@@ -74,6 +92,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
         securedLimit,
         // Salvar confere o valor hoje: só as movimentações daqui para frente mudam o limite.
         limitDate: securedLimit && !goal ? todayISO() : null,
+        ...bank,
         closingDay: closing,
         dueDay: due,
       });
@@ -84,6 +103,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
         limitSavingsGoalId: goal?.id ?? null,
         securedLimit,
         limitDate: securedLimit && !goal ? todayISO() : null,
+        ...bank,
         closingDay: closing,
         dueDay: due,
         currentInvoiceAmount: 0,
@@ -160,6 +180,31 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
                 Cada compra conta como gasto no dia em que foi feita. Pagar a fatura vira movimentação: só
                 devolve o limite.
               </span>
+            </span>
+          </label>
+
+          {securedLimit && !(limitGoalId && goals.some((g) => g.id === limitGoalId)) && (
+            <label className="form-control">
+              <span className="label-text">O investimento rende (% do CDI)</span>
+              <input
+                className="input input-bordered"
+                inputMode="decimal"
+                placeholder="Ex: 100"
+                value={cdiPercent}
+                onChange={(e) => setCdiPercent(e.target.value)}
+              />
+              <span className="text-base-content/60 mt-1 text-xs">
+                O limite cresce todo dia útil com o rendimento, como no banco.
+              </span>
+            </label>
+          )}
+
+          <label className="form-control">
+            <span className="label-text">Limite usado no banco (opcional)</span>
+            <MoneyInput value={used} onChange={setUsed} />
+            <span className="text-base-content/60 mt-1 text-xs">
+              Copie do app do banco. Daí em diante, compras somam e faturas pagas descontam; juros de parcelas
+              futuras não ocupam o limite, como no banco.
             </span>
           </label>
 

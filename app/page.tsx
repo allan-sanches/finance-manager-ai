@@ -54,7 +54,8 @@ export default function DashboardPage() {
   const month = summarizeMonth(transactions, undefined, invoiceOutflows(invoices, undefined, secured).realized, secured);
   const categories = expensesByCategory(transactions);
   const totalLimit = creditCards.reduce((sum, c) => sum + cardLimit(c, savingsGoals, allTransactions), 0);
-  const usageOf = (cardId: string) => cardUsage(cardId, allTransactions, invoices).used;
+  const usageOf = (cardId: string) =>
+    cardUsage(cardId, allTransactions, invoices, undefined, creditCards.find((c) => c.id === cardId)).used;
   const totalInvoice = creditCards.reduce((sum, c) => sum + usageOf(c.id), 0);
   const usdRate = useUsdRate();
   const saved = totalSavedBrl(savingsGoals, usdRate?.rate ?? null);

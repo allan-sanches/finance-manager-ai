@@ -87,7 +87,7 @@ export default function CaixinhasPage() {
   const securedCards = secured.cards.map(({ card, amount }) => ({
     card,
     limit: amount,
-    used: cardUsage(card.id, transactions, invoices).used,
+    used: cardUsage(card.id, transactions, invoices, undefined, card).used,
   }));
   const securedTotal = secured.total;
   const savedTotal = saved.total + securedTotal;

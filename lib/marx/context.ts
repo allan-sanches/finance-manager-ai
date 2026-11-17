@@ -14,6 +14,7 @@ import {
   summarizeMonth,
   withoutHiddenCategories,
 } from '@/lib/finance';
+import { upcomingInvoices } from '@/lib/installments';
 import type { MarketQuotes } from '@/lib/marx/quotes';
 import { totalSavedBrl } from '@/lib/savings';
 import { monthTitle, shiftMonth } from '@/lib/transaction-months';
@@ -108,12 +109,19 @@ export function buildFinanceContext(snapshot: FinanceSnapshot, quotes: MarketQuo
     'Cartões de crédito (id | nome | limite | usado | disponível | fecha/vence)',
     creditCards.map((c) => {
       const limit = cardLimit(c, savingsGoals, transactions);
-      const usage = cardUsage(c.id, transactions, creditCardInvoices, today);
+      const usage = cardUsage(c.id, transactions, creditCardInvoices, today, c);
       const next = nextOpenInvoice(creditCardInvoices, c.id);
+      const upcoming = upcomingInvoices(c, transactions, creditCardInvoices, today, 12)
+        .map((u) => `${u.dueDate.slice(0, 7)} ${money(u.amount)}${u.source === 'projected' ? ' (prevista pelas parcelas)' : ''}`)
+        .join('; ');
       return (
         `- ${c.id} | ${c.name} | ${money(limit)} | ${money(usage.used)} | ${money(limit - usage.used)} | dia ${c.closingDay}/dia ${c.dueDay}` +
         (next ? ` | próxima fatura em aberto vence ${next.dueDate}` : '') +
-        (c.securedLimit ? ' | limite garantido por investimento' : '')
+        (c.securedLimit
+          ? ` | limite garantido por investimento (CDB${c.cdiPercent ? ` a ${c.cdiPercent}% do CDI, com rendimento até ontem` : ''})`
+          : '') +
+        (c.usedDate ? ` | limite usado conferido com o banco em ${c.usedDate} (+ compras depois, − faturas pagas depois)` : '') +
+        (upcoming ? ` | próximas faturas: ${upcoming}` : '')
       );
     }),
     'Nenhum cartão cadastrado.',
@@ -130,7 +138,7 @@ export function buildFinanceContext(snapshot: FinanceSnapshot, quotes: MarketQuo
         const progress = g.targetAmount > 0 ? ` (${Math.round((g.currentAmount / g.targetAmount) * 100)}%)` : '';
         const extras = [
           g.institution,
-          g.cdiPercent != null && `${g.cdiPercent}% do CDI`,
+          g.cdiPercent != null && `${g.cdiPercent}% do CDI${g.amountDate ? ', saldo com rendimento até ontem' : ''}`,
           g.annualRate != null && `${pct(g.annualRate)} a.a.`,
           g.monthlyContribution && `aporte planejado ${money(g.monthlyContribution, g.currency)}/mês`,
           g.deadline && `prazo ${g.deadline}`,

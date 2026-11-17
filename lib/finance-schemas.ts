@@ -47,6 +47,9 @@ export const creditCardSchema = z.object({
   limitSavingsGoalId: nullable(id),
   securedLimit: z.boolean().optional(),
   limitDate: nullable(isoDate),
+  cdiPercent: nullable(z.number().finite().min(0).max(1000)),
+  usedAmount: nullable(money),
+  usedDate: nullable(isoDate),
 });
 
 export const creditCardPatchSchema = creditCardSchema
@@ -105,6 +108,7 @@ export const savingsGoalSchema = z.object({
   depositDate: nullable(isoDate),
   monthlyContribution: nullable(money),
   timeDeposits: timeDeposits.default([]),
+  amountDate: nullable(isoDate),
 });
 
 // Patches são escritos à mão, sem .default()/transform: em um .partial() eles preencheriam campos

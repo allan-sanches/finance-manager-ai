@@ -45,6 +45,12 @@ export type CreditCard = {
   // Dia em que `limit` foi conferido (YYYY-MM-DD). No limite garantido, movimentações ligadas ao
   // cartão depois dessa data mudam o limite: aplicação no CDB aumenta, resgate diminui.
   limitDate?: string | null;
+  // Rendimento do investimento que garante o limite, em % do CDI (ex.: 100). Rende por dia útil.
+  cdiPercent?: number | null;
+  // Limite usado como o banco mostra, conferido em usedDate (YYYY-MM-DD). Daí em diante, compras
+  // somam e faturas pagas descontam: juros de parcelas futuras não ocupam o limite.
+  usedAmount?: number | null;
+  usedDate?: string | null;
 };
 
 /**
@@ -88,6 +94,7 @@ export type SavingsGoal = {
   depositDate?: string | null; // Último depósito, para calcular o resgate provável
   monthlyContribution?: number | null; // Aporte planejado por mês, para projetar quando a meta é batida
   timeDeposits?: TimeDeposit[]; // Parte do saldo aplicada com vencimento (ex.: porquinhos em time deposit)
+  amountDate?: string | null; // Dia em que currentAmount foi conferido: daí em diante rende por dia útil
 };
 
 export type TimeDeposit = {

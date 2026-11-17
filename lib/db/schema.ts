@@ -66,6 +66,12 @@ export const creditCards = pgTable('credit_cards', {
   // Dia em que `limit` foi conferido. No limite garantido, aplicações e resgates ligados ao cartão
   // depois dessa data somam e subtraem do limite (ver securedCardLimit).
   limitDate: date('limit_date', { mode: 'string' }),
+  // Rendimento do investimento que garante o limite (% do CDI, ex.: 100): rende por dia útil.
+  cdiPercent: numeric('cdi_percent', { precision: 6, scale: 2, mode: 'number' }),
+  // Limite usado como o banco mostra, conferido em used_date. Depois disso, compras somam e faturas
+  // pagas descontam (ver cardUsage). É o jeito do banco: juros de parcelas futuras não ocupam limite.
+  usedAmount: money('used_amount'),
+  usedDate: date('used_date', { mode: 'string' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('credit_cards_user_id_idx').on(t.userId)]);
 
@@ -138,6 +144,8 @@ export const savingsGoals = pgTable('savings_goals', {
   lockDays: integer('lock_days'),
   depositDate: date('deposit_date', { mode: 'string' }),
   monthlyContribution: money('monthly_contribution'),
+  // Dia em que current_amount foi conferido: daí em diante a caixinha rende por dia útil (% do CDI).
+  amountDate: date('amount_date', { mode: 'string' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('savings_goals_user_id_idx').on(t.userId)]);
 

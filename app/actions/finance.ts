@@ -1,9 +1,11 @@
 'use server';
 
 import { requireUserId } from '@/lib/auth';
+import { getBankSnapshot } from '@/lib/bank-snapshot';
 import { getDb } from '@/lib/db';
 import * as repo from '@/lib/db/repository';
-import { CATEGORIES } from '@/lib/finance';
+import { CATEGORIES, todayISO } from '@/lib/finance';
+import { getCdiAnnualRate } from '@/lib/marx/quotes';
 import {
   amountSchema,
   bankAccountPatchSchema,
@@ -54,7 +56,7 @@ async function run(
   if (actor !== userId) return { sessionChanged: true };
   const db = getDb();
   await mutation(db, userId);
-  return repo.getSnapshot(db, userId);
+  return getBankSnapshot(db, userId);
 }
 
 export async function loadSnapshot(actor: unknown) {
@@ -185,13 +187,19 @@ export async function depositToGoal(actor: unknown, id: unknown, amount: unknown
   const goalId = idSchema.parse(id);
   const value = amountSchema.parse(amount);
   const date = isoDateSchema.optional().parse(depositDate);
-  return run(actor, (db, userId) => repo.depositToGoal(db, userId, goalId, value, date));
+  return run(actor, async (db, userId) => {
+    await repo.realizeGoalYield(db, userId, goalId, await getCdiAnnualRate(), todayISO());
+    await repo.depositToGoal(db, userId, goalId, value, date);
+  });
 }
 
 export async function withdrawFromGoal(actor: unknown, id: unknown, amount: unknown) {
   const goalId = idSchema.parse(id);
   const value = amountSchema.parse(amount);
-  return run(actor, (db, userId) => repo.withdrawFromGoal(db, userId, goalId, value));
+  return run(actor, async (db, userId) => {
+    await repo.realizeGoalYield(db, userId, goalId, await getCdiAnnualRate(), todayISO());
+    await repo.withdrawFromGoal(db, userId, goalId, value);
+  });
 }
 
 export async function updateSavingsGoal(actor: unknown, id: unknown, patch: unknown) {

@@ -1,7 +1,9 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 
+import { accrue, dailyCdiFactor } from '@/lib/accrual';
 import * as schema from '@/lib/db/schema';
+import { dayBefore } from '@/lib/installments';
 import { DEFAULT_SETTINGS, mergeCategoryNames } from '@/lib/finance';
 import type { SnapshotInput } from '@/lib/finance-schemas';
 import { normalizeCategoryName } from '@/lib/tones';
@@ -409,6 +411,29 @@ export async function addSavingsGoal(db: Db, userId: string, input: SavingsGoal)
 }
 
 /** depositDate: só para caixinhas com prazo de resgate — o resgate provável conta a partir dele. */
+/**
+ * Antes de depositar ou retirar, o rendimento até ontem vira saldo (como no banco) e a data de
+ * referência passa a ser ontem; senão o depósito "renderia" desde a data antiga. Caixinha em reais
+ * com % do CDI e sem data ainda começa a render a partir daqui.
+ */
+export async function realizeGoalYield(
+  db: Db,
+  userId: string,
+  id: string,
+  cdiAnnualPercent: number | null,
+  today: string,
+): Promise<void> {
+  const [goal] = await db.select().from(savingsGoals).where(ownGoal(userId, id));
+  if (!goal || goal.currency !== 'BRL' || !goal.cdiPercent) return;
+  const upTo = dayBefore(today);
+  if (goal.amountDate && goal.amountDate >= upTo) return;
+  const currentAmount =
+    goal.amountDate && cdiAnnualPercent
+      ? accrue(goal.currentAmount, goal.amountDate, upTo, dailyCdiFactor(cdiAnnualPercent, goal.cdiPercent))
+      : goal.currentAmount;
+  await db.update(savingsGoals).set({ currentAmount, amountDate: upTo }).where(ownGoal(userId, id));
+}
+
 export async function depositToGoal(
   db: Db,
   userId: string,

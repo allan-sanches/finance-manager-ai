@@ -6,7 +6,8 @@ import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { themeInitScript } from '@/lib/theme';
 import { getSessionUserId } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { getSnapshot, OWNER_ID } from '@/lib/db/repository';
+import { getBankSnapshot } from '@/lib/bank-snapshot';
+import { OWNER_ID } from '@/lib/db/repository';
 
 import './globals.css';
 
@@ -36,7 +37,8 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // O proxy já barra quem não tem sessão; aqui a checagem só evita consultar o banco na tela de login.
   const userId = await getSessionUserId();
-  const snapshot = userId ? await getSnapshot(getDb(), userId) : null;
+  // Com o rendimento até ontem do CDB dos cartões e das caixinhas, como o banco mostra.
+  const snapshot = userId ? await getBankSnapshot(getDb(), userId) : null;
 
   return (
     // data-theme é aplicado pelo script antes da hidratação (escolha salva); sem ele, segue o sistema.

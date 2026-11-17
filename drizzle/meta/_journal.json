@@ -141,6 +141,13 @@
       "when": 1794936355058,
       "tag": "0019_transaction_installments",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794938374499,
+      "tag": "0020_bank_logic",
+      "breakpoints": true
     }
   ]
 }

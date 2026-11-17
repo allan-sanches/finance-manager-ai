@@ -304,6 +304,35 @@ export function cardUsage(
     Pick<CreditCardInvoice, 'creditCardId' | 'closingDate' | 'amount' | 'paymentDate' | 'recordedAt'>
   >,
   today: string = todayISO(),
+  bank?: Pick<CreditCard, 'usedAmount' | 'usedDate'> | null,
+): CardUsage {
+  const fromInvoices = invoiceCardUsage(cardId, transactions, invoices, today);
+  if (!bank?.usedDate || bank.usedAmount == null) return fromInvoices;
+  // Como o banco: o limite usado conferido, mais compras depois dele, menos faturas pagas depois.
+  // Parcela futura de Pix no crédito ocupa só o saldo devedor, não os juros ainda não cobrados.
+  let newCents = 0;
+  for (const tx of transactions) {
+    if (!isCardPurchase(tx) || tx.creditCardId !== cardId || tx.date <= bank.usedDate) continue;
+    newCents += Math.round(tx.amount * 100) * (tx.type === 'income' ? -1 : 1);
+  }
+  let paidCents = 0;
+  for (const i of invoices) {
+    if (i.creditCardId === cardId && i.paymentDate && i.paymentDate > bank.usedDate) paidCents += Math.round(i.amount * 100);
+  }
+  const used = Math.max(0, Math.round(bank.usedAmount * 100) + newCents - paidCents) / 100;
+  const unbilled = Math.max(0, newCents) / 100;
+  return { ...fromInvoices, unbilled, openInvoices: Math.max(0, Math.round((used - unbilled) * 100) / 100), used };
+}
+
+function invoiceCardUsage(
+  cardId: string,
+  transactions: ReadonlyArray<
+    Pick<Transaction, 'paymentMethod' | 'creditCardId' | 'date' | 'amount' | 'type' | 'createdAt'>
+  >,
+  invoices: ReadonlyArray<
+    Pick<CreditCardInvoice, 'creditCardId' | 'closingDate' | 'amount' | 'paymentDate' | 'recordedAt'>
+  >,
+  today: string,
 ): CardUsage {
   let lastPastClosing: string | null = null;
   let current: { closingDate: string; recordedAt?: string } | null = null;

@@ -91,6 +91,11 @@ async function sgs(series: number): Promise<{ rate: number; date: string } | nul
   }
 }
 
+/** CDI anual (% a.a., base 252) do Banco Central, com cache: usado no rendimento diário (lib/accrual.ts). */
+export async function getCdiAnnualRate(): Promise<number | null> {
+  return (await sgs(4389))?.rate ?? null;
+}
+
 export async function getMarketQuotes(): Promise<MarketQuotes> {
   const [fx, cdiAnnual, selicTarget] = await Promise.all([currencies(), sgs(4389), sgs(432)]);
   return { currencies: fx, cdiAnnual, selicTarget };

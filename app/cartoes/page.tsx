@@ -57,7 +57,7 @@ export default function CartoesPage() {
             const limitGoal = savingsGoals.find(
               (g) => g.id === c.limitSavingsGoalId && g.currency === 'BRL',
             );
-            const usage = cardUsage(c.id, transactions, invoices);
+            const usage = cardUsage(c.id, transactions, invoices, undefined, c);
             const pct = Math.min(100, Math.round((usage.used / Math.max(1, limit)) * 100));
             const next = nextOpenInvoice(invoices, c.id);
             return (

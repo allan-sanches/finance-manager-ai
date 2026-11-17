@@ -4,7 +4,7 @@ import type { ExtractionErrorCode } from '@/lib/ai';
 import { chatJsonWithGateway } from '@/lib/ai-gateway';
 import { getSessionUserId } from '@/lib/auth';
 import { getDb } from '@/lib/db';
-import { getSnapshot } from '@/lib/db/repository';
+import { getBankSnapshot } from '@/lib/bank-snapshot';
 import { mergeCategoryNames, todayISO } from '@/lib/finance';
 import { buildFinanceContext } from '@/lib/marx/context';
 import { buildMarxSystemPrompt, MARX_RESPONSE_SCHEMA, toChatMessages } from '@/lib/marx/prompt';
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const [snapshot, quotes] = await Promise.all([getSnapshot(getDb(), userId), getMarketQuotes()]);
+  const [snapshot, quotes] = await Promise.all([getBankSnapshot(getDb(), userId), getMarketQuotes()]);
   const today = todayISO();
   const categories = mergeCategoryNames(snapshot.categories);
   const system = buildMarxSystemPrompt({
