@@ -29,12 +29,16 @@ type Props = {
 };
 
 const PAYMENT_OPTIONS: PaymentMethod[] = ['pix', 'debit', 'credit_card', 'cash', 'bank_transfer'];
+// No seletor da movimentação, o investimento que garante um cartão vem como "card:<id>".
+const CARD_TARGET = 'card:';
 
 export function TransactionFormDialog({ open, onClose, initial, initialDraft }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const bankAccounts = useFinanceStore((s) => s.bankAccounts);
   const savingsGoals = useFinanceStore((s) => s.savingsGoals);
+  // Cartões de limite garantido sem caixinha: aplicação/resgate no investimento muda o limite.
+  const securedCards = creditCards.filter((c) => c.securedLimit && !savingsGoals.some((g) => g.id === c.limitSavingsGoalId));
   const addTransaction = useFinanceStore((s) => s.addTransaction);
   const updateTransaction = useFinanceStore((s) => s.updateTransaction);
   const removeTransaction = useFinanceStore((s) => s.removeTransaction);
@@ -74,7 +78,12 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
       setCreditCardId(src.creditCardId ?? '');
       setBankAccountId(src.bankAccountId ?? '');
       setIsTransfer(Boolean(src.isTransfer));
-      setSavingsGoalId(src.savingsGoalId ?? '');
+      // Movimentação do investimento de um cartão garantido aparece como "card:<id>" no mesmo seletor.
+      setSavingsGoalId(
+        src.isTransfer && src.creditCardId && src.paymentMethod !== 'credit_card'
+          ? `${CARD_TARGET}${src.creditCardId}`
+          : (src.savingsGoalId ?? ''),
+      );
       setDate(src.date);
       setIsFixed(src.isFixed);
       setIsPaid('isPaid' in src ? Boolean(src.isPaid) : true);
@@ -105,16 +114,20 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
       return setError('Selecione o cartão de crédito.');
     }
 
+    const guaranteeCardId =
+      isTransfer && paymentMethod !== 'credit_card' && savingsGoalId.startsWith(CARD_TARGET)
+        ? savingsGoalId.slice(CARD_TARGET.length)
+        : null;
     const draft: TransactionDraft = {
       description: description.trim(),
       amount: parsedAmount,
       type,
       category,
       paymentMethod,
-      creditCardId: paymentMethod === 'credit_card' ? creditCardId : null,
+      creditCardId: paymentMethod === 'credit_card' ? creditCardId : guaranteeCardId,
       bankAccountId: bankAccountId || null,
       isTransfer,
-      savingsGoalId: isTransfer ? savingsGoalId || null : null,
+      savingsGoalId: isTransfer && !guaranteeCardId ? savingsGoalId || null : null,
       date,
       isFixed,
       isPaid,
@@ -284,7 +297,7 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
                 </span>
               </span>
             </label>
-            {isTransfer && savingsGoals.length > 0 && (
+            {isTransfer && (savingsGoals.length > 0 || securedCards.length > 0) && paymentMethod !== 'credit_card' && (
               <label className="form-control">
                 <span className="label-text">
                   {type === 'income' ? 'Saiu da caixinha' : 'Foi para a caixinha'}
@@ -298,6 +311,11 @@ export function TransactionFormDialog({ open, onClose, initial, initialDraft }: 
                   {savingsGoals.map((g) => (
                     <option key={g.id} value={g.id}>
                       {g.name}
+                    </option>
+                  ))}
+                  {securedCards.map((c) => (
+                    <option key={c.id} value={`${CARD_TARGET}${c.id}`}>
+                      Investimento do cartão {c.name} (limite)
                     </option>
                   ))}
                 </select>

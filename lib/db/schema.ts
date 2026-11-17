@@ -63,6 +63,9 @@ export const creditCards = pgTable('credit_cards', {
   limitSavingsGoalId: text('limit_savings_goal_id'),
   // Limite garantido (ex: CDB do Inter): a compra conta como gasto no dia; pagar a fatura só devolve o limite.
   securedLimit: boolean('secured_limit').notNull().default(false),
+  // Dia em que `limit` foi conferido. No limite garantido, aplicações e resgates ligados ao cartão
+  // depois dessa data somam e subtraem do limite (ver securedCardLimit).
+  limitDate: date('limit_date', { mode: 'string' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('credit_cards_user_id_idx').on(t.userId)]);
 

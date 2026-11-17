@@ -53,13 +53,13 @@ export default function DashboardPage() {
   const secured = securedCardIds(creditCards);
   const month = summarizeMonth(transactions, undefined, invoiceOutflows(invoices, undefined, secured).realized, secured);
   const categories = expensesByCategory(transactions);
-  const totalLimit = creditCards.reduce((sum, c) => sum + cardLimit(c, savingsGoals), 0);
+  const totalLimit = creditCards.reduce((sum, c) => sum + cardLimit(c, savingsGoals, allTransactions), 0);
   const usageOf = (cardId: string) => cardUsage(cardId, allTransactions, invoices).used;
   const totalInvoice = creditCards.reduce((sum, c) => sum + usageOf(c.id), 0);
   const usdRate = useUsdRate();
   const saved = totalSavedBrl(savingsGoals, usdRate?.rate ?? null);
   // Todas as caixinhas + o CDB que garante o limite do cartão (mesma soma da tela de Caixinhas).
-  const securedSavings = securedCardSavings(creditCards, savingsGoals);
+  const securedSavings = securedCardSavings(creditCards, savingsGoals, allTransactions);
   const savedTotal = saved.total + securedSavings.total;
   const maturing = maturityAlerts(savingsGoals, todayISO());
   const dashboardDebts = debtsOnDashboard(debts, settings);
@@ -125,7 +125,7 @@ export default function DashboardPage() {
           <TileDetails
             empty="Nenhum cartão cadastrado."
             rows={creditCards.map((c) => {
-              const limit = cardLimit(c, savingsGoals);
+              const limit = cardLimit(c, savingsGoals, allTransactions);
               const used = usageOf(c.id);
               const next = nextOpenInvoice(invoices, c.id);
               const due = next ? shortDate(next.dueDate) : `dia ${c.dueDay}`;

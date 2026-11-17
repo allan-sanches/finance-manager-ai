@@ -27,6 +27,14 @@ export function looksLikeTransfer(description: string): boolean {
   return RULES.some((rule) => rule.test(d));
 }
 
+// Investimento que garante o limite do cartão (Inter: "CDB CREDITO"). O porquinho ("CDB Porq Obj") não.
+const CARD_GUARANTEE = /cdb credito|limite do cartao|cartao garantido/;
+
+/** Aplicação/resgate do investimento que garante o cartão: muda o limite dele (ver securedCardLimit). */
+export function looksLikeCardGuarantee(description: string): boolean {
+  return CARD_GUARANTEE.test(normalizeText(description));
+}
+
 const CREDIT_RELEASE = /credito liberado|pix no credito/;
 
 /**

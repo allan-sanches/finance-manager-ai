@@ -45,31 +45,64 @@ export function mergeCategoryNames(custom: ReadonlyArray<{ name: string }>): str
   return [...builtIn, ...own, OTHERS];
 }
 
+type LimitCard = Pick<CreditCard, 'limit' | 'limitSavingsGoalId'> &
+  Partial<Pick<CreditCard, 'id' | 'securedLimit' | 'limitDate'>>;
+type GuaranteeTx = Pick<Transaction, 'creditCardId' | 'isTransfer' | 'paymentMethod' | 'date' | 'type' | 'amount'>;
+
 /**
- * Limite efetivo do cartão: se ele é garantido por uma caixinha em reais, vale o saldo dela;
- * senão (ou se a caixinha sumiu), o limite fixo cadastrado.
+ * Movimentação do investimento que garante um cartão (ex.: aplicação ou resgate do CDB Crédito
+ * Inter): é movimentação, aponta para o cartão e não é compra — fatura e uso do cartão a ignoram.
+ */
+export const isCardGuaranteeMove = (tx: Pick<Transaction, 'creditCardId' | 'isTransfer' | 'paymentMethod'>): boolean =>
+  Boolean(tx.isTransfer && tx.creditCardId) && tx.paymentMethod !== 'credit_card';
+
+/**
+ * Limite garantido acompanha o investimento: o valor conferido em `limitDate`, mais as aplicações
+ * (saída da conta, limite sobe) e menos os resgates (entrada na conta, limite desce) feitos depois.
+ */
+export function securedCardLimit(
+  card: Pick<CreditCard, 'id' | 'limit' | 'limitDate'>,
+  transactions: ReadonlyArray<GuaranteeTx>,
+): number {
+  if (!card.limitDate) return card.limit;
+  let cents = Math.round(card.limit * 100);
+  for (const tx of transactions) {
+    if (tx.creditCardId !== card.id || !isCardGuaranteeMove(tx) || tx.date <= card.limitDate) continue;
+    cents += Math.round(tx.amount * 100) * (tx.type === 'expense' ? 1 : -1);
+  }
+  return cents / 100;
+}
+
+/**
+ * Limite efetivo do cartão: se ele é garantido por uma caixinha em reais, vale o saldo dela; se é
+ * garantido por investimento, o valor conferido mais as movimentações depois; senão, o limite fixo.
  */
 export function cardLimit(
-  card: Pick<CreditCard, 'limit' | 'limitSavingsGoalId'>,
+  card: LimitCard,
   goals: ReadonlyArray<Pick<SavingsGoal, 'id' | 'currency' | 'currentAmount'>>,
+  transactions: ReadonlyArray<GuaranteeTx> = [],
 ): number {
   const goal = card.limitSavingsGoalId
     ? goals.find((g) => g.id === card.limitSavingsGoalId && g.currency === 'BRL')
     : undefined;
-  return goal ? goal.currentAmount : card.limit;
+  if (goal) return goal.currentAmount;
+  return card.securedLimit && card.id
+    ? securedCardLimit({ id: card.id, limit: card.limit, limitDate: card.limitDate }, transactions)
+    : card.limit;
 }
 
 /**
  * CDB dos cartões de limite garantido (ex.: Inter): é dinheiro guardado, então entra no "Guardado"
  * junto com as caixinhas. Cartão cujo limite já vem de uma caixinha fica de fora (já está nela).
  */
-export function securedCardSavings<C extends Pick<CreditCard, 'id' | 'name' | 'limit' | 'limitSavingsGoalId' | 'securedLimit'>>(
+export function securedCardSavings<C extends LimitCard & Pick<CreditCard, 'name'>>(
   cards: ReadonlyArray<C>,
   goals: ReadonlyArray<Pick<SavingsGoal, 'id' | 'currency' | 'currentAmount'>>,
+  transactions: ReadonlyArray<GuaranteeTx> = [],
 ): { cards: { card: C; amount: number }[]; total: number } {
   const list = cards
     .filter((c) => c.securedLimit && !goals.some((g) => g.id === c.limitSavingsGoalId))
-    .map((card) => ({ card, amount: cardLimit(card, goals) }));
+    .map((card) => ({ card, amount: cardLimit(card, goals, transactions) }));
   return { cards: list, total: list.reduce((sum, c) => sum + c.amount, 0) };
 }
 

@@ -38,6 +38,9 @@ export type CreditCard = {
   // Limite garantido: a compra conta como gasto no dia em que foi feita e o pagamento da fatura
   // é movimentação (devolve o limite). Sem isso, o gasto só pesa quando a fatura é paga.
   securedLimit?: boolean;
+  // Dia em que `limit` foi conferido (YYYY-MM-DD). No limite garantido, movimentações ligadas ao
+  // cartão depois dessa data mudam o limite: aplicação no CDB aumenta, resgate diminui.
+  limitDate?: string | null;
 };
 
 /**
@@ -193,6 +196,8 @@ export type StatementEntry = {
   isTransfer?: boolean;
   /** "Pix no crédito": saiu da conta mas o banco cobrou no cartão; entra como compra no cartão. */
   paidByCard?: boolean;
+  /** Aplicação/resgate do investimento que garante o cartão: liga ao cartão de limite garantido. */
+  fundsCard?: boolean;
 };
 
 export type StatementPreview = {

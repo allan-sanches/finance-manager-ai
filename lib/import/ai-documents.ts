@@ -8,7 +8,7 @@ import type { PromptImage } from '@/lib/ai-prompt';
 import type { AiProvider } from '@/lib/ai-provider';
 import { BRL, CATEGORIES, todayISO } from '@/lib/finance';
 import { readScrTotals } from '@/lib/import/scr-totals';
-import { looksLikeTransfer, pairCreditPix } from '@/lib/import/transfers';
+import { looksLikeCardGuarantee, looksLikeTransfer, pairCreditPix } from '@/lib/import/transfers';
 import { DEFAULT_IMPORT_CATEGORY } from '@/lib/import/statement';
 import type {
   DebtEntry,
@@ -113,6 +113,7 @@ export function parseStatementOutput(
       paymentMethod: e.paymentMethod,
       // A IA reconhece o próprio titular; as regras fixas garantem investimento e fatura.
       isTransfer: Boolean(e.isTransfer) || looksLikeTransfer(e.description),
+      fundsCard: looksLikeCardGuarantee(e.description),
     }));
   return pairCreditPix(entries);
 }

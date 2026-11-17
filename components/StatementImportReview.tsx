@@ -49,6 +49,11 @@ export function StatementImportReview({
   // "Pix no crédito" vira compra no cartão: qual cartão recebe essas compras.
   const [pixCardId, setPixCardId] = useState<string>(() => creditCards[0]?.id ?? '');
   const hasCreditPix = preview.entries.some((e) => e.paidByCard);
+  // CDB que garante o limite (ex.: "CDB CREDITO" do Inter) vai para o cartão de limite garantido.
+  const savingsGoals = useFinanceStore((s) => s.savingsGoals);
+  const guaranteedCard = creditCards.find(
+    (c) => c.securedLimit && !savingsGoals.some((g) => g.id === c.limitSavingsGoalId),
+  );
 
   const duplicates = useMemo(
     () => findDuplicateEntries(inverted ? preview.entries.map(flip) : preview.entries, existing),
@@ -70,6 +75,7 @@ export function StatementImportReview({
   // Na conta, movimentação (investimento, fatura, entre contas próprias) fica fora dos totais.
   const moved = (r: Row) => !card && Boolean(r.isTransfer) && !r.paidByCard;
   const creditPix = (r: Row) => !card && Boolean(r.paidByCard);
+  const fundsCard = (r: Row) => moved(r) && Boolean(r.fundsCard) && Boolean(guaranteedCard);
   const income = selected.filter((r) => r.type === 'income' && !moved(r)).reduce((s, r) => s + r.amount, 0);
   const expense = selected.filter((r) => r.type === 'expense' && !moved(r)).reduce((s, r) => s + r.amount, 0);
   const movedCount = selected.filter(moved).length;
@@ -85,7 +91,7 @@ export function StatementImportReview({
       type: r.type,
       category: r.category,
       paymentMethod: card || creditPix(r) ? 'credit_card' : r.paymentMethod,
-      creditCardId: card?.id ?? (creditPix(r) ? pixCardId || null : null),
+      creditCardId: card?.id ?? (creditPix(r) ? pixCardId || null : fundsCard(r) ? guaranteedCard!.id : null),
       date: r.date,
       isFixed: false,
       isPaid: !card && !creditPix(r), // compra no cartão fica em aberto até a fatura ser paga
@@ -225,7 +231,11 @@ export function StatementImportReview({
                     {(r.duplicate || moved(r) || creditPix(r)) && (
                       <span className="mt-1 flex flex-wrap gap-1">
                         {r.duplicate && <span className="badge badge-info badge-sm">já está no app</span>}
-                        {moved(r) && <span className="badge badge-ghost badge-sm">↔ movimentação</span>}
+                        {moved(r) && (
+                          <span className="badge badge-ghost badge-sm">
+                            {fundsCard(r) ? `↔ limite do ${guaranteedCard!.name}` : '↔ movimentação'}
+                          </span>
+                        )}
                         {creditPix(r) && <span className="badge badge-warning badge-sm">Pix no crédito</span>}
                       </span>
                     )}

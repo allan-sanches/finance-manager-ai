@@ -39,6 +39,38 @@ describe('cardLimit', () => {
     expect(cardLimit({ limit: 1000, limitSavingsGoalId: null }, [inter])).toBe(1000);
   });
 
+  describe('limite garantido por investimento (CDB)', () => {
+    const card = { id: 'inter', limit: 5120.24, limitSavingsGoalId: null, securedLimit: true, limitDate: '2026-10-31' };
+    const move = (date: string, type: 'income' | 'expense', amount: number, extra = {}) => ({
+      date,
+      type,
+      amount,
+      creditCardId: 'inter',
+      isTransfer: true,
+      paymentMethod: 'bank_transfer' as const,
+      ...extra,
+    });
+
+    it('aplicação depois da data conferida aumenta, resgate diminui', () => {
+      const txs = [move('2026-11-02', 'expense', 270), move('2026-11-03', 'expense', 150), move('2026-11-05', 'income', 100)];
+      expect(cardLimit(card, [], txs)).toBe(5440.24);
+    });
+
+    it('ignora o que é até a data conferida, de outro cartão, compra no cartão ou não é movimentação', () => {
+      const txs = [
+        move('2026-10-31', 'expense', 1000),
+        move('2026-11-02', 'expense', 50, { creditCardId: 'outro' }),
+        move('2026-11-02', 'expense', 60, { paymentMethod: 'credit_card' }),
+        move('2026-11-02', 'expense', 70, { isTransfer: false }),
+      ];
+      expect(cardLimit(card, [], txs)).toBe(5120.24);
+    });
+
+    it('sem data conferida fica o valor cadastrado', () => {
+      expect(cardLimit({ ...card, limitDate: null }, [], [move('2026-11-02', 'expense', 270)])).toBe(5120.24);
+    });
+  });
+
   it('volta para o limite fixo se a caixinha sumiu ou é em dólar', () => {
     expect(cardLimit({ limit: 1000, limitSavingsGoalId: 'apagada' }, [inter])).toBe(1000);
     expect(

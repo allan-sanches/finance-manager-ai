@@ -83,7 +83,7 @@ export default function CaixinhasPage() {
   const saved = totalSavedBrl(goals, usdRate?.rate ?? null);
   // Cartão de limite garantido: o CDB que vira limite também é dinheiro guardado (ex.: Inter).
   // Mesma soma do card "Guardado" do dashboard (securedCardSavings).
-  const secured = securedCardSavings(creditCards, goals);
+  const secured = securedCardSavings(creditCards, goals, transactions);
   const securedCards = secured.cards.map(({ card, amount }) => ({
     card,
     limit: amount,

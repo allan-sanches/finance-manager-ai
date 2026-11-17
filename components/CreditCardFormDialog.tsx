@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { MoneyInput } from '@/components/MoneyInput';
-import { BRL } from '@/lib/finance';
+import { BRL, cardLimit, todayISO } from '@/lib/finance';
 import { parseMoneyInput, toMoneyInput } from '@/lib/money-mask';
 import { useFinanceStore } from '@/lib/store';
 import { useOpenedWith } from '@/lib/useMounted';
@@ -22,6 +22,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
   // Só caixinhas em reais podem garantir limite (o cartão é em R$).
   const allGoals = useFinanceStore((s) => s.savingsGoals);
   const goals = allGoals.filter((g) => g.currency === 'BRL');
+  const transactions = useFinanceStore((s) => s.transactions);
 
   const [name, setName] = useState('');
   const [limit, setLimit] = useState('');
@@ -40,7 +41,8 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
 
   if (useOpenedWith(open, initial)) {
     setName(initial?.name ?? '');
-    setLimit(toMoneyInput(initial?.limit));
+    // Limite garantido: mostra o valor de hoje (o conferido + aplicações e resgates depois dele).
+    setLimit(toMoneyInput(initial ? cardLimit({ ...initial, limitSavingsGoalId: null }, [], transactions) : undefined));
     setLimitGoalId(initial?.limitSavingsGoalId ?? '');
     setSecuredLimit(Boolean(initial?.securedLimit));
     setClosingDay(initial ? String(initial.closingDay) : '1');
@@ -70,6 +72,8 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
         limit: limitNum,
         limitSavingsGoalId: goal?.id ?? null,
         securedLimit,
+        // Salvar confere o valor hoje: só as movimentações daqui para frente mudam o limite.
+        limitDate: securedLimit && !goal ? todayISO() : null,
         closingDay: closing,
         dueDay: due,
       });
@@ -79,6 +83,7 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
         limit: limitNum,
         limitSavingsGoalId: goal?.id ?? null,
         securedLimit,
+        limitDate: securedLimit && !goal ? todayISO() : null,
         closingDay: closing,
         dueDay: due,
         currentInvoiceAmount: 0,
@@ -131,8 +136,14 @@ export function CreditCardFormDialog({ open, onClose, initial }: Props) {
             </p>
           ) : (
             <label className="form-control">
-              <span className="label-text">Limite total</span>
+              <span className="label-text">{securedLimit ? 'Valor do investimento hoje (limite)' : 'Limite total'}</span>
               <MoneyInput value={limit} onChange={setLimit} required />
+              {securedLimit && (
+                <span className="text-base-content/60 mt-1 text-xs">
+                  Daqui para frente, aplicações no investimento ligadas ao cartão aumentam o limite e
+                  resgates diminuem.
+                </span>
+              )}
             </label>
           )}
 

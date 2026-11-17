@@ -107,7 +107,7 @@ export function buildFinanceContext(snapshot: FinanceSnapshot, quotes: MarketQuo
   section(
     'Cartões de crédito (id | nome | limite | usado | disponível | fecha/vence)',
     creditCards.map((c) => {
-      const limit = cardLimit(c, savingsGoals);
+      const limit = cardLimit(c, savingsGoals, transactions);
       const usage = cardUsage(c.id, transactions, creditCardInvoices, today);
       const next = nextOpenInvoice(creditCardInvoices, c.id);
       return (
@@ -121,7 +121,7 @@ export function buildFinanceContext(snapshot: FinanceSnapshot, quotes: MarketQuo
 
   // Caixinhas
   const saved = totalSavedBrl(savingsGoals, usdRate);
-  const securedSavings = securedCardSavings(creditCards, savingsGoals).total;
+  const securedSavings = securedCardSavings(creditCards, savingsGoals, transactions).total;
   section(
     'Caixinhas de reserva (metas)',
     [

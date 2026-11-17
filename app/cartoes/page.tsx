@@ -53,7 +53,7 @@ export default function CartoesPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {creditCards.map((c, i) => {
-            const limit = cardLimit(c, savingsGoals);
+            const limit = cardLimit(c, savingsGoals, transactions);
             const limitGoal = savingsGoals.find(
               (g) => g.id === c.limitSavingsGoalId && g.currency === 'BRL',
             );

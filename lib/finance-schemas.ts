@@ -43,6 +43,7 @@ export const creditCardSchema = z.object({
   currentInvoiceAmount: money,
   limitSavingsGoalId: nullable(id),
   securedLimit: z.boolean().optional(),
+  limitDate: nullable(isoDate),
 });
 
 export const creditCardPatchSchema = creditCardSchema
