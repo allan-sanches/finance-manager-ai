@@ -39,7 +39,7 @@ export function descriptionSimilarity(a: string, b: string): number {
  *    Entre candidatos, ganha a data mais próxima e depois a descrição mais parecida.
  */
 export function findDuplicateEntries(
-  entries: ReadonlyArray<StatementEntry>,
+  entries: ReadonlyArray<Pick<StatementEntry, 'date' | 'type' | 'amount' | 'description'>>,
   existing: ReadonlyArray<Comparable>,
 ): Set<number> {
   const used = new Set<number>();

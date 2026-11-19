@@ -37,7 +37,7 @@ describe('marxRequestSchema', () => {
 
 describe('parseMarxReply', () => {
   it('aceita resposta sem lançamentos', () => {
-    expect(parseMarxReply({ reply: 'Tudo certo!' }, refs)).toEqual({ reply: 'Tudo certo!', transactions: [], goalMoves: [] });
+    expect(parseMarxReply({ reply: 'Tudo certo!' }, refs)).toEqual({ reply: 'Tudo certo!', transactions: [], goalMoves: [], duplicates: [] });
   });
 
   it('separa vários gastos e descarta só o item inválido', () => {

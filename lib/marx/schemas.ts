@@ -44,6 +44,8 @@ export type MarxReply = {
   transactions: TransactionDraft[];
   /** Movimentos de caixinha pedidos na mensagem; também só valem depois que o usuário confirma. */
   goalMoves: MarxGoalMove[];
+  /** Índices de `transactions` que já existem no app (ex.: vieram do extrato): chegam desmarcados. */
+  duplicates: number[];
 };
 
 const proposalSchema = z.object({
@@ -123,5 +125,5 @@ export function parseMarxReply(raw: unknown, refs: MarxRefs): MarxReply | null {
     goalMoves.push({ ...parsed.data, amount: Math.round(parsed.data.amount * 100) / 100 });
   }
 
-  return { reply: result.data.reply, transactions, goalMoves };
+  return { reply: result.data.reply, transactions, goalMoves, duplicates: [] };
 }

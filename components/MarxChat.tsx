@@ -32,6 +32,8 @@ type ChatItem = {
   role: 'user' | 'assistant';
   content: string;
   proposals?: TransactionDraft[];
+  /** Índices das propostas que já existem no app: chegam desmarcadas. */
+  duplicates?: number[];
   proposalStatus?: ProposalStatus;
   addedCount?: number;
   /** "1,4s · ChatGPT 4.1 mini": para comparar a velocidade dos modelos. */
@@ -154,7 +156,7 @@ ${documentResult}` : c,
         setError(payload.error);
         return;
       }
-      const { reply, transactions, goalMoves = [] } = payload.data;
+      const { reply, transactions, goalMoves = [], duplicates = [] } = payload.data;
       const seconds = ((performance.now() - startedAt) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
       setItems((current) => [
         ...current,
@@ -163,11 +165,11 @@ ${documentResult}` : c,
           role: 'assistant',
           content: reply,
           meta: `${seconds}s · ${marxModelLabel(payload.model)}`,
-          ...(transactions.length ? { proposals: transactions, proposalStatus: 'pending' as const } : {}),
+          ...(transactions.length ? { proposals: transactions, duplicates, proposalStatus: 'pending' as const } : {}),
           ...(goalMoves.length ? { goalMoves, goalMoveStatus: 'pending' as const } : {}),
         },
       ]);
-      if (transactions.some((tx) => tx.type === 'expense')) fireMarxLaser();
+      if (transactions.some((tx, i) => tx.type === 'expense' && !duplicates.includes(i))) fireMarxLaser();
     } catch {
       setError('Sem conexão com o servidor. Confere a internet e tenta de novo.');
     } finally {
@@ -333,6 +335,7 @@ ${documentResult}` : c,
                     {item.proposals && (
                       <ProposalReview
                         proposals={item.proposals}
+                        duplicates={item.duplicates ?? []}
                         status={item.proposalStatus ?? 'pending'}
                         addedCount={item.addedCount}
                         onSettle={(status, count) => settleProposals(item.id, status, count)}
@@ -647,11 +650,13 @@ function GoalMoveReview({
 
 function ProposalReview({
   proposals,
+  duplicates,
   status,
   addedCount,
   onSettle,
 }: {
   proposals: TransactionDraft[];
+  duplicates: number[];
   status: ProposalStatus;
   addedCount?: number;
   onSettle: (status: ProposalStatus, addedCount?: number) => void;
@@ -661,7 +666,9 @@ function ProposalReview({
   const bankAccounts = useFinanceStore((s) => s.bankAccounts);
   // Os valores são formatados na renderização: assinar o olho redesenha ao ligar/desligar.
   usePrivacyHidden();
-  const [selected, setSelected] = useState<ReadonlySet<number>>(() => new Set(proposals.map((_, i) => i)));
+  const [selected, setSelected] = useState<ReadonlySet<number>>(
+    () => new Set(proposals.map((_, i) => i).filter((i) => !duplicates.includes(i))),
+  );
 
   if (status === 'added') {
     return (
@@ -714,6 +721,7 @@ function ProposalReview({
                     {where ? ` · ${where}` : ''} · {shortDate(tx.date)}
                     {tx.isPaid === false ? ' · a pagar' : ''}
                   </span>
+                  {duplicates.includes(i) && <span className="badge badge-info badge-sm mt-1">já está no app</span>}
                 </span>
                 <span className={`shrink-0 font-bold ${tx.type === 'expense' ? 'text-error' : 'text-success'}`}>
                   {tx.type === 'expense' ? '−' : '+'}

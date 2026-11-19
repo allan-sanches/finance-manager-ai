@@ -6,6 +6,7 @@ import { getSessionUserId } from '@/lib/auth';
 import { getDb } from '@/lib/db';
 import { getBankSnapshot } from '@/lib/bank-snapshot';
 import { mergeCategoryNames, todayISO } from '@/lib/finance';
+import { findDuplicateEntries } from '@/lib/import/dedupe';
 import { buildFinanceContext } from '@/lib/marx/context';
 import { buildMarxSystemPrompt, MARX_RESPONSE_SCHEMA, toChatMessages } from '@/lib/marx/prompt';
 import { resolveMarxModel } from '@/lib/marx/models';
@@ -88,6 +89,18 @@ export async function POST(request: Request) {
   if (!reply) {
     console.error('[marx] resposta fora do formato esperado');
     return NextResponse.json({ ok: false, error: CONFUSED }, { status: 422 });
+  }
+
+  // O Marx só vê os lançamentos recentes; aqui a conferência é com todos (mesma regra do extrato:
+  // mesmo tipo e valor, até 1 dia de diferença). O repetido chega desmarcado e a resposta avisa.
+  const duplicates = [...findDuplicateEntries(reply.transactions, snapshot.transactions)].sort((a, b) => a - b);
+  if (duplicates.length > 0) {
+    reply.duplicates = duplicates;
+    const all = duplicates.length === reply.transactions.length;
+    reply.reply +=
+      duplicates.length === 1
+        ? `\n\n${all ? 'Esse lançamento já está' : 'Um desses lançamentos já está'} no app (provavelmente veio do extrato) e ficou desmarcado.`
+        : `\n\n${all ? 'Esses lançamentos já estão' : `${duplicates.length} desses lançamentos já estão`} no app (provavelmente vieram do extrato) e ficaram desmarcados.`;
   }
 
   return NextResponse.json({ ok: true, data: reply, model });
