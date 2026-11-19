@@ -19,7 +19,7 @@ import { StatementImportReview } from '@/components/StatementImportReview';
 import { BRL, DEBT_SOURCE_LABEL, PAYMENT_METHOD_LABEL, shortDate } from '@/lib/finance';
 import { findDuplicateEntries } from '@/lib/import/dedupe';
 import { DEFAULT_MARX_MODEL, isMarxModel, MARX_MODELS, marxModelLabel, type MarxModelId } from '@/lib/marx/models';
-import { MARX_MAX_MESSAGE_LENGTH, type MarxReply } from '@/lib/marx/schemas';
+import { MARX_MAX_MESSAGE_LENGTH, type MarxGoalMove, type MarxReply } from '@/lib/marx/schemas';
 import { shrinkImage } from '@/lib/shrinkImage';
 import { useFinanceStore } from '@/lib/store';
 import type { ImportPreview, Transaction, TransactionDraft } from '@/types/finance';
@@ -36,6 +36,9 @@ type ChatItem = {
   addedCount?: number;
   /** "1,4s · ChatGPT 4.1 mini": para comparar a velocidade dos modelos. */
   meta?: string;
+  /** Guardar/tirar dinheiro de caixinha, à espera da confirmação. */
+  goalMoves?: MarxGoalMove[];
+  goalMoveStatus?: 'pending' | 'done' | 'discarded';
   /** Arquivos que o usuário anexou (guardados para "Tentar de novo"). */
   files?: File[];
   /** Prévia do documento lido por /api/import, revisada dentro da conversa. */
@@ -151,7 +154,7 @@ ${documentResult}` : c,
         setError(payload.error);
         return;
       }
-      const { reply, transactions } = payload.data;
+      const { reply, transactions, goalMoves = [] } = payload.data;
       const seconds = ((performance.now() - startedAt) / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
       setItems((current) => [
         ...current,
@@ -161,6 +164,7 @@ ${documentResult}` : c,
           content: reply,
           meta: `${seconds}s · ${marxModelLabel(payload.model)}`,
           ...(transactions.length ? { proposals: transactions, proposalStatus: 'pending' as const } : {}),
+          ...(goalMoves.length ? { goalMoves, goalMoveStatus: 'pending' as const } : {}),
         },
       ]);
       if (transactions.some((tx) => tx.type === 'expense')) fireMarxLaser();
@@ -332,6 +336,17 @@ ${documentResult}` : c,
                         status={item.proposalStatus ?? 'pending'}
                         addedCount={item.addedCount}
                         onSettle={(status, count) => settleProposals(item.id, status, count)}
+                      />
+                    )}
+                    {item.goalMoves && (
+                      <GoalMoveReview
+                        moves={item.goalMoves}
+                        status={item.goalMoveStatus ?? 'pending'}
+                        onSettle={(status) =>
+                          setItems((current) =>
+                            current.map((i) => (i.id === item.id ? { ...i, goalMoveStatus: status } : i)),
+                          )
+                        }
                       />
                     )}
                     {item.document && (
@@ -546,6 +561,87 @@ function DocumentReview({
     <StatementImportReview preview={preview} {...handlers} />
   ) : (
     <DebtImportReview preview={preview} {...handlers} />
+  );
+}
+
+/** Guardar/tirar de caixinha proposto pelo Marx: os mesmos botões da tela Caixinhas, com confirmação. */
+function GoalMoveReview({
+  moves,
+  status,
+  onSettle,
+}: {
+  moves: MarxGoalMove[];
+  status: 'pending' | 'done' | 'discarded';
+  onSettle: (status: 'done' | 'discarded') => void;
+}) {
+  const goals = useFinanceStore((s) => s.savingsGoals);
+  const depositToGoal = useFinanceStore((s) => s.depositToGoal);
+  const withdrawFromGoal = useFinanceStore((s) => s.withdrawFromGoal);
+  usePrivacyHidden();
+
+  const rows = moves
+    .map((m) => ({ ...m, goal: goals.find((g) => g.id === m.goalId) }))
+    .filter((m): m is typeof m & { goal: NonNullable<typeof m.goal> } => Boolean(m.goal));
+  if (rows.length === 0) return null;
+
+  const format = (value: number, currency: 'BRL' | 'USD') =>
+    currency === 'USD' ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'USD' }).format(value) : BRL.format(value);
+
+  if (status === 'done') {
+    return (
+      <p className="text-success flex items-center gap-1 text-sm font-semibold">
+        <Check className="h-4 w-4" aria-hidden />
+        Caixinha atualizada
+      </p>
+    );
+  }
+  if (status === 'discarded') return <p className="text-base-content/50 text-sm">Movimento de caixinha descartado.</p>;
+
+  return (
+    <div className="panel border-2 border-violet-500/40 p-3">
+      <p className="eyebrow mb-2">Confira antes de mexer na caixinha</p>
+      <ul className="flex flex-col gap-2">
+        {rows.map((m, i) => {
+          const amount = m.action === 'withdraw' ? Math.min(m.amount, m.goal.currentAmount) : m.amount;
+          return (
+            <li key={i} className="flex min-h-11 items-center justify-between gap-3">
+              <span className="min-w-0">
+                <span className="block font-semibold">
+                  {m.action === 'withdraw' ? 'Tirar da' : 'Guardar na'} caixinha {m.goal.name}
+                </span>
+                <span className="text-base-content/60 block text-xs">
+                  Saldo: {format(m.goal.currentAmount, m.goal.currency)} →{' '}
+                  {format(m.goal.currentAmount + (m.action === 'withdraw' ? -amount : amount), m.goal.currency)}
+                </span>
+              </span>
+              <span className={`shrink-0 font-bold ${m.action === 'withdraw' ? 'text-error' : 'text-success'}`}>
+                {m.action === 'withdraw' ? '−' : '+'}
+                {format(amount, m.goal.currency)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mt-3 flex gap-2">
+        <button type="button" className="btn btn-ghost flex-1" onClick={() => onSettle('discarded')}>
+          Descartar
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary flex-[2]"
+          onClick={() => {
+            for (const m of rows) {
+              if (m.action === 'withdraw') withdrawFromGoal(m.goalId, Math.min(m.amount, m.goal.currentAmount));
+              else depositToGoal(m.goalId, m.amount);
+            }
+            onSettle('done');
+          }}
+        >
+          <Check className="h-5 w-5" aria-hidden />
+          Confirmar
+        </button>
+      </div>
+    </div>
   );
 }
 

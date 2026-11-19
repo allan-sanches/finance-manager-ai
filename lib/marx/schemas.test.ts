@@ -37,7 +37,7 @@ describe('marxRequestSchema', () => {
 
 describe('parseMarxReply', () => {
   it('aceita resposta sem lançamentos', () => {
-    expect(parseMarxReply({ reply: 'Tudo certo!' }, refs)).toEqual({ reply: 'Tudo certo!', transactions: [] });
+    expect(parseMarxReply({ reply: 'Tudo certo!' }, refs)).toEqual({ reply: 'Tudo certo!', transactions: [], goalMoves: [] });
   });
 
   it('separa vários gastos e descarta só o item inválido', () => {
@@ -82,5 +82,20 @@ describe('parseMarxReply', () => {
   it('recusa resposta sem texto', () => {
     expect(parseMarxReply({ transactions: [] }, refs)).toBeNull();
     expect(parseMarxReply(null, refs)).toBeNull();
+  });
+
+  it('aceita guardar/tirar de caixinha só com id da lista, arredondando centavos', () => {
+    const result = parseMarxReply(
+      {
+        reply: 'Tirei da caixinha.',
+        goalMoves: [
+          { goalId: 'veruska', action: 'withdraw', amount: 220.149 },
+          { goalId: 'inventada', action: 'deposit', amount: 10 },
+          { goalId: 'veruska', action: 'emprestar', amount: 10 },
+        ],
+      },
+      { ...refs, goalIds: ['veruska'] },
+    );
+    expect(result?.goalMoves).toEqual([{ goalId: 'veruska', action: 'withdraw', amount: 220.15 }]);
   });
 });

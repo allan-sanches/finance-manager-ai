@@ -83,6 +83,7 @@ export async function POST(request: Request) {
     cardIds: snapshot.creditCards.map((c) => c.id),
     accountIds: snapshot.bankAccounts.map((a) => a.id),
     categories,
+    goalIds: snapshot.savingsGoals.map((g) => g.id),
   });
   if (!reply) {
     console.error('[marx] resposta fora do formato esperado');

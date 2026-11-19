@@ -131,7 +131,7 @@ export function buildFinanceContext(snapshot: FinanceSnapshot, quotes: MarketQuo
   const saved = totalSavedBrl(savingsGoals, usdRate);
   const securedSavings = securedCardSavings(creditCards, savingsGoals, transactions).total;
   section(
-    'Caixinhas de reserva (metas)',
+    'Caixinhas de reserva (id | nome: saldo de meta)',
     [
       `Total guardado: ${money(saved.total + securedSavings)}${saved.usd > 0 && saved.usdInBrl == null ? ` + ${money(saved.usd, 'USD')} (sem cotação)` : ''}.`,
       ...savingsGoals.map((g) => {
@@ -145,7 +145,7 @@ export function buildFinanceContext(snapshot: FinanceSnapshot, quotes: MarketQuo
         ]
           .filter(Boolean)
           .join(', ');
-        return `- ${g.name}: ${money(g.currentAmount, g.currency)} de ${money(g.targetAmount, g.currency)}${progress}${extras ? ` | ${extras}` : ''}`;
+        return `- ${g.id} | ${g.name}: ${money(g.currentAmount, g.currency)} de ${money(g.targetAmount, g.currency)}${progress}${extras ? ` | ${extras}` : ''}`;
       }),
     ],
     '',

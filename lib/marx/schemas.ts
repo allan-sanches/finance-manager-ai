@@ -31,10 +31,19 @@ export const marxRequestSchema = z.object({
     ),
 });
 
+/** Guardar ou tirar dinheiro de uma caixinha (o mesmo que os botões da tela Caixinhas). */
+export type MarxGoalMove = {
+  goalId: string;
+  action: 'deposit' | 'withdraw';
+  amount: number;
+};
+
 export type MarxReply = {
   reply: string;
   /** Lançamentos que o Marx entendeu da mensagem; só entram depois que o usuário confirma. */
   transactions: TransactionDraft[];
+  /** Movimentos de caixinha pedidos na mensagem; também só valem depois que o usuário confirma. */
+  goalMoves: MarxGoalMove[];
 };
 
 const proposalSchema = z.object({
@@ -54,12 +63,20 @@ const replySchema = z.object({
   reply: z.string().trim().min(1).max(8000),
   // Uma proposta inválida não derruba a resposta: é descartada e as outras seguem.
   transactions: z.array(z.unknown()).max(MAX_PROPOSALS).optional(),
+  goalMoves: z.array(z.unknown()).max(MAX_PROPOSALS).optional(),
+});
+
+const goalMoveSchema = z.object({
+  goalId: z.string().trim().min(1),
+  action: z.enum(['deposit', 'withdraw']),
+  amount: z.coerce.number().finite().positive().max(10_000_000),
 });
 
 export type MarxRefs = {
   cardIds: ReadonlyArray<string>;
   accountIds: ReadonlyArray<string>;
   categories: ReadonlyArray<string>;
+  goalIds?: ReadonlyArray<string>;
 };
 
 /**
@@ -98,5 +115,13 @@ export function parseMarxReply(raw: unknown, refs: MarxRefs): MarxReply | null {
     });
   }
 
-  return { reply: result.data.reply, transactions };
+  // Caixinha só se for do usuário (id da lista); valor com centavos.
+  const goalMoves: MarxGoalMove[] = [];
+  for (const item of result.data.goalMoves ?? []) {
+    const parsed = goalMoveSchema.safeParse(item);
+    if (!parsed.success || !(refs.goalIds ?? []).includes(parsed.data.goalId)) continue;
+    goalMoves.push({ ...parsed.data, amount: Math.round(parsed.data.amount * 100) / 100 });
+  }
+
+  return { reply: result.data.reply, transactions, goalMoves };
 }

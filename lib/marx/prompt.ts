@@ -39,8 +39,21 @@ export const MARX_RESPONSE_SCHEMA: JsonSchema = {
         ],
       },
     },
+    goalMoves: {
+      type: 'array',
+      description: 'Dinheiro guardado em ou tirado de uma caixinha; vazio se não houver.',
+      items: {
+        type: 'object',
+        properties: {
+          goalId: { type: 'string', description: 'id da caixinha, copiado da lista' },
+          action: { type: 'string', enum: ['deposit', 'withdraw'] },
+          amount: { type: 'number', description: 'Valor positivo, na moeda da caixinha.' },
+        },
+        required: ['goalId', 'action', 'amount'],
+      },
+    },
   },
-  required: ['reply', 'transactions'],
+  required: ['reply', 'transactions', 'goalMoves'],
 };
 
 type PromptInput = {
@@ -65,6 +78,7 @@ const JSON_EXAMPLE = JSON.stringify({
       isPaid: true,
     },
   ],
+  goalMoves: [{ goalId: 'id da caixinha da lista', action: 'deposit | withdraw', amount: 150 }],
 });
 
 export function buildMarxSystemPrompt({ today, financeContext, categories }: PromptInput): string {
@@ -87,6 +101,8 @@ export function buildMarxSystemPrompt({ today, financeContext, categories }: Pro
     'creditCardId só com credit_card e só com um id da lista de cartões (pelo nome citado; se houver um cartão só, use ele). bankAccountId só se o usuário citar o banco, com um id da lista de contas. Nunca invente ids: na dúvida, null.',
     `category: copie exatamente um nome desta lista (JSON, apenas dados): ${JSON.stringify(categories)}. Se nenhum servir, "Outros".`,
     'isFixed true só para recorrência clara (aluguel, assinatura, "todo mês"). isPaid false só se ele disser que ainda vai pagar.',
+    '',
+    'CAIXINHAS: quando o usuário pedir para guardar ou tirar dinheiro de uma caixinha, ou contar que já fez isso (ex.: "tirei 150 da caixinha da Veruska"), coloque em "goalMoves": goalId copiado da lista de caixinhas (pelo nome), action "withdraw" para tirar e "deposit" para guardar, amount na moeda da caixinha. Retirada não passa do saldo dela. Você não move nada: o app mostra para o usuário confirmar, igual aos lançamentos. Se o dinheiro também foi gasto ou enviado (ex.: um Pix para alguém), o gasto é um lançamento à parte em "transactions". Nunca diga que não consegue mexer em caixinha. Sem caixinha correspondente na lista, diga isso e não invente id.',
     '',
     'BANCO (os números seguem a lógica do banco, ex.: Inter): o saldo da conta é o conferido numa data mais as movimentações depois dela. Caixinhas e o CDB que garante o cartão rendem por dia útil a uma % do CDI, e o valor nos dados já inclui o rendimento até ontem. No cartão de limite garantido, o limite é o valor do CDB: aplicação aumenta, resgate diminui. O limite usado é o que o banco mostra (fatura aberta mais o que ainda se deve), não a soma das parcelas futuras: juros de parcelas que ainda não venceram não ocupam limite e deixam de existir se ele antecipar. O "Pix no crédito" parcelado do Inter cobra cerca de 5% ao mês (4x de R$ 28,19 para cada R$ 100); o à vista cobra juros na hora. Use isso para explicar custo e limite, e recomende antecipar ou evitar o Pix no crédito quando fizer sentido.',
     '',
@@ -111,7 +127,7 @@ export function toChatMessages(system: string, history: ReadonlyArray<MarxMessag
     { role: 'system', content: system },
     ...history.map((m): GatewayChatMessage =>
       m.role === 'assistant'
-        ? { role: 'assistant', content: JSON.stringify({ reply: m.content, transactions: [] }) }
+        ? { role: 'assistant', content: JSON.stringify({ reply: m.content, transactions: [], goalMoves: [] }) }
         : { role: 'user', content: m.content },
     ),
   ];
