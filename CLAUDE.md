@@ -20,6 +20,8 @@ O aplicativo funciona como um ecossistema financeiro inteligente focado em prati
 
 ## 2. Diretrizes Técnicas Mandatórias
 
+> **Segurança:** toda tarefa segue o [SECURITY.md](SECURITY.md) — autenticação, isolamento entre usuários, IA, SSRF, segredos e LGPD. Se um pedido conflitar com ele, pare e explique o risco antes de seguir.
+
 ### 2.1 Naming Principle (Padrão de Dados em Inglês, Apresentação em PT-BR)
 
 Os campos no modelo de dados do front-end e nas requisições devem manter correspondência e consistência técnica com as propriedades padronizadas de engenharia de software financeiro. **Traduções de propriedades no código são estritamente proibidas.**
