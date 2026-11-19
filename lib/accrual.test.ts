@@ -7,8 +7,9 @@ import type { CreditCard, SavingsGoal } from '@/types/finance';
 describe('rendimento por dia útil', () => {
   const factor = dailyCdiFactor(14.9, 100);
 
-  it('100% do CDI a 14,9% a.a. rende ~0,0552% por dia útil', () => {
-    expect(factor).toBeCloseTo(1.000552, 6);
+  it('100% do CDI a 14,9% a.a. rende ~0,0551% por dia útil', () => {
+    // 1,149^(1/252) − 1 = 0,0005513…
+    expect(factor).toBeCloseTo(1.000551, 6);
   });
 
   it('rende só em dia útil: sexta → segunda são 1 dia (a segunda)', () => {

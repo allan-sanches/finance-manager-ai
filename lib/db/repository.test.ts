@@ -134,7 +134,8 @@ describe('caixinhas e listas', () => {
     await repo.depositToGoal(db, OWNER, 'g1', 200.5);
     await repo.withdrawFromGoal(db, OWNER, 'g1', 1000);
     const [goal] = (await repo.getSnapshot(db, OWNER)).savingsGoals;
-    expect(goal).toEqual(viagem);
+    // Sem data de conferência informada, a caixinha não rende (amountDate fica vazia).
+    expect(goal).toEqual({ ...viagem, amountDate: null });
   });
 
   it('depósito com data marca o resgate provável; editar o nome não muda a moeda', async () => {

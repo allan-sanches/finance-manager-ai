@@ -71,6 +71,8 @@ describe('parseStatementOutput', () => {
         type: 'expense',
         category: 'Outros',
         paymentMethod: 'debit',
+        isTransfer: false,
+        fundsCard: false,
       },
     ]);
   });
