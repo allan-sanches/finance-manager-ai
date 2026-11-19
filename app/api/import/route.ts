@@ -23,7 +23,8 @@ import {
 } from '@/lib/import/pdf-text';
 import { decodeText } from '@/lib/import/statement';
 import { looksLikeCardGuarantee, looksLikeTransfer, pairCreditPix } from '@/lib/import/transfers';
-import { clientKeyFromRequest, createRateLimiter } from '@/lib/rate-limit';
+import { createRateLimiter } from '@/lib/rate-limit';
+import { readLimitedFormData } from '@/lib/request-body';
 import type { ImportPreview, InvoicePreview, StatementEntry } from '@/types/finance';
 
 // Recebe o arquivo, devolve só a PRÉVIA tipada. Nada é gravado aqui: o usuário revisa na tela e
@@ -37,6 +38,9 @@ export const maxDuration = 200;
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_IMAGES = 8;
+// Teto do corpo inteiro (todos os arquivos + cabeçalhos do multipart), aplicado durante a leitura:
+// o limite por arquivo só dá para conferir depois que o formulário inteiro já está na memória.
+const MAX_BODY_BYTES = MAX_IMAGES * MAX_FILE_BYTES + 256 * 1024;
 const checkRateLimit = createRateLimiter({ limit: 10, windowMs: 60_000 });
 
 // 'auto' vem do chat do Marx: quem envia não escolhe o tipo. Prints viram Serasa, OFX/CSV viram
@@ -56,7 +60,8 @@ export async function POST(request: Request) {
   const userId = await getSessionUserId();
   if (!userId) return fail('Não autenticado.', 401);
 
-  const rate = checkRateLimit(`${userId}:${clientKeyFromRequest(request)}`);
+  // Por conta, não por IP: o X-Forwarded-For vem do cliente, e trocar o header daria limite novo.
+  const rate = checkRateLimit(userId);
   if (!rate.allowed) {
     return NextResponse.json(
       { ok: false, error: 'Muitas importações seguidas. Aguarde um pouco e tente de novo.' },
@@ -64,12 +69,13 @@ export async function POST(request: Request) {
     );
   }
 
-  let form: FormData;
-  try {
-    form = await request.formData();
-  } catch {
-    return fail('Envie o arquivo como multipart/form-data.', 400);
+  const body = await readLimitedFormData(request, MAX_BODY_BYTES);
+  if (!body.ok) {
+    return body.reason === 'too_large'
+      ? fail('Arquivos grandes demais para enviar de uma vez.', 413)
+      : fail('Envie o arquivo como multipart/form-data.', 400);
   }
+  const form = body.form;
 
   const requested = kindSchema.safeParse(form.get('kind'));
   if (!requested.success) return fail('Tipo de importação inválido.', 400);

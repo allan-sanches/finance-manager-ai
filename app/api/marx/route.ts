@@ -12,7 +12,7 @@ import { buildMarxSystemPrompt, MARX_RESPONSE_SCHEMA, toChatMessages } from '@/l
 import { resolveMarxModel } from '@/lib/marx/models';
 import { getMarketQuotes } from '@/lib/marx/quotes';
 import { marxRequestSchema, parseMarxReply } from '@/lib/marx/schemas';
-import { clientKeyFromRequest, createRateLimiter } from '@/lib/rate-limit';
+import { createRateLimiter } from '@/lib/rate-limit';
 
 // Assistente Marx: conversa com o DeepSeek (via Vercel AI Gateway) sobre os dados do usuário logado. Os dados saem do
 // banco aqui no servidor (pela sessão), nunca do que o navegador manda; a chave fica no servidor.
@@ -38,7 +38,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'Não autenticado.' }, { status: 401 });
   }
 
-  const rate = checkRateLimit(`marx:${userId}:${clientKeyFromRequest(request)}`);
+  // Por conta, não por IP: o X-Forwarded-For vem do cliente, e trocar o header daria limite novo.
+  const rate = checkRateLimit(userId);
   if (!rate.allowed) {
     return NextResponse.json(
       { ok: false, error: 'Muitas mensagens seguidas. Aguarde um instante antes de continuar.' },

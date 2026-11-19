@@ -1,6 +1,5 @@
 'use server';
 
-import { headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -25,15 +24,6 @@ const emailSchema = z.email();
 
 // A troca de senha confere a senha atual: limitar evita usar a tela como força bruta.
 const checkPasswordChangeRate = createRateLimiter({ limit: 5, windowMs: 60_000 });
-
-async function clientIp(): Promise<string> {
-  const requestHeaders = await headers();
-  return (
-    requestHeaders.get('x-forwarded-for')?.split(',')[0].trim() ??
-    requestHeaders.get('x-real-ip') ??
-    'anonymous'
-  );
-}
 
 /** E-mail já usado por outra conta. O índice único do banco é a garantia final. */
 async function emailTaken(email: string, exceptUserId?: string): Promise<boolean> {
@@ -61,7 +51,8 @@ export async function changePassword(
 ): Promise<ProfileFormState> {
   const userId = await requireUserId();
 
-  const rate = checkPasswordChangeRate(await clientIp());
+  // Por conta, não por IP: o X-Forwarded-For vem do cliente, e trocar o header daria limite novo.
+  const rate = checkPasswordChangeRate(userId);
   if (!rate.allowed) {
     return { ok: false, message: `Muitas tentativas. Tente de novo em ${rate.retryAfterSeconds}s.` };
   }

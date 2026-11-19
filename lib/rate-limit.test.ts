@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { clientKeyFromRequest, createRateLimiter } from '@/lib/rate-limit';
+import { createRateLimiter } from '@/lib/rate-limit';
 
 describe('createRateLimiter', () => {
   it('bloqueia depois do limite e libera ao fim da janela', () => {
@@ -19,16 +19,5 @@ describe('createRateLimiter', () => {
     expect(check('a', 0).allowed).toBe(true);
     expect(check('b', 0).allowed).toBe(true);
     expect(check('a', 0).allowed).toBe(false);
-  });
-});
-
-describe('clientKeyFromRequest', () => {
-  it('usa o primeiro IP do x-forwarded-for', () => {
-    const req = new Request('http://x', { headers: { 'x-forwarded-for': '1.1.1.1, 2.2.2.2' } });
-    expect(clientKeyFromRequest(req)).toBe('1.1.1.1');
-  });
-
-  it('cai para anonymous sem cabeçalhos', () => {
-    expect(clientKeyFromRequest(new Request('http://x'))).toBe('anonymous');
   });
 });

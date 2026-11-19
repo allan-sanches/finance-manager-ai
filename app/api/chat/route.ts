@@ -9,7 +9,7 @@ import { AI_PROVIDER_COOKIE } from '@/lib/ai-provider';
 import { getSessionUserId } from '@/lib/auth';
 import { userCategoryNames } from '@/lib/categories-server';
 import { chatRequestSchema } from '@/lib/chat-schemas';
-import { clientKeyFromRequest, createRateLimiter } from '@/lib/rate-limit';
+import { createRateLimiter } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,7 +29,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'Não autenticado.' }, { status: 401 });
   }
 
-  const rate = checkRateLimit(`${userId}:${clientKeyFromRequest(request)}`);
+  // Por conta, não por IP: o X-Forwarded-For vem do cliente, e trocar o header daria limite novo.
+  const rate = checkRateLimit(userId);
   if (!rate.allowed) {
     return NextResponse.json(
       { ok: false, error: 'Muitas requisições. Aguarde um pouco e tente de novo.' },

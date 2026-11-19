@@ -81,7 +81,7 @@ describe('POST /api/chat', () => {
     expect(await res.json()).toEqual({ ok: false, error: 'msg' });
   });
 
-  it('retorna 429 ao estourar o limite por IP', async () => {
+  it('retorna 429 ao estourar o limite da conta', async () => {
     extractMock.mockResolvedValue({ ok: true, data: {} });
     const { POST } = await import('./route');
     for (let i = 0; i < 10; i++) {
@@ -90,5 +90,23 @@ describe('POST /api/chat', () => {
     const res = await POST(post({ message: 'oi' }, '9.9.9.9'));
     expect(res.status).toBe(429);
     expect(res.headers.get('Retry-After')).toBeTruthy();
+  });
+
+  it('trocar o X-Forwarded-For não renova o limite', async () => {
+    extractMock.mockResolvedValue({ ok: true, data: {} });
+    const { POST } = await import('./route');
+    for (let i = 0; i < 10; i++) {
+      expect((await POST(post({ message: 'oi' }, `9.9.9.${i}`))).status).toBe(200);
+    }
+    expect((await POST(post({ message: 'oi' }, '8.8.8.8'))).status).toBe(429);
+  });
+
+  it('o limite de uma conta não bloqueia outra', async () => {
+    extractMock.mockResolvedValue({ ok: true, data: {} });
+    const { POST } = await import('./route');
+    for (let i = 0; i < 10; i++) await POST(post({ message: 'oi' }));
+    expect((await POST(post({ message: 'oi' }))).status).toBe(429);
+    sessionMock.mockResolvedValueOnce('outra-conta');
+    expect((await POST(post({ message: 'oi' }))).status).toBe(200);
   });
 });
