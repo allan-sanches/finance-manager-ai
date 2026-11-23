@@ -17,7 +17,7 @@ integrações externas, variáveis de ambiente ou deploy.
 | Camada | Onde | O que garante |
 |---|---|---|
 | Sessão | `lib/session.ts` | Cookie `fm_session` = `userId.versão.expira.hmac` (HMAC-SHA256 com `SESSION_SECRET` ≥ 32 caracteres). httpOnly, secure em produção, sameSite=lax, 30 dias. |
-| Primeira barreira | `proxy.ts` | Sem banco: confere só a assinatura. Públicas: `/login`, `/api/health`, `/api/cron/prices`. |
+| Primeira barreira | `proxy.ts` | Sem banco: confere só a assinatura. Públicas: `/login`, `/api/health`, `/api/cron/prices`, `/api/ai-spend`. |
 | Barreira real | `lib/auth.ts` | `getSessionUserId` confere a `sessionVersion` no banco (troca de senha derruba os outros aparelhos). `requireUserId` em toda página e Server Action. |
 | Isolamento | `lib/db/repository.ts` | Toda função recebe o `userId` da sessão e filtra com `own*(userId, id)`. IDs de cartão, conta e caixinha vindos do cliente passam por `existing*Id`. |
 | Senhas | `lib/password.ts`, `lib/account.ts` | scrypt (N=2^15) com salt. Hash falso quando o e-mail não existe, para o tempo de resposta não revelar quem tem conta. |
@@ -27,6 +27,7 @@ integrações externas, variáveis de ambiente ou deploy.
 | SSRF | `lib/product-fetch.ts` | Só http(s) nas portas 80/443. IP checado no lookup do socket (barra DNS rebinding). Redirecionamentos revalidados. Limite de tempo e tamanho. |
 | Cabeçalhos | `next.config.ts` | X-Frame-Options, CSP `frame-ancestors`, nosniff, Referrer-Policy, Permissions-Policy, HSTS. |
 | Cron | `lib/price-watch-secret.ts` | Bearer comparado em tempo constante. |
+| Gasto com IA | `lib/ai-spend-token.ts` | Bearer (`AI_SPEND_TOKEN`) comparado em tempo constante; sem a variável, a rota responde 404. Só somas do app, sem dado de usuário. |
 
 ---
 

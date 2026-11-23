@@ -148,6 +148,13 @@
       "when": 1794938374499,
       "tag": "0020_bank_logic",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795402967640,
+      "tag": "0021_ai_spend",
+      "breakpoints": true
     }
   ]
 }

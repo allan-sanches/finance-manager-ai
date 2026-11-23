@@ -12,6 +12,7 @@ import {
   type StructuredJsonResult,
 } from '@/lib/ai-prompt';
 import { parseExtraction, type CreditCardRef } from '@/lib/chat-schemas';
+import { recordAiSpend } from '@/lib/ai-spend';
 import { buildExtractionSchema } from '@/lib/gemini';
 
 // Vercel AI Gateway: endpoint compatível com OpenAI que roteia para o provedor do modelo
@@ -75,7 +76,18 @@ export function toJsonSchema(schema: Schema): JsonSchema {
 
 type ChatCompletionResponse = {
   choices?: Array<{ message?: { content?: string | null } }>;
+  // O gateway devolve o custo (USD) e os tokens de cada chamada.
+  usage?: { prompt_tokens?: number; completion_tokens?: number; cost?: number };
 };
+
+const recordSuccess = (model: string, usage: ChatCompletionResponse['usage']) =>
+  recordAiSpend({
+    model,
+    ok: true,
+    inputTokens: usage?.prompt_tokens,
+    outputTokens: usage?.completion_tokens,
+    costUsd: usage?.cost,
+  });
 
 async function complete(
   request: StructuredJsonRequest,
@@ -133,6 +145,7 @@ async function complete(
     });
     if (!response.ok) {
       console.error('[ai-gateway] chat/completions failed', response.status, (await response.text()).slice(0, 300));
+      await recordAiSpend({ model: gatewayModel, ok: false });
       // 401/403 vêm de chave, plano ou modelo fora do plano: tentar de novo não resolve.
       const error =
         response.status === 401 || response.status === 403
@@ -142,8 +155,10 @@ async function complete(
     }
     const payload = (await response.json()) as ChatCompletionResponse;
     raw = payload.choices?.[0]?.message?.content;
+    await recordSuccess(gatewayModel, payload.usage);
   } catch (err) {
     console.error('[ai-gateway] chat/completions failed', err);
+    await recordAiSpend({ model: gatewayModel, ok: false });
     return { ok: false, code: 'upstream_error', error: UPSTREAM_ERROR };
   }
 
@@ -200,6 +215,7 @@ export async function chatJsonWithGateway(
     });
     if (!response.ok) {
       console.error('[ai-gateway] chat/completions failed', response.status, (await response.text()).slice(0, 300));
+      await recordAiSpend({ model: model, ok: false });
       const error =
         response.status === 401 || response.status === 403
           ? GATEWAY_REJECTED_ERROR
@@ -208,8 +224,10 @@ export async function chatJsonWithGateway(
     }
     const payload = (await response.json()) as ChatCompletionResponse;
     raw = payload.choices?.[0]?.message?.content;
+    await recordSuccess(model, payload.usage);
   } catch (err) {
     console.error('[ai-gateway] chat/completions failed', err);
+    await recordAiSpend({ model: model, ok: false });
     return { ok: false, code: 'upstream_error', error: UPSTREAM_ERROR };
   }
 

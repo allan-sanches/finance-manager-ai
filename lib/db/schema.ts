@@ -176,6 +176,22 @@ export const settings = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.key] })],
 );
 
+// Gasto com IA no gateway: a soma de cada dia (UTC), por modelo (lib/ai-spend.ts). É do app
+// inteiro, por isso não tem dono: só números, sem usuário nem conteúdo. Custo em microdólares.
+export const aiSpend = pgTable(
+  'ai_spend',
+  {
+    day: text('day').notNull(),
+    model: text('model').notNull(),
+    requests: integer('requests').notNull().default(0),
+    failures: integer('failures').notNull().default(0),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    costMicro: integer('cost_micro').notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.model] })],
+);
+
 // Categorias do usuário. As transações guardam o NOME (texto), então apagar uma categoria não
 // apaga lançamentos: eles só voltam a aparecer com o visual de "Outros".
 export const categories = pgTable('categories', {

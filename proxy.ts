@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE, verifySessionToken } from '@/lib/session';
 
 // /api/cron/prices se protege com Bearer (lib/price-watch-secret.ts), não com sessão.
-const PUBLIC_PATHS = new Set(['/login', '/api/health', '/api/cron/prices']);
+// /api/ai-spend também: o dono lê o gasto com IA de fora, com o AI_SPEND_TOKEN (lib/ai-spend-token.ts).
+const PUBLIC_PATHS = new Set(['/login', '/api/health', '/api/cron/prices', '/api/ai-spend']);
 
 // Primeira barreira, sem banco: só confere a assinatura do cookie. Se a versão ainda vale (a senha
 // não foi trocada depois), quem confere é o lib/auth.ts em cada página, action e rota. Por isso o
